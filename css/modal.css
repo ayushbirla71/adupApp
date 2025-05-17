@@ -1,0 +1,201 @@
+/** Start of exit popup **/
+.popup_container {
+    overflow: hidden;
+    position: fixed;
+    top: 0px;
+    bottom: 0px;
+    right: 0px;
+    left: 0px;
+    background: rgba(0, 0, 0, .7);
+    z-index: 1000;
+}
+
+.exit_modal {
+    background:  #0b4165;
+    width: 923px;
+    height: 402px;
+    /* top: 0px; */
+    left: 54.3%;
+    position: absolute;
+    z-index: 999999999;
+    margin: 0px auto;
+    visibility: hidden;
+    display: none;
+    /* border: 3px solid #e50914; */
+    border-radius: 8px 8px;
+    font-family: 'Poppins-Bold';
+}
+
+.exit_modal_show {
+    top: 31.5%;
+    visibility: visible;
+    display: block;
+    transform: translate(-50%, 21.5%);
+}
+
+.popup_btn {
+    text-align: center;
+}
+
+.popup_headline {
+    font-size: 34px;
+    padding-top: 92px;
+    padding-bottom: 85px;
+    text-align: center;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.no_button {
+    width: 293px;
+    height: 69px;
+    text-align: center;
+    font-size: 26px;
+    margin-right: 23px;
+    border: none;
+    padding: 4px 4px;
+    border-radius: 32px;
+    /* background-color: rgba(255,255,255,.2); */
+    color: #000;
+    font-family: 'Poppins-Bold';
+}
+
+.yes_button {
+    width: 300px;
+    height: 69px;
+    text-align: center;
+    font-size: 26px;
+    border: none;
+    padding: 4px 4px;
+    border-radius: 32px;
+    /* background-color: rgba(255,255,255,.2); */
+    color: #000;
+    font-family: 'Poppins-Bold';
+}
+
+.popup_img {
+    width: 900px;
+    height: 460px;
+    position: absolute;
+    z-index: -1;
+}
+
+.popup_btn button:focus {
+    background-color: #209AED !important;
+    /* background-color: #f64827 !important; */
+    color: #fff !important;
+}
+
+/** End of exit popup **/
+
+/** Css for connection error popup **/
+
+.dialog_img {
+    float: left;
+    position: relative;
+    top: 12px;
+}
+
+.dialog_img img {
+    width: 29px;
+    ;
+}
+
+.popup_header {
+    font-size: 46px;
+    padding-left: 71px;
+    padding-right: 40px;
+    margin-top: 83px;
+    clear: both;
+    display: block;
+    float: left;
+    width: 100%;
+    line-height: 44px;
+    font-family: 'Poppins-Bold';
+}
+
+.dialog_txt {
+    padding-left: 16px;
+    color: #fff;
+    display: block;
+    font-size: 36px;
+    width: 85%;
+    margin-top: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    float: left;
+}
+
+.popup_description {
+    color: #fff;
+    font-size: 32px;
+    margin-bottom: 30px;
+    line-height: 47px;
+    padding-left: 70px;
+    padding-right: 60px;
+    height: 120px;
+    display: table-cell;
+    vertical-align: top;
+    padding-top: 25px;
+    font-family: 'Poppins-Bold';
+}
+
+.connection_btn {
+    font-size: 30px;
+    width: 370px;
+    height: 60px;
+    text-align: center;
+    border: none;
+    margin-top: 18px;
+    background-color: #cbcdcc;
+    color: #000;
+    margin-left: 0;
+    font-family: 'Poppins-Bold';
+}
+
+.connection_retry_btn {
+    font-size: 30px;
+    width: 370px;
+    height: 60px;
+    text-align: center;
+    border: none;
+    margin-left: 15px;
+    margin-top: 18px;
+    background-color: #cbcdcc;
+    color: #000;
+    border-radius: 0px;
+    font-family: 'Poppins-Bold';
+}
+
+.popup_connection {
+    width: 900px;
+    height: 450px;
+    top: 0px;
+    left: 50%;
+    position: absolute;
+    z-index: 999999;
+    margin: 0px auto;
+    visibility: hidden;
+    display: none;
+    transform: translate(-50%, -69%);
+    border: 3px solid #536385;
+    background: #162d5b;
+}
+
+.mod_bg_color {
+    background-size: contain !important;
+    background-repeat: no-repeat !Important;
+}
+
+.popup_new_box {
+    top: 50%;
+    visibility: visible;
+    display: block;
+}
+
+.zoom-in {
+    transform: scale(.95);
+}
+
+/** End css for connection error popup **/

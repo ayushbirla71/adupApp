@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Join Group</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/modal.css" />
+    <script src="lib/navigation/jquery.min.js"></script>
+    <script src="lib/navigation/lodash.min.js"></script>
+    <script src="lib/navigation/spatial_navigation.js"></script>
+    <script src="lib/common/date.js"></script>
+    <script src="lib/common/moment.js"></script>
+    <script src="js/common.js"></script>
+    <script src="lib/common/jsrsasign-all-min.js"></script>
+    <script src="js/ads.js" type="text/javascript"></script>
+    <script src="js/api.js" type="text/javascript"></script>
+    <script type="text/javascript" src="js/mqtt.min.js"></script>
+    <script type="text/javascript" src="js/device-storage.js"></script>
+  </head>
+  <body>
+    <div class="main-container">
+      <div class="joinGroup-container active" id="joinGroupContainer">
+        <div class="joinGroup">
+          <h1>Join Group</h1>
+          <!-- <form> -->
+          <label for="groupName">Group Name:</label>
+          <div class="input-container" id="groupNameContainer">
+            <input
+              class="input-field focusable"
+              tabindex="0"
+              data-sn-up="null"
+              data-sn-down="#joinGroupButton"
+              data-sn-left="null"
+              data-sn-right="null"
+              type="text"
+              id="groupId"
+              placeholder="Enter group name"
+            />
+            <button
+              class="join-butto focusable"
+              id="joinGroupButton"
+              tabindex="0"
+              data-sn-up="#groupId"
+              data-sn-down="null"
+              data-sn-left="null"
+              data-sn-right="null"
+              type="submit"
+            >
+              Join
+            </button>
+          </div>
+          <!-- </form> -->
+        </div>
+      </div>
+    </div>
+
+    <div class="ad-player-container">
+      <div class="ad-player-container-box">
+        <div class="ad-player" id="ad_player"></div>
+
+        <div id="ad_snippet">
+          <div id="sliding_text"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="login_loader" id="login_loader">
+      <div class="login_circle_loader"></div>
+    </div>
+
+    <span id="modal_container" class="modal_container">
+      <!-- Html file will come here -->
+    </span>
+    <script src="js/add-numbers-key.js" type="text/javascript"></script>
+    <script src="js/config.js " type="text/javascript "></script>
+    <script src="js/modal.js " type="text/javascript "></script>
+    <script src="js/main.js" type="text/javascript"></script>
+    <script src="js/add-numbers-key.js" type="text/javascript"></script>
+
+    <script src="js/utility.js" type="text/javascript"></script>
+    <script src="$WEBAPIS/webapis/webapis.js " type="text/javascript "></script>
+  </body>
+</html>

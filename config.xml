@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://yourdomain/BasicProject"
+        version="1.0.0"
+        viewmodes="fullscreen">
+
+    <name>BasicProject</name>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <description>Your Ad Display App</description>
+    <author email="you@example.com" href="http://yourdomain.com">Your Name</author>
+
+    <access origin="https://console.adup.live"/>
+    <access origin="http://localhost:8000"/>
+    <access origin="*"/>
+    <access origin="http://*"/>
+
+    <tizen:application id="0lKtwciFfw.adupApp" package="0lKtwciFfw" required_version="2.3"/>
+
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
+    <tizen:privilege name="http://tizen.org/privilege/download"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+
+    <tizen:setting 
+        screen-orientation="portrait"
+        context-menu="enable"
+        background-support="disable"
+        encryption="disable"
+        install-location="auto"
+        hwkey-event="enable"
+      
+        />
+
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+    <tizen:profile name="tv-samsung"/>
+
+    <tizen:metadata key="http://tizen.org/metadata/app_ui_type/base_screen_resolution" value="1080x1920"/>
+    <tizen:metadata key="http://tizen.org/metadata/prelaunch.support" value="enable"/>
+</widget>
