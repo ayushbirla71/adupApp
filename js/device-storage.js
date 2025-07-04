@@ -40,6 +40,8 @@ async function handleMQTTAds(payload) {
   }
 }
 
+// test
+
 // ✅ Extract filename from URL
 function getFileName(url) {
   return url.substring(url.lastIndexOf("/") + 1).split("?")[0];
@@ -138,84 +140,112 @@ function cleanUpOldAds(newFilenames) {
 }
 
 function playAllContentInLoop(filenames, ads, rcs) {
-  console.log("🎬 Starting playback of all content in loop...", filenames);
+  console.log("🎬 Starting smooth playback loop...");
+  const container = document.getElementById("ad_player");
   let index = 0;
-  let container = document.getElementById("ad_player");
 
-  // Call the function like this
-  startAdSlide("ad_snippet", rcs, 2); // container ID, text ID, speed
+  startAdSlide("ad_snippet", rcs, 2); // Start text animation
 
-  function next() {
-    if (!filenames || filenames.length === 0) {
-      console.warn("⚠️ No files to play.");
+  const getMediaType = (filename) => {
+    const ext = filename.split(".").pop().toLowerCase();
+    if (["jpg", "jpeg", "png", "gif"].includes(ext)) return "image";
+    if (["mp4", "webm", "mov"].includes(ext)) return "video";
+    return null;
+  };
+
+  const resolveFile = (fileName) => {
+    return new Promise((resolve, reject) => {
+      tizen.filesystem.resolve(
+        fileDir + "/" + fileName,
+        (file) => resolve(file.toURI()),
+        (err) => reject(err),
+        "r"
+      );
+    });
+  };
+
+  async function preloadAndShow(currentIndex) {
+    const currentFile = filenames[currentIndex];
+    const currentType = getMediaType(currentFile);
+
+    if (!currentType) {
+      console.warn("Unsupported format:", currentFile);
+      playNext();
       return;
     }
-    if (index >= filenames.length) index = 0;
-    let fileName = filenames[index];
-    let ext = fileName.split(".").pop().toLowerCase();
 
-    tizen.filesystem.resolve(
-      fileDir + "/" + fileName,
-      function (file) {
-        let fileUri = file.toURI();
+    try {
+      const uri = await resolveFile(currentFile);
 
-        // Clear previous content
-        container.innerHTML = "";
+      // Preload next content
+      const nextIndex = (currentIndex + 1) % filenames.length;
+      const nextFile = filenames[nextIndex];
+      const nextType = getMediaType(nextFile);
 
-        if (["mp4", "webm", "mov"].includes(ext)) {
-          console.log("🎥 Playing video:", fileUri);
-          // 🎥 Render Video
-          var video = document.createElement("video");
-          video.src = fileUri;
-          video.autoplay = true;
-          video.muted = true;
-          video.class = "ad_video";
-          video.controls = false;
-          video.style.width = "100vw";
-          video.style.height = "95vh";
-          video.style.objectFit = "fill"; // Try "cover" if you want to crop but cover full area
+      let preloadPromise = Promise.resolve();
+      if (nextType === "video") {
+        preloadPromise = resolveFile(nextFile).then((nextUri) => {
+          const preloader = document.createElement("video");
+          preloader.src = nextUri;
+          preloader.preload = "auto";
+          preloader.style.display = "none";
+          document.body.appendChild(preloader);
+          setTimeout(() => document.body.removeChild(preloader), 10000);
+        });
+      }
 
-          container.appendChild(video);
-          video.play();
-          video.onended = function () {
-            index++;
-            container.removeChild(video); // Remove video after playback
-            next();
-          };
-        } else if (["jpg", "jpeg", "png", "gif"].includes(ext)) {
-          console.log("🖼️ Displaying image:", fileUri);
-          // 🖼️ Render Image
-          var img = document.createElement("img");
-          img.src = fileUri;
-          // img.style.width = "auto";
-          img.class = "ad_image";
-          img.style.width = "auto";
-          img.style.height = "95vh";
-          img.style.objectFit = "cover";
-          // img.style.height = "100%";
-          container.appendChild(img);
-          setTimeout(function () {
-            index++;
-            container.removeChild(img); // Remove image after 5 seconds
-            next();
-          }, 10000); // Display image for 5 seconds
-        } else {
-          console.warn("⚠️ Unsupported format:", ext);
-          index++;
-          container.innerHTML = ""; // Clear container
-          next();
-        }
-      },
-      function (err) {
-        console.error("❌ Error loading file:", fileName, err.message);
-        index++;
-        next();
-      },
-      "r"
-    );
+      container.innerHTML = ""; // Clear previous
+
+      if (currentType === "image") {
+        const img = new Image();
+        img.src = uri;
+        img.className = "ad_image";
+        img.style.width = "auto";
+        img.style.height = "95vh";
+        img.style.objectFit = "cover";
+        container.appendChild(img);
+
+        await preloadPromise;
+
+        setTimeout(() => {
+          container.removeChild(img);
+          playNext();
+        }, 10000);
+      } else if (currentType === "video") {
+        const video = document.createElement("video");
+        video.src = uri;
+        video.autoplay = true;
+        video.muted = false;
+        video.volume = 1.0;
+        video.controls = false;
+        video.style.width = "100vw";
+        video.style.height = "95vh";
+        video.style.objectFit = "fill";
+        container.appendChild(video);
+
+        await preloadPromise;
+
+        video
+          .play()
+          .catch((err) => console.warn("Autoplay failed:", err.message));
+
+        video.onended = () => {
+          container.removeChild(video);
+          playNext();
+        };
+      }
+    } catch (error) {
+      console.error("❌ File error:", error.message);
+      playNext();
+    }
   }
 
-  next();
+  function playNext() {
+    index = (index + 1) % filenames.length;
+    preloadAndShow(index);
+  }
+
+  preloadAndShow(index); // Start
 }
 
 // function playAllContentInLoop(filenames, ads, rcs) {

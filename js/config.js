@@ -1,9 +1,9 @@
-window.APP_NAME = "HALL IV";
+window.APP_NAME = "ADUP APP";
 window.APP_VERSION = "1.0.0";
 window.APP_BUILD = "1.0.0";
 
 window.APP_BUILD_DATE = "2023-10-01";
-window.API_BASE_URL = "https://console.adup.live/api/";
+window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.SECRETKEY =
   "2182zy64mc64nswkemzmcbvjlaie44bd8cdkhsg312c81187ab82bbe053df6b7aa55";
 
