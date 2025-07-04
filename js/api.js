@@ -2,7 +2,7 @@ async function joinGroup() {
   const groupId = $("#groupId").val();
   // var groupId = "LEPLXX8D"; // Use var, not const
   if (!groupId) {
-    alert("Please enter a group ID.");
+    alert("Please enter license key.");
     return;
   }
 
@@ -33,6 +33,7 @@ async function joinGroup() {
       }),
       success: function (response) {
         console.log("Group joined successfully:", response);
+        showToast("success", "Group joined successfully");
 
         var newToken = response.token;
         var ads = response.ads;

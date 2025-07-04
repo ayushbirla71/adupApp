@@ -133,6 +133,7 @@ function connectMQTT(options) {
           console.log("ℹ️ Unknown device command:", data);
         }
       } else {
+        showToast("error", "Unknown topic: " + topic);
         console.warn("❓ Unknown topic:", topic);
       }
     } catch (e) {
@@ -142,6 +143,7 @@ function connectMQTT(options) {
 
   client.on("error", function (error) {
     console.error("🚨 MQTT Error:", error);
+    showToast("error", "MQTT Error");
   });
 
   client.on("close", function () {
@@ -176,6 +178,7 @@ function publishAcknowledgment(client) {
     function (err) {
       if (err) {
         console.error("❌ Error publishing acknowledgment:", err);
+        showToast("error", "Error publishing acknowledgment");
       } else {
         console.log("📤 Acknowledgment sent successfully");
       }
