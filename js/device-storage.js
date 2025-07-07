@@ -138,7 +138,6 @@ function cleanUpOldAds(newFilenames) {
     );
   });
 }
-
 function playAllContentInLoop(filenames, ads, rcs) {
   console.log("🎬 Starting smooth playback loop...");
   const container = document.getElementById("ad_player");
@@ -177,7 +176,7 @@ function playAllContentInLoop(filenames, ads, rcs) {
     try {
       const uri = await resolveFile(currentFile);
 
-      // Preload next content
+      // Preload next
       const nextIndex = (currentIndex + 1) % filenames.length;
       const nextFile = filenames[nextIndex];
       const nextType = getMediaType(nextFile);
@@ -194,21 +193,33 @@ function playAllContentInLoop(filenames, ads, rcs) {
         });
       }
 
-      container.innerHTML = ""; // Clear previous
+      // Create transition wrapper
+      const wrapper = document.createElement("div");
+      wrapper.className = "media-slide";
+      wrapper.style.opacity = 0;
+      wrapper.style.transition = "opacity 1s ease-in-out";
+      wrapper.style.position = "absolute";
+      wrapper.style.top = "0";
+      wrapper.style.left = "0";
+      wrapper.style.width = "100vw";
+      wrapper.style.height = "100vh";
+      wrapper.style.zIndex = 1;
 
       if (currentType === "image") {
         const img = new Image();
         img.src = uri;
         img.className = "ad_image";
-        img.style.width = "auto";
+        img.style.width = "100vw";
         img.style.height = "95vh";
         img.style.objectFit = "cover";
-        container.appendChild(img);
+        wrapper.appendChild(img);
+        container.appendChild(wrapper);
 
         await preloadPromise;
+        requestAnimationFrame(() => (wrapper.style.opacity = 1));
 
         setTimeout(() => {
-          container.removeChild(img);
+          fadeOutAndRemove(wrapper);
           playNext();
         }, 10000);
       } else if (currentType === "video") {
@@ -221,16 +232,16 @@ function playAllContentInLoop(filenames, ads, rcs) {
         video.style.width = "100vw";
         video.style.height = "95vh";
         video.style.objectFit = "fill";
-        container.appendChild(video);
+        wrapper.appendChild(video);
+        container.appendChild(wrapper);
 
         await preloadPromise;
+        requestAnimationFrame(() => (wrapper.style.opacity = 1));
 
-        video
-          .play()
-          .catch((err) => console.warn("Autoplay failed:", err.message));
+        video.play().catch((err) => console.warn("Autoplay failed:", err.message));
 
         video.onended = () => {
-          container.removeChild(video);
+          fadeOutAndRemove(wrapper);
           playNext();
         };
       }
@@ -240,152 +251,23 @@ function playAllContentInLoop(filenames, ads, rcs) {
     }
   }
 
+  function fadeOutAndRemove(el) {
+    el.style.opacity = 0;
+    setTimeout(() => {
+      if (el && el.parentNode === container) {
+        container.removeChild(el);
+      }
+    }, 1000); // Matches fade transition
+  }
+
   function playNext() {
     index = (index + 1) % filenames.length;
     preloadAndShow(index);
   }
 
-  preloadAndShow(index); // Start
+  preloadAndShow(index); // Start loop
 }
 
-// function playAllContentInLoop(filenames, ads, rcs) {
-//   console.log("🎬 Starting playback of all content...", filenames);
-//   let index = 0;
-//   let container = document.getElementById("ad_player");
-
-//   // Call the function like this
-//   startAdSlide("ad_snippet", rcs, 2);
-
-//   if (!container) {
-//     console.error("❌ ad_player container not found.");
-//     return;
-//   }
-
-//   container.style.overflow = "hidden";
-//   container.style.backgroundColor = "black";
-
-//   // Create two buffers for alternating content
-//   let buffers = [document.createElement("div"), document.createElement("div")];
-//   buffers.forEach((buffer, i) => {
-//     buffer.style.cssText = `
-//       position: absolute;
-//       top: 0; left: 0;
-//       width: 100%; height: 100%;
-//       display: flex;
-//       justify-content: center;
-//       align-items: center;
-//       opacity: 0;
-//       transition: opacity 0.3s ease;
-//       z-index: ${i + 1};
-//       background-color: black;
-//     `;
-//     container.appendChild(buffer);
-//   });
-
-//   let currentBuffer = 0;
-
-//   function next() {
-//     if (!filenames || filenames.length === 0) {
-//       console.warn("⚠️ No files provided.");
-//       return;
-//     }
-
-//     if (index >= filenames.length) index = 0;
-//     const fileName = filenames[index];
-//     const ext = fileName.split(".").pop().toLowerCase();
-
-//     console.log("➡️ Loading file:", fileName);
-
-//     tizen.filesystem.resolve(
-//       fileDir + "/" + fileName,
-//       function (file) {
-//         const fileUri = file.toURI();
-//         const buf = buffers[currentBuffer];
-//         const nextBuf = buffers[1 - currentBuffer];
-
-//         // Stop and cleanup video from the next buffer
-//         const oldVideo = nextBuf.querySelector("video");
-//         if (oldVideo) {
-//           oldVideo.pause();
-//           oldVideo.src = "";
-//           oldVideo.load(); // Unload the video
-//         }
-
-//         // Reset current buffer
-//         buf.innerHTML = "";
-//         nextBuf.style.opacity = "0"; // Hide previous buffer
-
-//         if (["mp4", "webm", "mov"].includes(ext)) {
-//           const video = document.createElement("video");
-//           video.src = fileUri;
-//           video.autoplay = true;
-//           video.muted = true;
-//           video.controls = false;
-//           video.style.width = "100%";
-//           video.style.height = "100vh";
-//           video.style.objectFit = "contain";
-//           video.style.backgroundColor = "black";
-//           video.loop = false;
-
-//           video.onerror = () => {
-//             console.warn("🚫 Failed to play video:", fileName);
-//             index++;
-//             next(); // Skip to next
-//           };
-
-//           video.onloadeddata = () => {
-//             console.log("🎥 Playing video:", fileUri);
-//             buf.appendChild(video);
-//             buf.style.opacity = "1";
-//           };
-
-//           video.onended = () => {
-//             buf.style.opacity = "0";
-//             currentBuffer = 1 - currentBuffer;
-//             index++;
-//             next();
-//           };
-//         } else if (["jpg", "jpeg", "png", "gif"].includes(ext)) {
-//           const img = document.createElement("img");
-//           img.src = fileUri;
-//           img.style.width = "auto";
-//           img.style.height = "100vh";
-//           img.style.objectFit = "cover";
-
-//           img.onload = () => {
-//             console.log("🖼️ Showing image:", fileUri);
-//             buf.appendChild(img);
-//             buf.style.opacity = "1";
-//             setTimeout(() => {
-//               buf.style.opacity = "0";
-//               currentBuffer = 1 - currentBuffer;
-//               index++;
-//               next();
-//             }, 10000); // Show image for 10 seconds
-//           };
-
-//           img.onerror = () => {
-//             console.warn("🚫 Failed to load image:", fileName);
-//             index++;
-//             next();
-//           };
-//         } else {
-//           console.warn("⚠️ Unsupported file type:", ext);
-//           index++;
-//           next();
-//         }
-//       },
-//       function (err) {
-//         console.error("❌ Failed to resolve file:", fileName, err.message);
-//         index++;
-//         next();
-//       },
-//       "r"
-//     );
-//   }
-
-//   next();
-// }
 
 function deleteFileFromDir(dir, name) {
   return new Promise(function (resolve, reject) {
