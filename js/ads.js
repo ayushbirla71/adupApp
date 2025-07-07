@@ -20,6 +20,8 @@ function connectMQTT(options) {
 
   console.log("🚀 MQTT Client Created");
 
+  handleMQTTAds({ ads: options.ads, rcs: options.rcs });
+
   client.on("connect", function () {
     console.log("✅ MQTT Connected");
     // client.subscribe("ads/" + group_id, function (err) {
