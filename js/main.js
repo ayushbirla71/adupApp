@@ -183,13 +183,24 @@ window.onload = function () {
         if (
           (!$("#groupId").is(":focus") &&
             !$("#joinGroupButton").is(":focus")) ||
+          $(".joinGroup-container").hasClass("active")
+        ) {
+          showToast(
+            "info",
+            "Device Id : " + localStorage.getItem("device_id"),
+            15000
+          );
+        }
+        if (
+          (!$("#groupId").is(":focus") &&
+            !$("#joinGroupButton").is(":focus")) ||
           $(".joinGroup-container").hasClass("active") ||
           $(".joinGroup-container").is(":visible") ||
           $(".ad-player-container").hasClass("active")
         ) {
           // NOTE: window.close may not work unless window was opened via JS
           console.log("Attempting to close window");
-          window.close();
+          // window.close();
         }
         break;
 

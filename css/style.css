@@ -59,6 +59,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 .ad-player-image {
   height: auto;
@@ -209,4 +210,47 @@ button:focus {
   100% {
     transform: rotate(1turn);
   }
+}
+#toast {
+  visibility: hidden;
+  display: inline-block;
+  padding: 16px;
+  position: fixed;
+  z-index: 1;
+  left: 50%;
+  top: 30px;
+  font-size: 26px;
+  color: white;
+  font-weight: bold;
+  border-radius: 4px;
+  background-color: #333;
+
+  /* Animation */
+  opacity: 0;
+  transition: opacity 0.5s, bottom 0.5s;
+
+  white-space: nowrap;
+
+  /* ✅ Center horizontally */
+  transform: translateX(-50%);
+}
+
+/* Toast types */
+#toast.success {
+  background-color: #4caf50;
+}
+#toast.error {
+  background-color: #f44336;
+}
+#toast.info {
+  background-color: #404446;
+}
+#toast.warning {
+  background-color: #ff9800;
+}
+
+#toast.show {
+  visibility: visible;
+  opacity: 1;
+  top: 80px;
 }

@@ -4,7 +4,8 @@ function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
 
-  let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
+  let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -133,6 +134,7 @@ function connectMQTT(options) {
           console.log("ℹ️ Unknown device command:", data);
         }
       } else {
+        showToast("error", "Unknown topic: " + topic);
         console.warn("❓ Unknown topic:", topic);
       }
     } catch (e) {
@@ -142,6 +144,7 @@ function connectMQTT(options) {
 
   client.on("error", function (error) {
     console.error("🚨 MQTT Error:", error);
+    showToast("error", "MQTT Error");
   });
 
   client.on("close", function () {
@@ -176,6 +179,7 @@ function publishAcknowledgment(client) {
     function (err) {
       if (err) {
         console.error("❌ Error publishing acknowledgment:", err);
+        showToast("error", "Error publishing acknowledgment");
       } else {
         console.log("📤 Acknowledgment sent successfully");
       }

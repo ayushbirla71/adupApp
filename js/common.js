@@ -158,3 +158,19 @@ function startAdSlide(containerId, textData, speed) {
 
   animate();
 }
+
+function showToast(type, message, timer) {
+  const toast = document.getElementById("toast");
+
+  // Remove all type classes
+  toast.className = "";
+
+  // Add type and show classes
+  toast.classList.add(type, "show");
+  toast.textContent = message;
+
+  // Remove the toast after 3 seconds
+  setTimeout(() => {
+    toast.className = "";
+  }, timer || 3000);
+}
