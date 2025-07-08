@@ -1,0 +1,10 @@
+<sssp_config>
+<app id="0lKtwciFfw.adupApp">
+<package_url>https://<my hosted url>/wgt/adupApp.wgt</package_url>
+<main>index.html</main>
+<auto_start>true</auto_start>
+<encryption>false</encryption>
+<resolution width="1080" height="1920"/>
+<required_version>2.3</required_version>
+</app>
+</sssp_config>

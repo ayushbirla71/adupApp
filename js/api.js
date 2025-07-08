@@ -1,6 +1,6 @@
 async function joinGroup() {
-   const groupId = $("#groupId").val();
-//  var groupId = "TESTXXBK"; // Use var, not const
+  //  const groupId = $("#groupId").val();
+  var groupId = "TESTIN1DIE"; // Use var, not const
   if (!groupId) {
     alert("Please enter license key.");
     return;
@@ -63,9 +63,9 @@ async function joinGroup() {
         SN.focus("#ad_player");
         var contentHTML = generateImageAds(ads[0]);
 
-        // var $element = $("#ad_player");
-        // $element.html("");
-        // $element.html(contentHTML);
+        var $element = $("#ad_player");
+        $element.html("");
+        $element.html(contentHTML);
 
         connectMQTT({
           device_id: decoded && decoded.device_id ? decoded.device_id : "",
