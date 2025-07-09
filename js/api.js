@@ -1,6 +1,6 @@
 async function joinGroup() {
-  //  const groupId = $("#groupId").val();
-  var groupId = "TESTIN1DIE"; // Use var, not const
+  const groupId = $("#groupId").val();
+  // var groupId = "TESTIN1DIE"; // Use var, not const
   if (!groupId) {
     alert("Please enter license key.");
     return;

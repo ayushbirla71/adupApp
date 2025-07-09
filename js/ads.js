@@ -61,14 +61,14 @@ function connectMQTT(options) {
               ads.push({
                 url: data.placeholder,
               });
-              processAds(client, ads, data.rcs);
+              processAds(client, ads, data.rcs, true);
             }
           );
         } else {
           ads.push({
             url: localStorage.getItem("placeholder"),
           });
-          processAds(client, ads, data.rcs);
+          processAds(client, ads, data.rcs, false);
         }
       } else if (topic.indexOf("device/") === 0) {
         console.log("🔧 Handling device-specific action...");
@@ -127,14 +127,18 @@ function connectMQTT(options) {
   window.mqttClient = client;
 }
 
-function processAds(client, ads, rcs) {
+function processAds(client, ads, rcs, placeholderUpdate) {
   ads = ads.filter(function (ad) {
     return ad.url && ad.url !== "null" && ad.url !== "undefined";
   });
 
   console.log("Ads:", ads);
   publishAcknowledgment(client);
-  handleMQTTAds({ ads: ads, rcs: rcs || "" });
+  handleMQTTAds({
+    ads: ads,
+    rcs: rcs || "",
+    placeholderUpdate: placeholderUpdate,
+  });
 }
 
 function publishAcknowledgment(client) {

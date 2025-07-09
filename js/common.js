@@ -170,7 +170,7 @@ function showToast(type, message, timer) {
   toast.textContent = message;
 
   // Remove the toast after 3 seconds
-  setTimeout(() => {
+  setTimeout(function() {
     toast.className = "";
   }, timer || 3000);
 }

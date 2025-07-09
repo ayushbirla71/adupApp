@@ -25,7 +25,9 @@ async function handleMQTTAds(payload) {
   const filenames = ads.map((ad) => getFileName(ad?.url, ad?.ad_id));
   const newSignature = filenames.join(",");
 
-  if (newSignature === lastAdSignature) {
+  startAdSlide("ad_snippet", rcs, 2);
+
+  if (newSignature === lastAdSignature && !payload.placeholderUpdate) {
     console.log("📭 No ad changes. Skipping update.");
     return;
   }
@@ -161,7 +163,6 @@ async function playAllContentInLoop(filenames, ads, rcs) {
 
   container.innerHTML = "";
   let index = 0;
-  startAdSlide("ad_snippet", rcs, 2);
 
   const getMediaType = (filename) => {
     const ext = filename.split(".").pop().toLowerCase();
