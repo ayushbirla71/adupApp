@@ -160,6 +160,10 @@ function processAds(client, ads, rcs, placeholderUpdate) {
   });
 
   console.log("Ads:", ads);
+  console.log(
+    placeholderUpdate ? "Placeholder updated" : "No placeholder update"
+  );
+
   publishAcknowledgment(client);
   handleMQTTAds({
     ads: ads,
