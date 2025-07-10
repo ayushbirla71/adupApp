@@ -1,13 +1,13 @@
 async function joinGroup() {
   const groupId = $("#groupId").val();
-  //  var groupId = "TESTXXBK"; // Use var, not const
+  // var groupId = "AYUSHGOQOI"; // Use var, not const
   if (!groupId) {
     alert("Please enter license key.");
     return;
   }
 
   $(".login_loader").show();
-  await deletePlaceHolderFile("downloads/subDir/placeholder.jpg");
+  await deletePlaceHolderFile("placeholder");
 
   getTVDeviceInfo().then(function (deviceInfo) {
     if (!deviceInfo) {
@@ -63,9 +63,9 @@ async function joinGroup() {
         SN.focus("#ad_player");
         var contentHTML = generateImageAds(ads[0]);
 
-        // var $element = $("#ad_player");
-        // $element.html("");
-        // $element.html(contentHTML);
+        var $element = $("#ad_player");
+        $element.html("");
+        $element.html(contentHTML);
 
         connectMQTT({
           device_id: decoded && decoded.device_id ? decoded.device_id : "",

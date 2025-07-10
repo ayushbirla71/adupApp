@@ -1,11 +1,9 @@
 // MQTT Configuration
-
 function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
 
-  let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
-  // let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
+  var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -24,102 +22,74 @@ function connectMQTT(options) {
 
   client.on("connect", function () {
     console.log("✅ MQTT Connected");
-    // client.subscribe("ads/" + group_id, function (err) {
-    //   if (err) {
-    //     console.error("❌ MQTT Subscription Error:", err);
-    //   } else {
-    //     console.log("📡 Subscribed to topic:");
-    //   }
-    // });
 
-    // Subscribe to group topic
-    const groupTopic = `ads/${group_id}`;
+    var groupTopic = "ads/" + group_id;
     client.subscribe(groupTopic, function (err) {
       if (err) {
-        console.error(`❌ MQTT Subscription Error for ${groupTopic}:`, err);
+        console.error(
+          "❌ MQTT Subscription Error for " + groupTopic + ":",
+          err
+        );
       } else {
-        console.log(`📡 Subscribed to topic: ${groupTopic}`);
+        console.log("📡 Subscribed to topic: " + groupTopic);
       }
     });
 
-    // Subscribe to device-specific topic
-    const deviceTopic = `device/${localStorage.getItem("device_id")}`;
+    var deviceTopic = "device/" + localStorage.getItem("device_id");
     client.subscribe(deviceTopic, function (err) {
       if (err) {
-        console.error(`❌ MQTT Subscription Error for ${deviceTopic}:`, err);
+        console.error(
+          "❌ MQTT Subscription Error for " + deviceTopic + ":",
+          err
+        );
       } else {
-        console.log(`📡 Subscribed to topic: ${deviceTopic}`);
+        console.log("📡 Subscribed to topic: " + deviceTopic);
       }
     });
   });
 
-  client.on("message", async function (topic, message) {
+  client.on("message", function (topic, message) {
     try {
-      let data = JSON.parse(message.toString());
-      console.log(`📥 MQTT message on topic '${topic}':`, data);
+      var data = JSON.parse(message.toString());
+      console.log("📥 MQTT message on topic '" + topic + "':", data);
 
-      if (topic.startsWith(`ads/`)) {
-        // handleMQTTAds(data.ads); // Call the function to handle ads
-        let ads = data.ads || []; // Assuming data is an array of ads
-        // var ads = [
-        //   {
-        //     ad_id: "c7a63684-b761-485a-bd1c-4dcbae9b9f54",
-        //     name: "NVR",
-        //     url: "https://adup-ads.s3.ap-south-1.amazonaws.com/ad-1742833840418.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAYHJANS7CQCPFUSXX%2F20250426%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20250426T074553Z&X-Amz-Expires=600&X-Amz-Signature=43cc470ae69a23ef213a590dd5004bca5ea363ccb3a9cd7498ee9ca9ae949b4b&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
-        //     duration: 10,
-        //     total_plays: 360,
-        //     start_time: "2025-04-26T06:00:00.000Z",
-        //   },
-        // ];
+      if (topic.indexOf("ads/") === 0) {
+        var ads = data.ads || [];
+        localStorage.setItem("ads", JSON.stringify(ads));
+        localStorage.setItem("rcs", data.rcs || "");
 
         if (data.placeholder) {
           localStorage.setItem("placeholder", data.placeholder);
-          await deletePlaceHolderFile("downloads/subDir/placeholder.jpg"); // Delete the old placeholder file
-          ads.push({
-            url: data.placeholder,
-          });
+          deletePlaceHolderFile("placeholder")
+            .then(function () {
+              ads.push({
+                url: data.placeholder,
+              });
+              processAds(client, ads, data.rcs, true);
+            })
+            .catch(function (error) {
+              console.error("❌ Error deleting placeholder file:", error);
+              processAds(client, ads, data.rcs, false);
+            });
         } else {
           ads.push({
             url: localStorage.getItem("placeholder"),
           });
+          processAds(client, ads, data.rcs, false);
         }
-
-        ads = ads.filter((ad) => {
-          return ad.url && ad.url !== "null" && ad.url !== "undefined";
-        });
-        // Assuming data is an array of ads
-        console.log("Ads:", ads);
-
-        let rcs = data.rcs; // Assuming data is an array of ads
-        publishAcknowledgment(client);
-        handleMQTTAds({ ads: ads, rcs: rcs });
-        //   if (data.ads)
-        //     //  syncAds(data.ads);
-        //     syncAds([
-        //       {
-        //         url: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
-        //       },
-        //        // Assuming the first ad is the one to play
-        //     ]);
-        // Send acknowledgment after receiving ads
-      } else if (topic.startsWith(`device/`)) {
-        // 🟦 Logic for 'device/device_id'
+      } else if (topic.indexOf("device/") === 0) {
         console.log("🔧 Handling device-specific action...");
 
         if (data.action === "exit") {
           console.log("🔌 Exiting application...");
-
-          // Step 1: Clear localStorage
           localStorage.clear();
 
-          // Step 2: Disconnect MQTT client
           if (client && typeof client.end === "function") {
-            client.end(true, () => {
+            client.end(true, function () {
               console.log("MQTT client disconnected.");
             });
           }
 
-          // Step 3: Attempt to close the application window
           try {
             if (typeof tizen !== "undefined" && tizen.application) {
               tizen.application.getCurrentApplication().exit();
@@ -146,7 +116,29 @@ function connectMQTT(options) {
 
   client.on("error", function (error) {
     console.error("🚨 MQTT Error:", error);
-    showToast("error", "MQTT Error");
+    showToast("error", "MQTT Connection Error – loading from local ads");
+
+    try {
+      let placeholder = localStorage.getItem("placeholder");
+      let adsFromLocalStorage = localStorage.getItem("ads");
+      let rcsFromLocalStorage = localStorage.getItem("rcs");
+
+      if (placeholder) {
+        ads.push({ url: placeholder });
+      }
+
+      if (adsFromLocalStorage) {
+        ads.push(...JSON.parse(adsFromLocalStorage));
+      }
+
+      if (typeof processAds === "function") {
+        processAds(client, ads, rcsFromLocalStorage || "", false);
+      } else {
+        console.warn("⚠️ processAds function is not available.");
+      }
+    } catch (e) {
+      console.error("❌ Error while loading local ads:", e.message);
+    }
   });
 
   client.on("close", function () {
@@ -161,8 +153,21 @@ function connectMQTT(options) {
     console.log("🔁 MQTT Reconnecting...");
   });
 
-  // Save reference globally
   window.mqttClient = client;
+}
+
+function processAds(client, ads, rcs, placeholderUpdate) {
+  ads = ads.filter(function (ad) {
+    return ad.url && ad.url !== "null" && ad.url !== "undefined";
+  });
+
+  console.log("Ads:", ads);
+  publishAcknowledgment(client);
+  handleMQTTAds({
+    ads: ads,
+    rcs: rcs || "",
+    placeholderUpdate: placeholderUpdate,
+  });
 }
 
 function publishAcknowledgment(client) {
@@ -171,7 +176,6 @@ function publishAcknowledgment(client) {
     return;
   }
 
-  // Publish acknowledgment message
   client.publish(
     "device/sync",
     JSON.stringify({
@@ -188,31 +192,62 @@ function publishAcknowledgment(client) {
     }
   );
 }
-function deletePlaceHolderFile(relativePath) {
-  return new Promise((resolve, reject) => {
+
+function deletePlaceHolderFile(fileBaseName) {
+  return new Promise(function (resolve, reject) {
     try {
-      const rootName = relativePath.split("/")[0]; // e.g., "downloads"
-      const fileSubPath = relativePath.substring(relativePath.indexOf("/") + 1); // "subDir/placeholder.jpg"
+      var rootName = "downloads/subDir";
 
       tizen.filesystem.resolve(
         rootName,
         function (root) {
           try {
-            const file = root.resolve(fileSubPath);
-
-            // File exists, attempt deletion
-            file.parent.deleteFile(file.fullPath);
-
-            console.log("✅ File deleted:", file.fullPath);
-            resolve(file.fullPath);
+            root.listFiles(
+              (entries) => {
+                const deletions = entries.filter(
+                  (entry) => entry.isFile && entry.name.startsWith(fileBaseName)
+                );
+                console.log("Found files to delete:", deletions);
+                if (deletions.length === 0) {
+                  console.log("ℹ️ No matching placeholder files found.");
+                  resolve();
+                  return;
+                }
+                const deletePromises = deletions.map((file) => {
+                  return new Promise((delResolve, delReject) => {
+                    root.deleteFile(
+                      file.fullPath,
+                      () => {
+                        console.log("✅ File deleted:", file.fullPath);
+                        delResolve(file.fullPath);
+                      },
+                      (err) => {
+                        console.error("❌ Error deleting file:", err.message);
+                        delReject(err);
+                      }
+                    );
+                  });
+                });
+                Promise.all(deletePromises)
+                  .then((deletedFiles) => {
+                    console.log("All specified files deleted:", deletedFiles);
+                    resolve(deletedFiles);
+                  })
+                  .catch((err) => {
+                    console.error("❌ Error during file deletion:", err);
+                    reject(err);
+                  });
+              },
+              (err) => reject(err)
+            );
           } catch (e) {
-            console.log("❌ Error during deletion:", e.message);
+            console.log("❌ Error during file lookup/deletion:", e.message);
             resolve();
           }
         },
         function (error) {
           if (error.name === "NotFoundError") {
-            console.log("ℹ️ File does not exist, nothing to delete.");
+            console.log("ℹ️ Directory does not exist.");
           } else {
             console.log("❌ Error resolving root:", error.message);
           }
@@ -221,7 +256,7 @@ function deletePlaceHolderFile(relativePath) {
         "rw"
       );
     } catch (error) {
-      console.log("⚠️ Exception while checking/deleting file:", error.message);
+      console.log("⚠️ Exception:", error.message);
       resolve();
     }
   });
