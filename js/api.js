@@ -94,7 +94,7 @@ async function registerDevice() {
         "Content-Type": "application/json",
       },
       data: JSON.stringify({
-        android_id: android_id,
+        android_id: deviceInfo.android_id,
       }),
       success: function (response) {
         console.log("Device registered successfully:", response);
@@ -102,8 +102,12 @@ async function registerDevice() {
         let { pairing_code } = response;
         localStorage.setItem("android_id", response.android_id);
         localStorage.setItem("device_id", response.device_id);
-        $("#pairing_code").text(pairing_code);
-        $(".pairing_code_container").show();
+        // Assuming pairing_code is a string of 6 digits
+        for (let i = 0; i < pairing_code.length; i++) {
+          $(`#digit-${i}`).text(pairing_code[i]);
+        }
+
+        $(".pairing-box").show();
         waitingForMqttReplyForDeviceConfirmation(
           response.android_id,
           response.device_id

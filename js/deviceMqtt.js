@@ -1,7 +1,7 @@
 function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
   // This function is called when the device confirmation is requested
-  let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
-  // let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
+  // let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
 
   var deviceConfirmationMqtt = mqtt.connect(url, {
     deviceConfirmationMqttId:
@@ -17,7 +17,7 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
 
   deviceConfirmationMqtt.on("connect", function () {
     console.log("✅ MQTT Connected for Device Confirmation");
-    const deviceTopic = `device/register/${android_id}/${deviceId}`;
+    const deviceTopic = `device/register/${android_id}`;
     deviceConfirmationMqtt.subscribe(deviceTopic, function (err) {
       if (err) {
         console.error(`❌ MQTT Subscription Error for ${deviceTopic}:`, err);
@@ -41,10 +41,13 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
         $(".ad-player-container").show();
         $(".ad-player-container").addClass("active");
         $(".joinGroup-container").removeClass("active");
-
+        localStorage.setItem("placeholder", data.placeholder || null);
         SN.focus("#ad_player");
+        data.ads.push({
+          url: data.placeholder || "",
+        });
         connectMQTT({
-          data,
+          ...data,
         }); // Reconnect to MQTT with the new device_id and group_id
       }
     } catch (error) {

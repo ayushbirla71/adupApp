@@ -17,6 +17,7 @@ function connectMQTT(options) {
   publishAcknowledgment(client); // Send acknowledgment after connecting
 
   console.log("🚀 MQTT Client Created");
+  console.log("data", options);
 
   handleMQTTAds({ ads: options.ads, rcs: options.rcs });
 
@@ -102,6 +103,12 @@ function connectMQTT(options) {
               "⚠️ Unable to close window. This may be blocked by browser security."
             );
           }
+        } else if (data.action === "updateGroup") {
+          client.end(); // Close the connection after confirmation
+          connectMQTT({
+            device_id: data.device_id || localStorage.getItem("device_id"),
+            group_id: data.group_id || localStorage.getItem("group_id"),
+          }); // Reconnect to MQTT with the new device_id and group_id
         } else {
           console.log("ℹ️ Unknown device command:", data);
         }

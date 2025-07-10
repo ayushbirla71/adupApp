@@ -127,7 +127,7 @@
 //   }
 // }
 
-window.onload = function () {
+window.onload = async function () {
   console.log("Main screen");
   window.SN = SpatialNavigation;
   SN.init();
@@ -169,13 +169,13 @@ window.onload = function () {
     });
   } else {
     manage_spatial_navigation("joinGroup-container");
+    await registerDevice();
+    // setTimeout(function () {
+    //   $(".login_loader").hide();
+    // }, 1000);
 
-    setTimeout(function () {
-      $(".login_loader").hide();
-    }, 1000);
-
-    $(".ad-player-container").addClass("active");
-    SN.focus("#groupId");
+    // $(".pairing-container").addClass("active");
+    // SN.focus("#pairingBox");
   }
 
   $(window).keydown(function (evt) {

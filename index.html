@@ -20,6 +20,7 @@
     <!-- App Scripts -->
     <script src="js/common.js" type="text/javascript"></script>
     <script src="js/ads.js" type="text/javascript"></script>
+    <script src="js/deviceMqtt.js" type="text/javascript"></script>
     <script src="js/api.js" type="text/javascript"></script>
     <script src="js/mqtt.min.js" type="text/javascript"></script>
     <script src="js/device-storage.js" type="text/javascript"></script>
@@ -65,15 +66,15 @@
       </div> -->
 
       <div class="pairing-container" id="pairingContainer">
-        <div class="pairing-box" id="pairingBox">
+        <div class="pairing-box focusable" id="pairingBox">
           <div class="pairing-title">Pairing Code</div>
           <div class="pairing-code-display" id="pairing_code">
-            <div class="pairing-digit">1</div>
-            <div class="pairing-digit">2</div>
-            <div class="pairing-digit">3</div>
-            <div class="pairing-digit">4</div>
-            <div class="pairing-digit">5</div>
-            <div class="pairing-digit">6</div>
+            <div class="pairing-digit" id="digit-0"></div>
+            <div class="pairing-digit" id="digit-1"></div>
+            <div class="pairing-digit" id="digit-2"></div>
+            <div class="pairing-digit" id="digit-3"></div>
+            <div class="pairing-digit" id="digit-4"></div>
+            <div class="pairing-digit" id="digit-5"></div>
           </div>
         </div>
       </div>
