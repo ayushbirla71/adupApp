@@ -1,16 +1,20 @@
+// Tizen Ad Loop Player - Handles large video downloads & async loading
+
 const fileDir = "downloads/subDir";
 let localAds = []; // Tracks local ad filenames
 let adsFromServer = []; // Tracks ads from MQTT
+let adLoopTimeouts = []; // 🔁 To track all timeouts
+let currentVideo = null; // 🔇 To track currently playing video
+let lastAdSignature = ""; // For checking ad updates
 
-// ✅ Create directory first (safe to call multiple times)
-var successCallback = function (fileDir) {
-  console.log("New directory has been created: " + fileDir);
-};
-var errorCallback = function (error) {
-  console.log(error);
-};
-tizen.filesystem.createDirectory(fileDir, successCallback, errorCallback);
+// ✅ Ensure directory exists
+tizen.filesystem.createDirectory(
+  fileDir,
+  (dir) => console.log("📁 Directory created:", dir),
+  (err) => console.error("❌ Directory creation error:", err.message)
+);
 
+// 📥 Handle ads from MQTT payload
 async function handleMQTTAds(payload) {
   const ads = payload.ads;
   const rcs = payload.rcs;
@@ -18,33 +22,44 @@ async function handleMQTTAds(payload) {
   console.log("📥 Received ads:", ads);
   adsFromServer = ads;
 
-  const filenames = ads.map((ad) => getFileName(ad.url));
+  const filenames = ads.map((ad) => getFileName(ad?.url, ad?.ad_id));
+  const newSignature = filenames.join(",");
+
+  startAdSlide("ad_snippet", rcs, 2);
+
+  if (newSignature === lastAdSignature && !payload.placeholderUpdate) {
+    console.log("📭 No ad changes. Skipping update.");
+    return;
+  }
+
+  lastAdSignature = newSignature;
   localAds = filenames;
 
   try {
-    // Step 1: Clean old ads
     await cleanUpOldAds(filenames);
     console.log("🧹 Cleanup done!");
 
-    // Step 2: Download new content
-    const downloadTasks = filenames.map((name, index) =>
-      checkAndDownloadContent(ads[index].url, name)
-    );
-    await Promise.all(downloadTasks);
-    console.log("✅ All content downloaded, starting playback...", rcs);
+    // Download all files first (sequential or parallel)
+    for (let i = 0; i < filenames.length; i++) {
+      await checkAndDownloadContent(ads[i].url, filenames[i]);
+    }
+    console.log("✅ All downloads complete, starting playback");
 
-    // Step 3: Start playback
     playAllContentInLoop(filenames, ads, rcs);
   } catch (err) {
     console.error("❌ Error in ad handling:", err.message || err);
   }
 }
 
-// test
-
-// ✅ Extract filename from URL
-function getFileName(url) {
-  return url.substring(url.lastIndexOf("/") + 1).split("?")[0];
+function getFileName(url, ad_id) {
+  const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
+  const dotIndex = originalName.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return ad_id ? `${originalName}_${ad_id}` : originalName;
+  }
+  const nameWithoutExt = originalName.substring(0, dotIndex);
+  const extension = originalName.substring(dotIndex);
+  return ad_id ? `${nameWithoutExt}_${ad_id}${extension}` : originalName;
 }
 
 async function checkAndDownloadContent(url, fileName) {
@@ -53,7 +68,7 @@ async function checkAndDownloadContent(url, fileName) {
       fileDir,
       (dir) => {
         try {
-          dir.resolve(fileName); // If no exception, file exists
+          dir.resolve(fileName);
           console.log("✅ Already downloaded:", fileName);
           resolve();
         } catch (e) {
@@ -62,20 +77,17 @@ async function checkAndDownloadContent(url, fileName) {
           const downloadId = tizen.download.start(request);
 
           tizen.download.setListener(downloadId, {
-            onprogress: (id, receivedSize, totalSize) =>
-              console.log("⬇️ Progress:", id, receivedSize + "/" + totalSize),
+            onprogress: (id, received, total) =>
+              console.log(`⬇️ ${fileName}: ${received}/${total}`),
             onpaused: (id) => console.log("⏸️ Paused:", id),
-            oncanceled: (id) => {
-              console.log("❌ Canceled:", id);
-              resolve(); // You may want to reject instead
-            },
+            oncanceled: (id) => resolve(),
             oncompleted: (id, path) => {
               console.log("✅ Completed:", path);
               resolve();
             },
             onfailed: (id, error) => {
-              console.log("❌ Failed:", id, error);
-              resolve(); // Or reject if needed
+              console.warn("❌ Failed to download:", fileName);
+              resolve();
             },
           });
         }
@@ -89,61 +101,68 @@ async function checkAndDownloadContent(url, fileName) {
   });
 }
 
-// ✅ Clean up old files that are not in the new list
-
 function cleanUpOldAds(newFilenames) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     tizen.filesystem.resolve(
       fileDir,
-      function (dir) {
-        try {
-          dir.listFiles(
-            function (entries) {
-              let deletePromises = [];
-
-              entries.forEach(function (entry) {
-                var name = entry.name;
-                if (newFilenames.indexOf(name) === -1) {
-                  // Push the delete promise to the array
-                  deletePromises.push(deleteFileFromDir(dir, name));
-                }
-              });
-
-              // Wait for all deletions to finish
-              Promise.all(deletePromises)
-                .then(function () {
-                  console.log("✅ All files deleted.");
-                  resolve(); // Resolve after all deletions are complete
-                })
-                .catch(function (error) {
-                  console.error("❌ Error deleting some files:", error);
-                  reject(error); // Reject if any deletion fails
-                });
-            },
-            function (error) {
-              console.error("❌ Failed to list files:", error.message);
-              reject(error);
-            }
-          );
-        } catch (err) {
-          console.error("❌ Directory read error:", err.message);
-          reject(err);
-        }
+      (dir) => {
+        dir.listFiles(
+          (entries) => {
+            const deletions = entries
+              .filter((entry) => !newFilenames.includes(entry.name))
+              .map((entry) => deleteFileFromDir(dir, entry.name));
+            Promise.all(deletions).then(resolve).catch(reject);
+          },
+          (err) => reject(err)
+        );
       },
-      function (err) {
-        console.error("❌ Directory resolve failed:", err.message);
-        reject(err);
-      },
+      (err) => reject(err),
       "rw"
     );
   });
 }
-function playAllContentInLoop(filenames, ads, rcs) {
-  console.log("🎬 Starting smooth playback loop...");
-  const container = document.getElementById("ad_player");
-  let index = 0;
 
-  startAdSlide("ad_snippet", rcs, 2); // Start text animation
+function deleteFileFromDir(dir, name) {
+  return new Promise((resolve, reject) => {
+    dir.deleteFile(
+      `${fileDir}/${name}`,
+      () => {
+        console.log("🗑️ Deleted:", name);
+        resolve();
+      },
+      (err) => {
+        console.error("❌ Delete failed:", name, err.message);
+        reject(err);
+      }
+    );
+  });
+}
+
+async function playAllContentInLoop(filenames, ads, rcs) {
+  const container = document.getElementById("ad_player");
+  if (!container) {
+    console.error("❌ 'ad_player' container not found");
+    return;
+  }
+
+  console.log("🎬 Starting playback loop...", filenames);
+  adLoopTimeouts.forEach(clearTimeout);
+  adLoopTimeouts.length = 0;
+
+  if (currentVideo) {
+    try {
+      currentVideo.pause();
+      currentVideo.src = "";
+      currentVideo.load();
+      currentVideo.remove();
+    } catch (e) {
+      console.warn("⚠️ Error cleaning video:", e.message);
+    }
+    currentVideo = null;
+  }
+
+  container.innerHTML = "";
+  let index = 0;
 
   const getMediaType = (filename) => {
     const ext = filename.split(".").pop().toLowerCase();
@@ -152,135 +171,113 @@ function playAllContentInLoop(filenames, ads, rcs) {
     return null;
   };
 
-  const resolveFile = (fileName) => {
-    return new Promise((resolve, reject) => {
+  const resolveFile = (fileName) =>
+    new Promise((resolve, reject) => {
       tizen.filesystem.resolve(
-        fileDir + "/" + fileName,
+        `${fileDir}/${fileName}`,
         (file) => resolve(file.toURI()),
-        (err) => reject(err),
+        reject,
         "r"
       );
     });
-  };
 
   async function preloadAndShow(currentIndex) {
-    const currentFile = filenames[currentIndex];
-    const currentType = getMediaType(currentFile);
+    console.log("🔄 Preloading ad at index:", currentIndex);
+    if (currentIndex >= filenames.length) currentIndex = 0;
 
-    if (!currentType) {
-      console.warn("Unsupported format:", currentFile);
-      playNext();
+    const currentFile = filenames[currentIndex];
+    const type = getMediaType(currentFile);
+    if (!type) {
+      console.warn("⛔ Unsupported format:", currentFile);
+      preloadAndShow(currentIndex + 1);
       return;
     }
 
     try {
       const uri = await resolveFile(currentFile);
-
-      // Preload next
-      const nextIndex = (currentIndex + 1) % filenames.length;
-      const nextFile = filenames[nextIndex];
-      const nextType = getMediaType(nextFile);
-
-      let preloadPromise = Promise.resolve();
-      if (nextType === "video") {
-        preloadPromise = resolveFile(nextFile).then((nextUri) => {
-          const preloader = document.createElement("video");
-          preloader.src = nextUri;
-          preloader.preload = "auto";
-          preloader.style.display = "none";
-          document.body.appendChild(preloader);
-          setTimeout(() => document.body.removeChild(preloader), 10000);
-        });
+      if (!uri) {
+        console.warn("📛 Skipped (not resolved):", currentFile);
+        preloadAndShow(currentIndex + 1);
+        return;
       }
 
-      // Create transition wrapper
       const wrapper = document.createElement("div");
       wrapper.className = "media-slide";
-      wrapper.style.opacity = 0;
-      wrapper.style.transition = "opacity 1s ease-in-out";
-      wrapper.style.position = "absolute";
-      wrapper.style.top = "0";
-      wrapper.style.left = "0";
-      wrapper.style.width = "100vw";
-      wrapper.style.height = "100vh";
-      wrapper.style.zIndex = 1;
+      wrapper.style.cssText = `opacity:0;transition:opacity 1s ease-in-out;position:absolute;top:0;left:0;width:100vw;height:100vh;z-index:1;`;
 
-      if (currentType === "image") {
+      if (type === "image") {
         const img = new Image();
         img.src = uri;
         img.className = "ad_image";
-        img.style.width = "100vw";
-        img.style.height = "95vh";
-        img.style.objectFit = "cover";
+
         wrapper.appendChild(img);
         container.appendChild(wrapper);
 
-        await preloadPromise;
         requestAnimationFrame(() => (wrapper.style.opacity = 1));
-
-        setTimeout(() => {
-          fadeOutAndRemove(wrapper);
-          playNext();
-        }, 10000);
-      } else if (currentType === "video") {
+        if (filenames.length > 1) {
+          console.log("📸 Single image ad, no loop needed");
+          const timeout = setTimeout(() => {
+            fadeOutAndRemove(wrapper);
+            preloadAndShow(currentIndex + 1);
+          }, 10000);
+          adLoopTimeouts.push(timeout);
+        }
+      } else if (type === "video") {
         const video = document.createElement("video");
         video.src = uri;
-        video.autoplay = true;
+        video.preload = "auto";
+        video.load();
+        video.autoplay = false;
         video.muted = false;
         video.volume = 1.0;
         video.controls = false;
-        video.style.width = "100vw";
-        video.style.height = "95vh";
-        video.style.objectFit = "fill";
+        video.style.cssText = "width:100vw;height:95vh;object-fit:fill;";
         wrapper.appendChild(video);
         container.appendChild(wrapper);
 
-        await preloadPromise;
-        requestAnimationFrame(() => (wrapper.style.opacity = 1));
+        currentVideo = video;
 
-        video.play().catch((err) => console.warn("Autoplay failed:", err.message));
+        requestAnimationFrame(() => {
+          wrapper.style.opacity = 1;
+          setTimeout(() => {
+            video.play().catch((err) => {
+              console.warn("▶️ Video play failed:", err.message);
+              fadeOutAndRemove(wrapper);
+              preloadAndShow(currentIndex + 1);
+            });
+          }, 300);
+        });
 
         video.onended = () => {
           fadeOutAndRemove(wrapper);
-          playNext();
+          preloadAndShow(currentIndex + 1);
         };
       }
     } catch (error) {
-      console.error("❌ File error:", error.message);
-      playNext();
+      console.error("❌ Error loading:", error.message);
+      preloadAndShow(currentIndex + 1);
     }
   }
 
   function fadeOutAndRemove(el) {
     el.style.opacity = 0;
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       if (el && el.parentNode === container) {
         container.removeChild(el);
       }
-    }, 1000); // Matches fade transition
+    }, 1000);
+    adLoopTimeouts.push(timeout);
   }
 
-  function playNext() {
-    index = (index + 1) % filenames.length;
-    preloadAndShow(index);
+  preloadAndShow(index);
+}
+
+window.addEventListener("unload", () => {
+  if (currentVideo) {
+    currentVideo.pause();
+    currentVideo.src = "";
+    currentVideo.load();
+    currentVideo.remove();
   }
-
-  preloadAndShow(index); // Start loop
-}
-
-
-function deleteFileFromDir(dir, name) {
-  return new Promise(function (resolve, reject) {
-    dir.deleteFile(
-      fileDir + "/" + name,
-      function () {
-        console.log("✅ Deleted:", name);
-        resolve();
-      },
-      function (error) {
-        console.error("❌ Error deleting file:", name, error.message);
-        reject(error);
-      }
-    );
-  });
-}
+  adLoopTimeouts.forEach(clearTimeout);
+});
