@@ -182,6 +182,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
     });
 
   async function preloadAndShow(currentIndex) {
+    console.log("🔄 Preloading ad at index:", currentIndex);
     if (currentIndex >= filenames.length) currentIndex = 0;
 
     const currentFile = filenames[currentIndex];
@@ -208,7 +209,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
         const img = new Image();
         img.src = uri;
         img.className = "ad_image";
-        img.style.cssText = "width:100vw;height:95vh;object-fit:cover;";
+
         wrapper.appendChild(img);
         container.appendChild(wrapper);
 

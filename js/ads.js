@@ -53,17 +53,22 @@ function connectMQTT(options) {
 
       if (topic.indexOf("ads/") === 0) {
         var ads = data.ads || [];
+        localStorage.setItem("ads", JSON.stringify(ads));
+        localStorage.setItem("rcs", data.rcs || "");
 
         if (data.placeholder) {
           localStorage.setItem("placeholder", data.placeholder);
-          deletePlaceHolderFile("downloads/subDir/placeholder.jpg").then(
-            function () {
+          deletePlaceHolderFile("placeholder")
+            .then(function () {
               ads.push({
                 url: data.placeholder,
               });
               processAds(client, ads, data.rcs, true);
-            }
-          );
+            })
+            .catch(function (error) {
+              console.error("❌ Error deleting placeholder file:", error);
+              processAds(client, ads, data.rcs, false);
+            });
         } else {
           ads.push({
             url: localStorage.getItem("placeholder"),
@@ -109,7 +114,29 @@ function connectMQTT(options) {
 
   client.on("error", function (error) {
     console.error("🚨 MQTT Error:", error);
-    showToast("error", "MQTT Error");
+    showToast("error", "MQTT Connection Error – loading from local ads");
+
+    try {
+      let placeholder = localStorage.getItem("placeholder");
+      let adsFromLocalStorage = localStorage.getItem("ads");
+      let rcsFromLocalStorage = localStorage.getItem("rcs");
+
+      if (placeholder) {
+        ads.push({ url: placeholder });
+      }
+
+      if (adsFromLocalStorage) {
+        ads.push(...JSON.parse(adsFromLocalStorage));
+      }
+
+      if (typeof processAds === "function") {
+        processAds(client, ads, rcsFromLocalStorage || "", false);
+      } else {
+        console.warn("⚠️ processAds function is not available.");
+      }
+    } catch (e) {
+      console.error("❌ Error while loading local ads:", e.message);
+    }
   });
 
   client.on("close", function () {
@@ -164,28 +191,61 @@ function publishAcknowledgment(client) {
   );
 }
 
-function deletePlaceHolderFile(relativePath) {
+function deletePlaceHolderFile(fileBaseName) {
   return new Promise(function (resolve, reject) {
     try {
-      var rootName = relativePath.split("/")[0];
-      var fileSubPath = relativePath.substring(relativePath.indexOf("/") + 1);
+      var rootName = "downloads/subDir";
 
       tizen.filesystem.resolve(
         rootName,
         function (root) {
           try {
-            var file = root.resolve(fileSubPath);
-            file.parent.deleteFile(file.fullPath);
-            console.log("✅ File deleted:", file.fullPath);
-            resolve(file.fullPath);
+            root.listFiles(
+              (entries) => {
+                const deletions = entries.filter(
+                  (entry) => entry.isFile && entry.name.startsWith(fileBaseName)
+                );
+                console.log("Found files to delete:", deletions);
+                if (deletions.length === 0) {
+                  console.log("ℹ️ No matching placeholder files found.");
+                  resolve();
+                  return;
+                }
+                const deletePromises = deletions.map((file) => {
+                  return new Promise((delResolve, delReject) => {
+                    root.deleteFile(
+                      file.fullPath,
+                      () => {
+                        console.log("✅ File deleted:", file.fullPath);
+                        delResolve(file.fullPath);
+                      },
+                      (err) => {
+                        console.error("❌ Error deleting file:", err.message);
+                        delReject(err);
+                      }
+                    );
+                  });
+                });
+                Promise.all(deletePromises)
+                  .then((deletedFiles) => {
+                    console.log("All specified files deleted:", deletedFiles);
+                    resolve(deletedFiles);
+                  })
+                  .catch((err) => {
+                    console.error("❌ Error during file deletion:", err);
+                    reject(err);
+                  });
+              },
+              (err) => reject(err)
+            );
           } catch (e) {
-            console.log("❌ Error during deletion:", e.message);
+            console.log("❌ Error during file lookup/deletion:", e.message);
             resolve();
           }
         },
         function (error) {
           if (error.name === "NotFoundError") {
-            console.log("ℹ️ File does not exist, nothing to delete.");
+            console.log("ℹ️ Directory does not exist.");
           } else {
             console.log("❌ Error resolving root:", error.message);
           }
@@ -194,7 +254,7 @@ function deletePlaceHolderFile(relativePath) {
         "rw"
       );
     } catch (error) {
-      console.log("⚠️ Exception while checking/deleting file:", error.message);
+      console.log("⚠️ Exception:", error.message);
       resolve();
     }
   });

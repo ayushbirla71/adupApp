@@ -157,6 +157,7 @@ function startAdSlide(containerId, textData, speed) {
   }
 
   animate();
+  // document.getElementById("sliding_text").textContent = textData;
 }
 
 function showToast(type, message, timer) {
@@ -170,7 +171,7 @@ function showToast(type, message, timer) {
   toast.textContent = message;
 
   // Remove the toast after 3 seconds
-  setTimeout(function() {
+  setTimeout(function () {
     toast.className = "";
   }, timer || 3000);
 }

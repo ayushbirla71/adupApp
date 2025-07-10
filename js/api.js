@@ -1,13 +1,13 @@
 async function joinGroup() {
   const groupId = $("#groupId").val();
-  // var groupId = "TESTIN1DIE"; // Use var, not const
+  // var groupId = "AYUSHGOQOI"; // Use var, not const
   if (!groupId) {
     alert("Please enter license key.");
     return;
   }
 
   $(".login_loader").show();
-  await deletePlaceHolderFile("downloads/subDir/placeholder.jpg");
+  await deletePlaceHolderFile("placeholder");
 
   getTVDeviceInfo().then(function (deviceInfo) {
     if (!deviceInfo) {
