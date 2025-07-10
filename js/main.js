@@ -135,7 +135,7 @@ window.onload = function () {
   // const newToken = "your_token_here"; // Set this appropriately
   console.log("tokensss", localStorage.getItem("token")?.trim());
 
-  if (localStorage.getItem("token")?.trim()) {
+  if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {
       $(".login_loader").hide();
     }, 1000);
@@ -147,10 +147,12 @@ window.onload = function () {
 
     console.log("ads", ads);
 
-    $(".joinGroup-container").hide();
+    // $(".joinGroup-container").hide();
+    $(".pairing-container").hide();
     $(".main-container").hide();
     $(".ad-player-container").show().addClass("active");
-    $(".joinGroup-container").removeClass("active");
+    // $(".joinGroup-container").removeClass("active");
+    $(".pairing-container").removeClass("active");
 
     SN.focus("#ad_player");
 
@@ -158,7 +160,7 @@ window.onload = function () {
       const contentHTML = generateImageAds(ads[0]);
       const $element = $("#ad_player");
       $element.html(""); // Optionally clear
-      // $element.html(contentHTML); // Uncomment if needed
+      $element.html(contentHTML); // Uncomment if needed
     }
 
     connectMQTT({
@@ -255,6 +257,18 @@ function manage_spatial_navigation(containerClass, favoriteStatus, vodId) {
         } else {
           alert("Please enter a valid Group ID.");
         }
+      });
+      break;
+
+    case "pairing-container":
+      set_focus("pairingContainer", "pairingCode");
+
+      $("#pairingCode").on("sn:focused", function () {
+        console.log("Pairing Code field focused");
+      });
+
+      $("#pairingCode").on("sn:enter-down", function () {
+        // Handle pairing code submission
       });
       break;
 
