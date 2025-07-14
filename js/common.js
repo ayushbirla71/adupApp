@@ -124,28 +124,19 @@ function escapeHtml(unsafe) {
 
 function startAdSlide(containerId, textData, speed) {
   console.log("Ad Slide Start", containerId, textData, speed);
-  if (!containerId || !textData) {
-    console.error(
-      "Invalid parameters for startAdSlide:",
-      containerId,
-      textData,
-      speed
-    );
-    return;
-  }
-  if (window.SNIPIT_TEXT_ITIMEOUT_ID) {
-    clearTimeout(window.SNIPIT_TEXT_ITIMEOUT_ID);
-  }
-  if (!speed) speed = 1; // Default speed
+
+  if (!containerId) return;
+
+  if (!speed) speed = 1;
 
   var container = document.getElementById(containerId);
   var text = document.getElementById("sliding_text");
-  text.innerHTML = ""; // Clear previous text
-  text.innerHTML = textData; // Set new text
-
   if (!container || !text) return;
 
+  text.innerHTML = textData;
+
   var pos = container.offsetWidth;
+  var animationFrameId;
 
   function animate() {
     pos -= speed;
@@ -153,11 +144,14 @@ function startAdSlide(containerId, textData, speed) {
       pos = container.offsetWidth;
     }
     text.style.left = pos + "px";
-    window.SNIPIT_TEXT_ITIMEOUT_ID = setTimeout(animate, 20);
+    animationFrameId = requestAnimationFrame(animate);
   }
 
-  animate();
-  // document.getElementById("sliding_text").textContent = textData;
+  // Cancel previous frame if any
+  if (container._slideAnimationFrameId) {
+    cancelAnimationFrame(container._slideAnimationFrameId);
+  }
+  container._slideAnimationFrameId = requestAnimationFrame(animate);
 }
 
 function showToast(type, message, timer) {
