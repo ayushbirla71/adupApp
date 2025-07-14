@@ -46,9 +46,9 @@ async function handleMQTTAds(payload) {
       await checkAndDownloadContent(ads[i].url, filenames[i]);
     }
     console.log("✅ All downloads complete, starting playback");
-    // document.getElementById("ad_player").innerHTML = ""; // Clear previous content
 
     playAllContentInLoop(filenames, ads, rcs);
+    document.getElementById("ad_player").innerHTML = ""; // Clear previous content
   } catch (err) {
     console.error("❌ Error in ad handling:", err.message || err);
   }
