@@ -73,30 +73,44 @@ async function checkAndDownloadContent(url, fileName) {
         try {
           dir.resolve(fileName);
           console.log("✅ Already downloaded:", fileName);
+          addDownloadedFile(fileName);
+          trackDownloadProgress(fileName, url, 100);
           resolve();
         } catch (e) {
+          addInfoLog(`Downloading: ${fileName}`);
+          trackDownloadProgress(fileName, url, 0);
           console.log("⬇️ Downloading:", fileName);
           const request = new tizen.DownloadRequest(url, fileDir, fileName);
           const downloadId = tizen.download.start(request);
 
           tizen.download.setListener(downloadId, {
-            onprogress: (id, received, total) =>
-              console.log(`⬇️ ${fileName}: ${received}/${total}`),
-            onpaused: (id) => console.log("⏸️ Paused:", id),
-            oncanceled: (id) => resolve(),
+            onprogress: (id, received, total) => {
+              const percent = Math.floor((received / total) * 100);
+              trackDownloadProgress(fileName, url, percent);
+              addInfoLog(`Downloading ${fileName}: ${percent}%`);
+            },
+            onpaused: (id) => {
+              addInfoLog(`Paused: ${fileName}`);
+            },
+            oncanceled: (id) => {
+              addInfoLog(`Canceled: ${fileName}`);
+              resolve();
+            },
             oncompleted: (id, path) => {
-              console.log("✅ Completed:", path);
+              addInfoLog(`Download complete: ${fileName}`);
+              addDownloadedFile(fileName);
+              trackDownloadProgress(fileName, url, 100);
               resolve();
             },
             onfailed: (id, error) => {
-              console.warn("❌ Failed to download:", fileName);
-              resolve();
+              addErrorLog(`Failed to download ${fileName}: ${error.message}`);
+              resolve(); // or reject(error) if needed
             },
           });
         }
       },
       (err) => {
-        console.error("❌ Resolve failed:", err.message);
+        addErrorLog(`Directory resolve failed: ${err.message}`);
         reject(err);
       },
       "rw"
@@ -131,10 +145,12 @@ function deleteFileFromDir(dir, name) {
       `${fileDir}/${name}`,
       () => {
         console.log("🗑️ Deleted:", name);
+        addInfoLog(`Deleted file: ${name}`);
         resolve();
       },
       (err) => {
         console.error("❌ Delete failed:", name, err.message);
+        addErrorLog(`Failed to delete ${name}: ${err.message}`);
         reject(err);
       }
     );
@@ -501,6 +517,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
       console.log("🎥 Previous video cleaned up");
     } catch (e) {
       console.warn("⚠️ Error cleaning video:", e.message);
+      addErrorLog(`Error cleaning video: ${e.message}`);
     }
     currentVideo = null;
   }
@@ -522,10 +539,12 @@ async function playAllContentInLoop(filenames, ads, rcs) {
         `${fileDir}/${fileName}`,
         (file) => {
           console.log("📁 Resolved file:", fileName);
+          addInfoLog(`Resolved file with URL: ${fileName} -> ${file.toURI()}`);
           resolve(file.toURI());
         },
         (err) => {
           console.warn("❌ Failed to resolve file:", fileName);
+          addErrorLog(`Failed to resolve file: ${fileName} - ${err.message}`);
           resolve(null); // Skip on fail
         },
         "r"
@@ -559,6 +578,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
 
     if (!type) {
       console.warn("⛔ Unsupported format, skipping:", currentFile);
+      addErrorLog(`Unsupported format for file: ${currentFile}`);
       index++;
       continue;
     }
@@ -568,6 +588,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
 
     if (!uri) {
       console.warn("🚫 Could not resolve URI, skipping:", currentFile);
+      addErrorLog(`Could not resolve URI for file: ${currentFile}`);
       index++;
       continue;
     }
@@ -595,14 +616,15 @@ async function playAllContentInLoop(filenames, ads, rcs) {
         container.appendChild(wrapper);
         requestAnimationFrame(() => (wrapper.style.opacity = 1));
 
-        const timeout = setTimeout(() => {
-          if (!signal.aborted) {
-            console.log("⏱️ Image display complete. Moving to next...");
-            fadeOutAndRemove(wrapper);
-          }
-        }, 10000); // 10s per image
-
-        adLoopTimeouts.push(timeout);
+        if (filenames.length > 1) {
+          const timeout = setTimeout(() => {
+            if (!signal.aborted) {
+              console.log("⏱️ Image display complete. Moving to next...");
+              fadeOutAndRemove(wrapper);
+            }
+          }, 10000); // 10s per image
+          adLoopTimeouts.push(timeout);
+        }
       };
       img.onerror = () => {
         console.warn("🧨 Image load error:", currentFile);
@@ -611,6 +633,11 @@ async function playAllContentInLoop(filenames, ads, rcs) {
       img.src = uri;
 
       await new Promise((resolve) => setTimeout(resolve, 10000));
+
+      if (filenames.length === 1) {
+        console.log("✅ Single image played once. Exiting loop.");
+        break;
+      }
     } else if (type === "video") {
       console.log("🎥 Preparing video:", currentFile);
       const video = document.createElement("video");
@@ -636,9 +663,11 @@ async function playAllContentInLoop(filenames, ads, rcs) {
             .play()
             .then(() => {
               console.log("▶️ Video started:", currentFile);
+              addInfoLog(`Playing video: ${currentFile}`);
             })
             .catch((err) => {
               console.warn("⛔ Video play failed:", err.message);
+              addErrorLog(`Video play failed: ${currentFile} - ${err.message}`);
               fadeOutAndRemove(wrapper);
             });
         }, 300);
@@ -657,11 +686,13 @@ async function playAllContentInLoop(filenames, ads, rcs) {
         video.onended = onDone;
         video.onerror = () => {
           console.warn("💥 Video error:", currentFile);
+          addErrorLog(`Video error: ${currentFile}`);
           onDone();
         };
 
         if (signal.aborted) {
           console.log("🛑 Playback aborted during video");
+          addErrorLog(`Playback aborted during video: ${currentFile}`);
           onDone();
         }
       });

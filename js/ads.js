@@ -1,9 +1,14 @@
 // MQTT Configuration
+
+var mqttClient = null;
+var currentGroupTopic = null;
+
 function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
 
-  var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  var url = "ws://console.adup.live:9001/mqtt";
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -25,6 +30,7 @@ function connectMQTT(options) {
     console.log("✅ MQTT Connected");
 
     var groupTopic = "ads/" + group_id;
+    currentGroupTopic = groupTopic;
     client.subscribe(groupTopic, function (err) {
       if (err) {
         console.error(
@@ -36,7 +42,7 @@ function connectMQTT(options) {
       }
     });
 
-    var deviceTopic = "device/" + localStorage.getItem("device_id");
+    var deviceTopic = "device/" + device_id;
     client.subscribe(deviceTopic, function (err) {
       if (err) {
         console.error(
@@ -104,11 +110,8 @@ function connectMQTT(options) {
             );
           }
         } else if (data.action === "updateGroup") {
-          client.end(); // Close the connection after confirmation
-          connectMQTT({
-            device_id: data.device_id || localStorage.getItem("device_id"),
-            group_id: data.group_id || localStorage.getItem("group_id"),
-          }); // Reconnect to MQTT with the new device_id and group_id
+          console.log("🔄 Updating group subscription...");
+          resubscribeGroupTopic(data.group_id);
         } else {
           console.log("ℹ️ Unknown device command:", data);
         }
@@ -160,7 +163,44 @@ function connectMQTT(options) {
     console.log("🔁 MQTT Reconnecting...");
   });
 
-  window.mqttClient = client;
+  mqttClient = client;
+}
+
+// 🔄 Call this when you need to change the group subscription
+function resubscribeGroupTopic(newGroupId) {
+  if (!mqttClient || !mqttClient.connected) {
+    console.error("❌ MQTT client is not connected yet.");
+    return;
+  }
+
+  localStorage.setItem("group_id", newGroupId);
+  var newTopic = "ads/" + newGroupId;
+
+  if (currentGroupTopic) {
+    mqttClient.unsubscribe(currentGroupTopic, function (err) {
+      if (err) {
+        console.error("❌ Unsubscribe Error:", err);
+      } else {
+        console.log("🚫 Unsubscribed from:", currentGroupTopic);
+      }
+
+      subscribeNewGroupTopic(newTopic, newGroupId);
+    });
+  } else {
+    subscribeNewGroupTopic(newTopic, newGroupId);
+  }
+}
+
+function subscribeNewGroupTopic(topic, newGroupId) {
+  mqttClient.subscribe(topic, function (err) {
+    if (err) {
+      console.error("❌ Subscription Error:", err);
+    } else {
+      currentGroupTopic = topic;
+      localStorage.setItem("group_id", newGroupId);
+      console.log("📡 Resubscribed to:", topic);
+    }
+  });
 }
 
 function processAds(client, ads, rcs, placeholderUpdate) {

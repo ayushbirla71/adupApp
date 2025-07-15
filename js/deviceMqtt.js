@@ -17,7 +17,7 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
 
   deviceConfirmationMqtt.on("connect", function () {
     console.log("✅ MQTT Connected for Device Confirmation");
-    const deviceTopic = `device/register/${android_id}`;
+    const deviceTopic = `device/register/${deviceId}`;
     deviceConfirmationMqtt.subscribe(deviceTopic, function (err) {
       if (err) {
         console.error(`❌ MQTT Subscription Error for ${deviceTopic}:`, err);
@@ -34,6 +34,7 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
 
       if (data && data.action === "register") {
         console.log("Device confirmation received:", data);
+        addInfoLog(`Device confirmation received for ${data.device_id}`);
         // Handle the device confirmation logic here
         completeRegisterNewDevice(data.device_id);
         deviceConfirmationMqtt.end(); // Close the connection after confirmation
@@ -42,6 +43,10 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
         $(".ad-player-container").addClass("active");
         $(".joinGroup-container").removeClass("active");
         localStorage.setItem("placeholder", data.placeholder || null);
+        localStorage.setItem(
+          "group_id",
+          data && data.group_id ? data.group_id : ""
+        );
         SN.focus("#ad_player");
         data.ads.push({
           url: data.placeholder || "",

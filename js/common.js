@@ -169,3 +169,35 @@ function showToast(type, message, timer) {
     toast.className = "";
   }, timer || 3000);
 }
+
+function addInfoLog(message) {
+  const time = new Date().toLocaleTimeString();
+  window.INFO_LOGS.push(`[${time}] ${message}`);
+}
+
+function addErrorLog(message) {
+  const time = new Date().toLocaleTimeString();
+  window.ERROR_LOGS.push(`[${time}] ${message}`);
+}
+
+function addDownloadedFile(name) {
+  if (!window.DOWNLOADED_FILES.includes(name)) {
+    window.DOWNLOADED_FILES.push(name);
+  }
+}
+
+function trackDownloadProgress(name, url, progress) {
+  const existing = window.DOWNLOAD_PROGRESS.find((d) => d.name === name);
+  if (existing) {
+    existing.progress = progress;
+  } else {
+    window.DOWNLOAD_PROGRESS.push({ name, url, progress });
+  }
+}
+
+function trackFileDirectory() {
+  var PackageId = tizen.application.getCurrentApplication().appInfo.packageId;
+  var sharedDir = tizen.application.getAppSharedURI(PackageId);
+  var sources = sharedDir + "res/wgt/data/";
+  FILE_DIRECTORY = sources;
+}

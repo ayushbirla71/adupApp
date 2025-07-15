@@ -90,7 +90,79 @@
         </div>
       </div>
     </div>
+    <div class="settings-container" id="settings-container">
+      <div class="settings-slider" id="settingsSlider">
+        <div class="settings-header" id="settings-header">
+          <h2 id="settings-title">Settings</h2>
+          <button id="closeSlider" class="close-btn focusable">&times;</button>
+        </div>
 
+        <ul class="settings-list" id="settings-list">
+          <li>
+            <button id="systemInfo-btn" class="settings-button focusable">
+              System Info
+            </button>
+          </li>
+          <li>
+            <button id="logs-btn" class="settings-button focusable">
+              Logs
+            </button>
+          </li>
+          <li>
+            <button id="downloaded-btn" class="settings-button focusable">
+              Downloaded Files
+            </button>
+          </li>
+          <li>
+            <button id="processing-btn" class="settings-button focusable">
+              Processing Files
+            </button>
+          </li>
+          <li>
+            <button id="errors-btn" class="settings-button focusable">
+              Errors
+            </button>
+          </li>
+          <li>
+            <button id="exit-btn" class="settings-button focusable">
+              Exit Group
+            </button>
+          </li>
+        </ul>
+
+        <div class="settings-content" id="settings-content">
+          <!-- System Info Panel -->
+          <div id="systemInfo" class="section-panel">
+            <h3>Device Info</h3>
+            <ul class="list-view" id="systemInfoList">
+              <!-- Populated by JavaScript -->
+            </ul>
+          </div>
+
+          <div id="logs" class="section-panel active">
+            <h3>Logs</h3>
+            <ul id="logList" class="list-view"></ul>
+            <!-- <button id="download-logs-btn" class="download-btn focusable">
+              Download Logs
+            </button> -->
+          </div>
+
+          <div id="downloaded" class="section-panel">
+            <h3>Downloaded Files</h3>
+            <ul id="downloaded-list" class="list-view"></ul>
+          </div>
+
+          <div id="processing" class="section-panel">
+            <h3>Processing Files</h3>
+          </div>
+
+          <div id="errors" class="section-panel">
+            <h3>Error Logs</h3>
+            <ul id="error-list" class="error-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Loader -->
     <div class="login_loader" id="login_loader">
       <div class="login_circle_loader"></div>

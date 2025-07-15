@@ -12,6 +12,15 @@ window.APP_ID = "com.adup.halliv";
 window.APP_ID_ANDROID = "com.adup.halliv";
 window.SNIPIT_TEXT_ITIMEOUT_ID = 10000; // 10 sec
 
+window.FILE_DIRECTORY = "";
+
+window.DOWNLOAD_PROGRESS = [];
+
+window.ERROR_LOGS = [];
+window.INFO_LOGS = [];
+window.DOWNLOADED_FILES = [];
+window.DOWNLOAD_STATUS = [];
+
 // Forward/Backward interval
 window.MEDIA_FORWARD_INTERVAL = 15000;
 window.MEDIA_REWIND_INTERVAL = 10000;
