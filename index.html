@@ -84,7 +84,15 @@
     <!-- Ad Player Section -->
     <div class="ad-player-container">
       <div class="ad-player-container-box">
-        <div class="ad-player" id="ad_player"></div>
+        <div class="ad-player" id="ad_player">
+          <object id="av-player" type="application/avplayer" class=""></object>
+          <object id="av-player2" type="application/avplayer" class=""></object>
+          <img
+            id="image-player"
+            style="display: none; width: 100%; height: 100%; object-fit: fill"
+          />
+        </div>
+
         <div id="ad_snippet" class="ad-snippet">
           <div id="sliding_text" class="sliding-text"></div>
         </div>

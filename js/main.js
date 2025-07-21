@@ -135,6 +135,8 @@ window.onload = async function () {
   trackFileDirectory();
   // const newToken = "your_token_here"; // Set this appropriately
   console.log("tokensss", localStorage.getItem("token")?.trim());
+  // localStorage.setItem("group_id", "e1b24f5a-7cec-4024-8e23-c71d3ba896f1");
+  // localStorage.setItem("device_id", "5745f6a4-7190-41c4-afef-a31ccff06f6c");
 
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {
@@ -323,7 +325,14 @@ function manage_spatial_navigation(containerClass, favoriteStatus, vodId) {
   }
 }
 
+let interval = null;
+
 function showSection(id) {
+  if (interval) {
+    clearInterval(interval);
+    interval = null;
+  }
+
   $(".section-panel").removeClass("active");
   $("#" + id).addClass("active");
 
@@ -347,6 +356,7 @@ function showSection(id) {
   }
 
   // Set focus to first focusable
+
   setTimeout(() => {
     const $first = $("#" + id)
       .find(".focusable")
@@ -354,6 +364,22 @@ function showSection(id) {
     $first.focus();
     set_focus(id + "-section", "#" + id + " .focusable");
   }, 50);
+
+  // if (id == "processing" || id == "errors" || id == "logs") {
+  //   interval = setInterval(() => {
+  //     if ($("#settingsSlider").hasClass("open")) {
+  //       const currentSectionId = $(".section-panel.active").attr("id");
+  //       if (currentSectionId) {
+  //         showSection(currentSectionId); // re-render current section
+  //       }
+  //     } else {
+  //       if (interval) {
+  //         clearInterval(interval);
+  //         interval = null;
+  //       }
+  //     }
+  //   }, 1000); // every 5 seconds
+  // }
 }
 
 function downloadLogs() {

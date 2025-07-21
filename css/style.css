@@ -486,3 +486,15 @@ progress {
   color: #ccc;
   font-size: 20px;
 }
+
+#av-player,
+#av-player2 {
+  display: none;
+  height: 95vh;
+  width: 100%;
+}
+
+#av-player.vid,
+#av-player2.vid {
+  display: block;
+}

@@ -1,7 +1,7 @@
 function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
   // This function is called when the device confirmation is requested
-  // let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
-  let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
+  let url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // let url = "ws://console.adup.live:9001/mqtt"; // Use wss:// if SSL is supported
 
   var deviceConfirmationMqtt = mqtt.connect(url, {
     deviceConfirmationMqttId:

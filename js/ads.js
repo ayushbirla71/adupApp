@@ -7,8 +7,8 @@ function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
 
-  // var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
-  var url = "ws://console.adup.live:9001/mqtt";
+  var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // var url = "ws://console.adup.live:9001/mqtt";
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -61,7 +61,7 @@ function connectMQTT(options) {
       console.log("📥 MQTT message on topic '" + topic + "':", data);
 
       if (topic.indexOf("ads/") === 0) {
-        var ads = data.ads || [];
+        let ads = data.ads || [];
         localStorage.setItem("ads", JSON.stringify(ads));
         localStorage.setItem("rcs", data.rcs || "");
 
