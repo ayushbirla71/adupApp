@@ -10,6 +10,12 @@ function connectMQTT(options) {
   var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
   // var url = "ws://console.adup.live:9001/mqtt";
 
+  handleMQTTAds({
+    ads: options.ads,
+    rcs: options.rcs,
+    placeholderUpdate: true,
+  });
+
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
     username: "myuser",
@@ -23,8 +29,6 @@ function connectMQTT(options) {
 
   console.log("🚀 MQTT Client Created");
   console.log("data", options);
-
-  handleMQTTAds({ ads: options.ads, rcs: options.rcs });
 
   client.on("connect", function () {
     console.log("✅ MQTT Connected");
@@ -66,21 +70,25 @@ function connectMQTT(options) {
         localStorage.setItem("rcs", data.rcs || "");
 
         if (data.placeholder) {
+          let timestamps = new Date().getTime();
           localStorage.setItem("placeholder", data.placeholder);
-          deletePlaceHolderFile("placeholder")
-            .then(function () {
-              ads.push({
-                url: data.placeholder,
+          localStorage.setItem("timestamp", timestamps),
+            deletePlaceHolderFile("placeholder")
+              .then(function () {
+                ads.push({
+                  url: data.placeholder,
+                  timestamp: timestamps,
+                });
+                processAds(client, ads, data.rcs, true);
+              })
+              .catch(function (error) {
+                console.error("❌ Error deleting placeholder file:", error);
+                processAds(client, ads, data.rcs, false);
               });
-              processAds(client, ads, data.rcs, true);
-            })
-            .catch(function (error) {
-              console.error("❌ Error deleting placeholder file:", error);
-              processAds(client, ads, data.rcs, false);
-            });
         } else {
           ads.push({
             url: localStorage.getItem("placeholder"),
+            timestamp: localStorage.getItem("timestamp"),
           });
           processAds(client, ads, data.rcs, false);
         }
@@ -129,23 +137,7 @@ function connectMQTT(options) {
     showToast("error", "MQTT Connection Error – loading from local ads");
 
     try {
-      let placeholder = localStorage.getItem("placeholder");
-      let adsFromLocalStorage = localStorage.getItem("ads");
-      let rcsFromLocalStorage = localStorage.getItem("rcs");
-
-      if (placeholder) {
-        ads.push({ url: placeholder });
-      }
-
-      if (adsFromLocalStorage) {
-        ads.push(...JSON.parse(adsFromLocalStorage));
-      }
-
-      if (typeof processAds === "function") {
-        processAds(client, ads, rcsFromLocalStorage || "", false);
-      } else {
-        console.warn("⚠️ processAds function is not available.");
-      }
+      console.warn("⚠️ processAds function is not available.");
     } catch (e) {
       console.error("❌ Error while loading local ads:", e.message);
     }
@@ -214,6 +206,7 @@ function processAds(client, ads, rcs, placeholderUpdate) {
   );
 
   publishAcknowledgment(client);
+
   handleMQTTAds({
     ads: ads,
     rcs: rcs || "",

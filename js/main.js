@@ -132,9 +132,7 @@ window.onload = async function () {
   window.SN = SpatialNavigation;
   SN.init();
   manage_spatial_navigation("settings-container");
-  trackFileDirectory();
   // const newToken = "your_token_here"; // Set this appropriately
-  console.log("tokensss", localStorage.getItem("token")?.trim());
   // localStorage.setItem("group_id", "e1b24f5a-7cec-4024-8e23-c71d3ba896f1");
   // localStorage.setItem("device_id", "5745f6a4-7190-41c4-afef-a31ccff06f6c");
 
@@ -147,7 +145,12 @@ window.onload = async function () {
     const ads = JSON.parse(localStorage.getItem("ads") || "[]"); // fallback to empty array if null
     const device_id = localStorage.getItem("device_id");
     const group_id = localStorage.getItem("group_id");
-
+    let placeholder = localStorage.getItem("placeholder");
+    let timestamps = localStorage.getItem("timestamp");
+    if (placeholder) {
+      ads.push({ url: placeholder, timestamp: timestamps });
+    }
+    let rcs = localStorage.getItem("rcs");
     console.log("ads", ads);
 
     // $(".joinGroup-container").hide();
@@ -159,14 +162,16 @@ window.onload = async function () {
 
     SN.focus("#ad_player");
 
-    if (ads && Array.isArray(ads) && ads.length > 0) {
-      const contentHTML = generateImageAds(ads[0]);
-      const $element = $("#ad_player");
-      $element.html(""); // Optionally clear
-      $element.html(contentHTML); // Uncomment if needed
-    }
+    // if (ads && Array.isArray(ads) && ads.length > 0) {
+    //   const contentHTML = generateImageAds(ads[0]);
+    //   const $element = $("#ad_player");
+    //   $element.html(""); // Optionally clear
+    //   $element.html(contentHTML); // Uncomment if needed
+    // }
 
     connectMQTT({
+      ads: ads,
+      rcs: rcs,
       device_id: device_id,
       group_id: group_id,
     });

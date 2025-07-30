@@ -42,14 +42,19 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
         $(".ad-player-container").show();
         $(".ad-player-container").addClass("active");
         $(".joinGroup-container").removeClass("active");
+
         localStorage.setItem("placeholder", data.placeholder || null);
-        localStorage.setItem(
-          "group_id",
-          data && data.group_id ? data.group_id : ""
-        );
+        let timestamps = new Date().getTime();
+        console.log("time stamp", timestamps);
+        localStorage.setItem("timestamp", timestamps),
+          localStorage.setItem(
+            "group_id",
+            data && data.group_id ? data.group_id : ""
+          );
         SN.focus("#ad_player");
         data.ads.push({
           url: data.placeholder || "",
+          timestamp: timestamps,
         });
         connectMQTT({
           ...data,

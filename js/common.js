@@ -194,10 +194,3 @@ function trackDownloadProgress(name, url, progress) {
     window.DOWNLOAD_PROGRESS.push({ name, url, progress });
   }
 }
-
-function trackFileDirectory() {
-  var PackageId = tizen.application.getCurrentApplication().appInfo.packageId;
-  var sharedDir = tizen.application.getAppSharedURI(PackageId);
-  var sources = sharedDir + "res/wgt/data/";
-  FILE_DIRECTORY = sources;
-}

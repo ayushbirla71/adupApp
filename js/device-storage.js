@@ -48,9 +48,8 @@ async function handleMQTTAds(payload) {
   const rcs = payload.rcs;
 
   console.log("📥 Received ads:", ads);
-  adsFromServer = ads;
 
-  const filenames = ads.map((ad) => getFileName(ad?.url, ad?.ad_id));
+  const filenames = ads.map((ad) => getFileName(ad));
   const newSignature = filenames.join(",");
 
   startAdSlide("ad_snippet", rcs, 2);
@@ -75,6 +74,7 @@ async function handleMQTTAds(payload) {
     console.log("✅ All downloads complete, starting playback");
     localAds = filenames;
     stopCurrentPlayback(); // 💥 Stop current playback first
+    adsFromServer = ads;
     playAllContentInLoop(filenames, ads, rcs);
     // document.getElementById("ad_player").innerHTML = ""; // Clear previous content
   } catch (err) {
@@ -82,14 +82,25 @@ async function handleMQTTAds(payload) {
   }
 }
 
-function getFileName(url, ad_id) {
+function getFileName(adsData) {
+  let url = adsData.url;
+  let ad_id = adsData.ad_id;
+
   const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
   const dotIndex = originalName.lastIndexOf(".");
+
   if (dotIndex === -1) {
     return ad_id ? `${originalName}_${ad_id}` : originalName;
   }
+
   const nameWithoutExt = originalName.substring(0, dotIndex);
   const extension = originalName.substring(dotIndex);
+
+  if (nameWithoutExt.startsWith("placeholder")) {
+    console.log("data in placehoder", adsData);
+    return `${nameWithoutExt}_${adsData?.timestamp}${extension}`;
+  }
+
   return ad_id ? `${nameWithoutExt}_${ad_id}${extension}` : originalName;
 }
 
@@ -220,7 +231,7 @@ function isVideo(fileName) {
 }
 
 // 🖼️ Show image
-function showImage(file) {
+function showImage(file, resolve) {
   try {
     $(".login_loader").hide();
     var imgElement = document.getElementById("image-player");
@@ -230,30 +241,40 @@ function showImage(file) {
     // Hide videos
     videoElement1.classList.remove("vid");
     videoElement2.classList.remove("vid");
+    imgElement.style.display = "block";
     // Show image
 
     imgElement.onerror = function () {
+      imgElement.style.display = "none";
       $(".login_loader").show();
+      resolve();
+      console.error("❌ Error loading image:", file);
     };
     console.log("image_url " + sources + "/" + file);
+    console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
-    if (file.startsWith("placeholder")) {
-      image_url = image_url + "?v=" + new Date().getTime(); // cache buster
-    }
+    // if (file.startsWith("placeholder")) {
+    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
+    // }
     imgElement.src = image_url; // ✅ use updated URL
-    imgElement.style.display = "block";
   } catch (err) {
     addErrorLog(" Error preparing or Image file:", err.message || err);
   }
 }
 
+let timeoutBox = null;
+
 function playImage(file, signal) {
   return new Promise((resolve) => {
+    if (timeoutBox) {
+      clearTimeout(timeoutBox);
+      timeoutBox = null;
+    }
     document.getElementById("av-player").classList.remove("vid");
     document.getElementById("av-player2").classList.remove("vid");
-    showImage(file); // your own image render logic
+    showImage(file, resolve); // your own image render logic
 
-    const timeout = setTimeout(() => {
+    timeoutBox = setTimeout(() => {
       if (!signal.aborted) {
         console.log("🖼️ Image display complete:", file);
         resolve();
@@ -305,9 +326,19 @@ async function playAllContentInLoop(filenames, ads, rcs) {
     console.log("playing index...." + iterator);
     console.log("Playing Index is " + (iterator % filenames.length));
     $(".login_loader").hide();
+    var imgElement = document.getElementById("image-player");
     try {
       if (isVideo(currentFile)) {
+        console.log(
+          "🎥 Displaying video:",
+          adsFromServer[iterator % adsFromServer.length]
+        );
         await playVideo(currentFile, signal);
+        let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
+        if (!isVideo(filenames[nexIndex])) {
+          console.log("next content is show...");
+          imgElement.src = filenames[nexIndex];
+        }
       } else {
         await playImage(currentFile, signal);
       }
@@ -327,7 +358,6 @@ function playVideo(file, signal) {
     document.getElementById("image-player").style.display = "none";
     document.getElementById("av-player").classList.add("vid");
     document.getElementById("av-player2").classList.add("vid");
-
     try {
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
@@ -337,6 +367,7 @@ function playVideo(file, signal) {
       try {
         player.stop?.();
       } catch (error) {
+        console.log("player close....", error?.message);
         player.close?.();
       }
 
@@ -348,6 +379,13 @@ function playVideo(file, signal) {
         onstreamcompleted: () => {
           if (!aborted) {
             console.log("🎞️ Stream completed:", file);
+            player.setVideoStillMode("true"); // Turn on still mode to keep last frame
+            player.stop();
+            resolve();
+          } else {
+            console.log(
+              "🛑 Aborted during stream completion, stopping player."
+            );
             player.stop();
             resolve();
           }
@@ -356,6 +394,10 @@ function playVideo(file, signal) {
           if (!aborted) {
             console.error("❌ Playback error:", errType);
             addErrorLog("Playback error: " + errType);
+            player.stop();
+            resolve();
+          } else {
+            console.log("🛑 Aborted during error handling, stopping player.");
             player.stop();
             resolve();
           }
@@ -367,6 +409,7 @@ function playVideo(file, signal) {
       player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
       player.setDisplayRect(0, 0, 1080, 1824);
       player.prepare();
+      player.setVideoStillMode("false");
       player.play();
 
       // Handle abortion after play started
@@ -387,7 +430,9 @@ function playVideo(file, signal) {
 
       // signal.addEventListener("abort", abortHandler, { once: true });
     } catch (err) {
-      reject(err);
+      console.error("❌ Error playing video:", err.message || err);
+      addErrorLog("Video playback error: " + (err.message || err));
+      resolve(); // Resolve to continue loop
     }
   });
 }

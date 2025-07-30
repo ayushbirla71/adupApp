@@ -115,6 +115,7 @@ async function registerDevice() {
       },
       error: function (error) {
         console.error("Error registering device:", error);
+        $(".pairing-box").show();
         alert("Failed to register device.");
       },
       complete: function () {
