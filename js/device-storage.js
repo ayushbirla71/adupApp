@@ -322,6 +322,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
 
   while (!signal.aborted) {
     const currentFile = filenames[iterator % filenames.length];
+    const currentAd = ads[iterator % ads.length];
     console.log("▶️ Now playing: " + currentFile);
     console.log("playing index...." + iterator);
     console.log("Playing Index is " + (iterator % filenames.length));
@@ -333,7 +334,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
           "🎥 Displaying video:",
           adsFromServer[iterator % adsFromServer.length]
         );
-        await playVideo(currentFile, signal);
+        await playVideo(currentFile, signal, currentAd);
         let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
         if (!isVideo(filenames[nexIndex])) {
           console.log("next content is show...");
@@ -352,18 +353,23 @@ async function playAllContentInLoop(filenames, ads, rcs) {
   console.log("🛑 Playback loop terminated.");
 }
 
-function playVideo(file, signal) {
+function playVideo(file, signal, currentAd) {
   return new Promise((resolve, reject) => {
     let aborted = false;
+    let hasStarted = false;
+    let timeoutFallback = null;
     document.getElementById("image-player").style.display = "none";
     document.getElementById("av-player").classList.add("vid");
     document.getElementById("av-player2").classList.add("vid");
+
     try {
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
-      useP1Next = !useP1Next;
 
-      otherPlayer.stop?.();
+      useP1Next = !useP1Next;
+      try {
+        otherPlayer.stop?.();
+      } catch {}
       try {
         player.stop?.();
       } catch (error) {
@@ -371,34 +377,94 @@ function playVideo(file, signal) {
         player.close?.();
       }
 
+      function timeoutFallbackHandler() {
+        timeoutFallback = setTimeout(() => {
+          if (!hasStarted) {
+            console.warn("⏭️ Timeout: Skipping stuck video:", file);
+            player.stop();
+            addErrorLog("Video playback timeout: Skipping stuck video");
+            resolve();
+          } else {
+            console.warn(
+              "⏭️ Timeout: Video playback took too long, stopping player."
+            );
+            player.stop();
+            addErrorLog("Video playback timeout: Stopping player");
+            resolve();
+          }
+        }, currentAd?.duration * 1000 || 15000); // e.g., 15 sec fallback
+      }
+
+      let successCallback = function () {
+        console.log("The media has finished preparing");
+        player.setVideoStillMode("false");
+        player.play();
+        console.log("🎞️ Playing video:", file);
+        let state = player.getState();
+        console.log("[Player][seekBackward] state 1: ", state);
+      };
+
+      let errorCallback = function () {
+        console.log("The media has failed to prepare");
+        addErrorLog("Video playback error: Failed to prepare media");
+        player.stop();
+        clearTimeout(timeoutFallback);
+        resolve();
+      };
+
       const dynamicListener = {
-        onbufferingstart: () => console.log("⏳ Buffering start."),
-        onbufferingprogress: (percent) =>
-          console.log("📶 Buffering: " + percent + "%"),
-        onbufferingcomplete: () => console.log("✅ Buffering complete."),
+        onbufferingstart: () => {
+          console.log("⏳ Buffering start.");
+        },
+        onbufferingprogress: function (percent) {
+          console.log("Buffering progress data : " + percent);
+        },
+        onbufferingcomplete: function () {
+          console.log("✅ Buffering complete");
+          hasStarted = true;
+        },
+        oncurrentplaytime: function (currentTime) {
+          let state = player.getState();
+          console.log("[Player][seekBackward] state 2: ", state);
+          if (state === "PLYING") {
+            if (!timeoutFallback) {
+              timeoutFallbackHandler();
+            }
+          }
+          console.log("Current playtime: " + currentTime);
+        },
         onstreamcompleted: () => {
           if (!aborted) {
             console.log("🎞️ Stream completed:", file);
             player.setVideoStillMode("true"); // Turn on still mode to keep last frame
             player.stop();
+            clearTimeout(timeoutFallback);
             resolve();
           } else {
             console.log(
               "🛑 Aborted during stream completion, stopping player."
             );
             player.stop();
+            clearTimeout(timeoutFallback);
             resolve();
           }
         },
+
+        onevent: function (eventType, eventData) {
+          console.log("event type: " + eventType + ", data: " + eventData);
+        },
+
         onerror: (errType) => {
           if (!aborted) {
             console.error("❌ Playback error:", errType);
             addErrorLog("Playback error: " + errType);
             player.stop();
+            clearTimeout(timeoutFallback);
             resolve();
           } else {
             console.log("🛑 Aborted during error handling, stopping player.");
             player.stop();
+            clearTimeout(timeoutFallback);
             resolve();
           }
         },
@@ -408,9 +474,18 @@ function playVideo(file, signal) {
       player.setListener(dynamicListener);
       player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
       player.setDisplayRect(0, 0, 1080, 1824);
-      player.prepare();
-      player.setVideoStillMode("false");
-      player.play();
+      // player.prepare();
+
+      // --- SET THE SKIP TIMEOUT HERE ---
+      // timeoutFallback = setTimeout(() => {
+      //   console.warn("⏭️ Timeout: Skipping stuck video:", file);
+      //   player.stop();
+      //   resolve();
+      // }, currentAd?.duration || 15000); // e.g., 15 sec fallback
+
+      player.prepareAsync(successCallback, errorCallback);
+      // player.setVideoStillMode("false");
+      // player.play();
 
       // Handle abortion after play started
       if (signal.aborted) {
