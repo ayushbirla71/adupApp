@@ -361,6 +361,7 @@ function playVideo(file, signal, currentAd) {
     document.getElementById("image-player").style.display = "none";
     document.getElementById("av-player").classList.add("vid");
     document.getElementById("av-player2").classList.add("vid");
+
     try {
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
@@ -376,11 +377,31 @@ function playVideo(file, signal, currentAd) {
         player.close?.();
       }
 
+      function timeoutFallbackHandler() {
+        timeoutFallback = setTimeout(() => {
+          if (!hasStarted) {
+            console.warn("⏭️ Timeout: Skipping stuck video:", file);
+            player.stop();
+            addErrorLog("Video playback timeout: Skipping stuck video");
+            resolve();
+          } else {
+            console.warn(
+              "⏭️ Timeout: Video playback took too long, stopping player."
+            );
+            player.stop();
+            addErrorLog("Video playback timeout: Stopping player");
+            resolve();
+          }
+        }, currentAd?.duration * 1000 || 15000); // e.g., 15 sec fallback
+      }
+
       let successCallback = function () {
         console.log("The media has finished preparing");
         player.setVideoStillMode("false");
         player.play();
         console.log("🎞️ Playing video:", file);
+        let state = player.getState();
+        console.log("[Player][seekBackward] state 1: ", state);
       };
 
       let errorCallback = function () {
@@ -392,25 +413,24 @@ function playVideo(file, signal, currentAd) {
       };
 
       const dynamicListener = {
-        onbufferingstart: () => console.log("⏳ Buffering start."),
+        onbufferingstart: () => {
+          console.log("⏳ Buffering start.");
+        },
         onbufferingprogress: function (percent) {
           console.log("Buffering progress data : " + percent);
         },
         onbufferingcomplete: function () {
           console.log("✅ Buffering complete");
           hasStarted = true;
-
-          // ⏳ Backup timeout if video hangs without completing
-          timeoutFallback = setTimeout(() => {
-            if (!aborted) {
-              console.warn("⏰ Playback stuck, skipping video:", file);
-              addErrorLog("Playback stuck (no stream complete): " + file);
-              player.stop();
-              resolve();
-            }
-          }, currentAd?.duration || 180000); // Or 10000 for 10s detection
         },
         oncurrentplaytime: function (currentTime) {
+          let state = player.getState();
+          console.log("[Player][seekBackward] state 2: ", state);
+          if (state === "PLYING") {
+            if (!timeoutFallback) {
+              timeoutFallbackHandler();
+            }
+          }
           console.log("Current playtime: " + currentTime);
         },
         onstreamcompleted: () => {
@@ -429,14 +449,11 @@ function playVideo(file, signal, currentAd) {
             resolve();
           }
         },
-        onerrormsg: function (eventType, errorMsg) {
-          console.log(
-            "OnErrorMsg Event Callback with eventType: " +
-              eventType +
-              "Error Message: " +
-              errorMsg
-          );
+
+        onevent: function (eventType, eventData) {
+          console.log("event type: " + eventType + ", data: " + eventData);
         },
+
         onerror: (errType) => {
           if (!aborted) {
             console.error("❌ Playback error:", errType);
@@ -458,6 +475,14 @@ function playVideo(file, signal, currentAd) {
       player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
       player.setDisplayRect(0, 0, 1080, 1824);
       // player.prepare();
+
+      // --- SET THE SKIP TIMEOUT HERE ---
+      // timeoutFallback = setTimeout(() => {
+      //   console.warn("⏭️ Timeout: Skipping stuck video:", file);
+      //   player.stop();
+      //   resolve();
+      // }, currentAd?.duration || 15000); // e.g., 15 sec fallback
+
       player.prepareAsync(successCallback, errorCallback);
       // player.setVideoStillMode("false");
       // player.play();
