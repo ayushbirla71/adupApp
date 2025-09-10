@@ -232,16 +232,6 @@ function isVideo(fileName) {
 
 // 🖼️ Show image
 function showImage(file, resolve) {
-  let imageLoaded = false;
-  let loadTimeout = null;
-
-  const cleanupAndResolve = () => {
-    if (imageLoaded) return;
-    imageLoaded = true;
-    if (loadTimeout) clearTimeout(loadTimeout);
-    resolve();
-  };
-
   try {
     $(".login_loader").hide();
     var imgElement = document.getElementById("image-player");
@@ -252,46 +242,23 @@ function showImage(file, resolve) {
     videoElement1.classList.remove("vid");
     videoElement2.classList.remove("vid");
     imgElement.style.display = "block";
+    // Show image
 
-    // Set up error handler
     imgElement.onerror = function () {
-      console.error("❌ Error loading image:", file);
-      addErrorLog("Failed to load image: " + file);
       imgElement.style.display = "none";
       $(".login_loader").show();
-      cleanupAndResolve();
+      resolve();
+      console.error("❌ Error loading image:", file);
     };
-
-    // Set up load handler
-    imgElement.onload = function () {
-      console.log("✅ Image loaded successfully:", file);
-      if (loadTimeout) clearTimeout(loadTimeout);
-      // Don't resolve here, let the timeout in playImage handle it
-    };
-
-    // Timeout for image loading (in case onload/onerror never fire)
-    loadTimeout = setTimeout(() => {
-      if (!imageLoaded) {
-        console.warn("⏰ Image load timeout:", file);
-        addErrorLog("Image load timeout: " + file);
-        cleanupAndResolve();
-      }
-    }, 5000); // 5 seconds timeout for image loading
-
     console.log("image_url " + sources + "/" + file);
     console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
-
-    // Add cache buster for placeholder images
-    if (file.startsWith("placeholder")) {
-      image_url = image_url + "?v=" + new Date().getTime();
-    }
-
-    imgElement.src = image_url;
+    // if (file.startsWith("placeholder")) {
+    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
+    // }
+    imgElement.src = image_url; // ✅ use updated URL
   } catch (err) {
-    console.error("❌ Error preparing image:", err);
-    addErrorLog("Error preparing image file: " + (err.message || err));
-    cleanupAndResolve();
+    addErrorLog(" Error preparing or Image file:", err.message || err);
   }
 }
 
@@ -299,47 +266,26 @@ let timeoutBox = null;
 
 function playImage(file, signal) {
   return new Promise((resolve) => {
-    let imageResolved = false;
-
-    const cleanupAndResolve = () => {
-      if (imageResolved) return;
-      imageResolved = true;
-      if (timeoutBox) {
-        clearTimeout(timeoutBox);
-        timeoutBox = null;
-      }
-      resolve();
-    };
-
     if (timeoutBox) {
       clearTimeout(timeoutBox);
       timeoutBox = null;
     }
-
     document.getElementById("av-player").classList.remove("vid");
     document.getElementById("av-player2").classList.remove("vid");
-
-    // Enhanced image display with error handling
-    try {
-      showImage(file, cleanupAndResolve);
-    } catch (error) {
-      console.error("❌ Error showing image:", error);
-      addErrorLog("Image display error: " + (error.message || error));
-      cleanupAndResolve();
-      return;
-    }
+    showImage(file, resolve); // your own image render logic
 
     timeoutBox = setTimeout(() => {
-      if (!signal.aborted && !imageResolved) {
+      if (!signal.aborted) {
         console.log("🖼️ Image display complete:", file);
-        cleanupAndResolve();
+        resolve();
       }
     }, 10000); // 10 seconds per image
 
-    // Handle abort signal
-    if (signal.aborted) {
-      cleanupAndResolve();
-    }
+    // signal.addEventListener("abort", () => {
+    //   clearTimeout(timeout);
+    //   console.log("🛑 Aborted during image");
+    //   resolve();
+    // });
   });
 }
 
@@ -412,19 +358,9 @@ function playVideo(file, signal, currentAd) {
     let aborted = false;
     let hasStarted = false;
     let timeoutFallback = null;
-    let prepareTimeout = null;
     document.getElementById("image-player").style.display = "none";
     document.getElementById("av-player").classList.add("vid");
     document.getElementById("av-player2").classList.add("vid");
-
-    // Helper function to clean up and resolve
-    const cleanupAndResolve = () => {
-      if (timeoutFallback) clearTimeout(timeoutFallback);
-      if (prepareTimeout) clearTimeout(prepareTimeout);
-      aborted = true;
-      resolve();
-    };
-
     try {
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
@@ -441,46 +377,25 @@ function playVideo(file, signal, currentAd) {
       }
 
       let successCallback = function () {
-        if (aborted) return;
-        if (prepareTimeout) clearTimeout(prepareTimeout);
         console.log("The media has finished preparing");
-        try {
-          player.setVideoStillMode("false");
-          player.play();
-          console.log("🎞️ Playing video:", file);
-        } catch (error) {
-          console.error("❌ Error starting playback:", error);
-          addErrorLog("Error starting playback: " + error.message);
-          cleanupAndResolve();
-        }
+        player.setVideoStillMode("false");
+        player.play();
+        console.log("🎞️ Playing video:", file);
       };
 
-      let errorCallback = function (error) {
-        if (aborted) return;
-        console.log("The media has failed to prepare:", error);
-        addErrorLog(
-          "Video playback error: Failed to prepare media - " +
-            (error?.message || error)
-        );
-        try {
-          player.stop();
-        } catch (e) {
-          console.warn("Error stopping player after prepare failure:", e);
-        }
-        cleanupAndResolve();
+      let errorCallback = function () {
+        console.log("The media has failed to prepare");
+        addErrorLog("Video playback error: Failed to prepare media");
+        player.stop();
+        clearTimeout(timeoutFallback);
+        resolve();
       };
 
       const dynamicListener = {
-        onbufferingstart: () => {
-          if (aborted) return;
-          console.log("⏳ Buffering start.");
-        },
-        onbufferingprogress: function (percent) {
-          if (aborted) return;
-          console.log("Buffering progress data : " + percent);
-        },
-        onbufferingcomplete: function () {
-          if (aborted) return;
+        onbufferingstart: () => console.log("⏳ Buffering start."),
+        onbufferingprogress: (percent) =>
+          console.log("📶 Buffering: " + percent + "%"),
+        onbufferingcomplete: () => {
           console.log("✅ Buffering complete");
           hasStarted = true;
 
@@ -489,112 +404,76 @@ function playVideo(file, signal, currentAd) {
             if (!aborted) {
               console.warn("⏰ Playback stuck, skipping video:", file);
               addErrorLog("Playback stuck (no stream complete): " + file);
-              try {
-                player.stop();
-              } catch (e) {
-                console.warn("Error stopping stuck player:", e);
-              }
-              cleanupAndResolve();
+              player.stop();
+              resolve();
             }
-          }, Math.min(currentAd?.duration || 30000, 180000)); // Max 3 minutes, default 30 seconds
-        },
-        oncurrentplaytime: function (currentTime) {
-          if (aborted) return;
-          console.log("Current playtime: " + currentTime);
+          }, currentAd?.duration || 180000); // Or 10000 for 10s detection
         },
         onstreamcompleted: () => {
-          if (aborted) return;
-          console.log("🎞️ Stream completed:", file);
-          try {
+          if (!aborted) {
+            console.log("🎞️ Stream completed:", file);
             player.setVideoStillMode("true"); // Turn on still mode to keep last frame
             player.stop();
-          } catch (e) {
-            console.warn("Error during stream completion cleanup:", e);
+            clearTimeout(timeoutFallback);
+            resolve();
+          } else {
+            console.log(
+              "🛑 Aborted during stream completion, stopping player."
+            );
+            player.stop();
+            clearTimeout(timeoutFallback);
+            resolve();
           }
-          cleanupAndResolve();
-        },
-        onerrormsg: function (eventType, errorMsg) {
-          if (aborted) return;
-          console.error("❌ Error message received:", eventType, errorMsg);
-          addErrorLog(`Video error (${eventType}): ${errorMsg}`);
-          // Don't resolve here, let onerror handle it
         },
         onerror: (errType) => {
-          if (aborted) return;
-          console.error("❌ Playback error:", errType);
-          addErrorLog("Playback error: " + errType);
-          try {
+          if (!aborted) {
+            console.error("❌ Playback error:", errType);
+            addErrorLog("Playback error: " + errType);
             player.stop();
-          } catch (e) {
-            console.warn("Error stopping player after error:", e);
+            clearTimeout(timeoutFallback);
+            resolve();
+          } else {
+            console.log("🛑 Aborted during error handling, stopping player.");
+            player.stop();
+            clearTimeout(timeoutFallback);
+            resolve();
           }
-          cleanupAndResolve();
         },
       };
-
-      // Add timeout for prepare phase (in case prepareAsync never calls back)
-      prepareTimeout = setTimeout(() => {
-        if (!aborted && !hasStarted) {
-          console.warn("⏰ Prepare timeout, skipping video:", file);
-          addErrorLog("Prepare timeout: " + file);
-          try {
-            player.stop();
-          } catch (e) {
-            console.warn("Error stopping player after prepare timeout:", e);
-          }
-          cleanupAndResolve();
-        }
-      }, 15000); // 15 seconds timeout for prepare
 
       player.open(sources + "/" + file);
       player.setListener(dynamicListener);
       player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
       player.setDisplayRect(0, 0, 1080, 1824);
+      // player.prepare();
       player.prepareAsync(successCallback, errorCallback);
+      // player.setVideoStillMode("false");
+      // player.play();
 
       // Handle abortion after play started
       if (signal.aborted) {
-        cleanupAndResolve();
+        aborted = true;
+        console.log("🛑 Aborted during video");
+        player.stop();
+        resolve();
         return;
       }
 
       const abortHandler = () => {
+        aborted = true;
         console.log("🛑 Abort signal triggered during playback");
-        cleanupAndResolve();
+        player.stop();
+        resolve();
       };
 
-      // Uncomment if you want to handle abort signals
       // signal.addEventListener("abort", abortHandler, { once: true });
     } catch (err) {
       console.error("❌ Error playing video:", err.message || err);
       addErrorLog("Video playback error: " + (err.message || err));
-      cleanupAndResolve(); // Use cleanup function instead of direct resolve
+      resolve(); // Resolve to continue loop
     }
   });
 }
-
-// Global error handler to prevent freezing
-window.addEventListener("error", (event) => {
-  console.error("❌ Global error caught:", event.error);
-  addErrorLog("Global error: " + (event.error?.message || event.error));
-
-  // If error occurs during video playback, try to recover
-  try {
-    if (p1) p1.stop();
-    if (p2) p2.stop();
-  } catch (e) {
-    console.warn("Error stopping players during global error recovery:", e);
-  }
-});
-
-// Handle unhandled promise rejections
-window.addEventListener("unhandledrejection", (event) => {
-  console.error("❌ Unhandled promise rejection:", event.reason);
-  addErrorLog(
-    "Unhandled promise rejection: " + (event.reason?.message || event.reason)
-  );
-  event.preventDefault(); // Prevent default browser behavior
-});
 
 window.addEventListener("unload", () => {
   console.log("🔁 Unloading... cleaning up");
@@ -631,12 +510,8 @@ window.addEventListener("unload", () => {
   }
 
   // 5. Optional: remove listeners on players if any (safety)
-  try {
-    p1 && p1.setListener(null);
-    p2 && p2.setListener(null);
-  } catch (e) {
-    console.warn("Error removing player listeners:", e);
-  }
+  p1 && p1.setListener(null);
+  p2 && p2.setListener(null);
 
   console.log("✅ Cleanup complete");
 });
