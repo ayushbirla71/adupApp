@@ -270,17 +270,22 @@ function addDownloadedFile(name) {
   }
 }
 
-// Enhanced clear logs function with memory management
+// Simple and effective clear logs function
 function clearAllLogs() {
-  if (window.memoryManager) {
-    window.memoryManager.clearAllLogs();
-  } else {
-    // Fallback if memory manager not available
+  console.log("clearAllLogs function called");
+
+  try {
+    // Clear all log arrays
     window.ERROR_LOGS = [];
     window.INFO_LOGS = [];
     window.DOWNLOADED_FILES = [];
     window.DOWNLOAD_STATUS = [];
     window.DOWNLOAD_PROGRESS = [];
+
+    // Reset console log count
+    if (window.CONSOLE_LOG_COUNT) {
+      window.CONSOLE_LOG_COUNT = 0;
+    }
 
     // Clear UI elements
     const logList = document.getElementById("logList");
@@ -290,10 +295,89 @@ function clearAllLogs() {
     if (logList) logList.innerHTML = "";
     if (errorList) errorList.innerHTML = "";
     if (downloadedList) downloadedList.innerHTML = "";
-  }
 
-  addInfoLog("All logs cleared");
-  showToast("success", "All logs have been cleared");
+    console.log("Logs cleared successfully");
+
+    // Add confirmation log (no toast for background operation)
+    const time = new Date().toLocaleTimeString();
+    window.INFO_LOGS.push(`[${time}] All logs cleared`);
+  } catch (error) {
+    console.error("Error in clearAllLogs:", error);
+    showToast("error", "Failed to clear logs");
+  }
+}
+
+// Simple memory cleanup function
+function performMemoryCleanup() {
+  console.log("performMemoryCleanup function called");
+
+  try {
+    clearAllLogs();
+
+    // Force garbage collection if available (silent background operation)
+    if (window.gc && typeof window.gc === "function") {
+      try {
+        window.gc();
+        console.log("Background garbage collection performed");
+      } catch (e) {
+        console.log("GC failed, but cleanup performed");
+      }
+    } else {
+      console.log("GC not available, cleanup performed");
+    }
+  } catch (error) {
+    console.error("Error in performMemoryCleanup:", error);
+    showToast("error", "Failed to perform memory cleanup");
+  }
+}
+
+// Emergency cleanup function
+function emergencyMemoryCleanup() {
+  console.log("emergencyMemoryCleanup function called");
+
+  try {
+    // Aggressive cleanup
+    window.ERROR_LOGS = [];
+    window.INFO_LOGS = [];
+    window.DOWNLOADED_FILES = [];
+    window.DOWNLOAD_STATUS = [];
+    window.DOWNLOAD_PROGRESS = [];
+
+    if (window.CONSOLE_LOG_COUNT) {
+      window.CONSOLE_LOG_COUNT = 0;
+    }
+
+    // Clear all UI elements
+    const allLists = document.querySelectorAll(
+      "#logList, #error-list, #downloaded-list, #memory-stats-list"
+    );
+    allLists.forEach((list) => {
+      if (list) list.innerHTML = "";
+    });
+
+    // Clear any blob URLs
+    const images = document.querySelectorAll("img");
+    images.forEach((img) => {
+      if (img.src && img.src.startsWith("blob:")) {
+        URL.revokeObjectURL(img.src);
+      }
+    });
+
+    // Force garbage collection
+    if (window.gc && typeof window.gc === "function") {
+      try {
+        window.gc();
+        console.log("Emergency GC performed");
+      } catch (e) {
+        console.log("Emergency GC failed:", e);
+      }
+    }
+
+    console.log("Emergency cleanup completed");
+  } catch (error) {
+    console.error("Error in emergencyMemoryCleanup:", error);
+    showToast("error", "Failed to perform emergency cleanup");
+  }
 }
 
 function trackDownloadProgress(name, url, progress) {
@@ -303,4 +387,16 @@ function trackDownloadProgress(name, url, progress) {
   } else {
     window.DOWNLOAD_PROGRESS.push({ name, url, progress });
   }
+}
+
+// Make functions globally accessible for background operation
+window.clearAllLogs = clearAllLogs;
+window.performMemoryCleanup = performMemoryCleanup;
+window.emergencyMemoryCleanup = emergencyMemoryCleanup;
+
+// Initialize background memory management
+if (typeof window !== "undefined") {
+  setTimeout(() => {
+    console.log("🔧 Background memory management initialized");
+  }, 1000);
 }

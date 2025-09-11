@@ -44,7 +44,7 @@ function increaseIterator(x) {
   if (iterator >= x.length) {
     iterator = 0;
   }
-  console.log("Current iterator value: " + iterator);
+  //console.log("Current iterator value: " + iterator);
 }
 
 // 📥 Handle ads from MQTT payload
@@ -102,7 +102,7 @@ function getFileName(adsData) {
   const extension = originalName.substring(dotIndex);
 
   if (nameWithoutExt.startsWith("placeholder")) {
-    console.log("data in placehoder", adsData);
+    //console.log("data in placehoder", adsData);
     return `${nameWithoutExt}_${adsData?.timestamp}${extension}`;
   }
 
@@ -270,8 +270,8 @@ function showImage(file, resolve) {
       resolve();
       console.error("❌ Error loading image:", file);
     };
-    console.log("image_url " + sources + "/" + file);
-    console.log("🖼️ Displaying image:", adsFromServer[iterator]);
+    //console.log("image_url " + sources + "/" + file);
+    //console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
     if (file.startsWith("placeholder")) {
       image_url = image_url + "?v=" + new Date().getTime(); // cache buster
@@ -343,9 +343,9 @@ async function playAllContentInLoop(filenames, ads, rcs) {
   while (!signal.aborted) {
     const currentFile = filenames[iterator % filenames.length];
     const currentAd = ads[iterator % ads.length];
-    console.log("▶️ Now playing: " + currentFile);
-    console.log("playing index...." + iterator);
-    console.log("Playing Index is " + (iterator % filenames.length));
+    //console.log("▶️ Now playing: " + currentFile);
+    //console.log("playing index...." + iterator);
+    //console.log("Playing Index is " + (iterator % filenames.length));
     $(".login_loader").hide();
 
     const imageElement1 = document.getElementById("image-player1");
@@ -360,15 +360,16 @@ async function playAllContentInLoop(filenames, ads, rcs) {
         );
         let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
         if (!isVideo(filenames[nexIndex]) && imgElement) {
-          console.log("next content is show...");
-          console.log("imagess", imgElement);
-          console.log("image1", imageElement1);
-          console.log("image2", imageElement2);
+          //console.log("next content is show...");
+          //console.log("imagess", imgElement);
+          //console.log("image1", imageElement1);
+          //console.log("image2", imageElement2);
           imgElement.src = sources + "/" + filenames[nexIndex];
         }
         await playVideo(currentFile, signal, currentAd);
       } else {
         await playImage(currentFile, signal);
+        //useImage1 = !useImage1;
       }
     } catch (err) {
       console.error("❌ Error during media playback:", err.message || err);
@@ -385,10 +386,6 @@ function playVideo(file, signal, currentAd) {
     let aborted = false;
     let hasStarted = false;
     let timeoutFallback = null;
-    document.getElementById("image-player1").style.display = "none";
-    document.getElementById("image-player2").style.display = "none";
-    document.getElementById("av-player").classList.add("vid");
-    document.getElementById("av-player2").classList.add("vid");
 
     try {
       const player = useP1Next ? p1 : p2;
@@ -401,7 +398,7 @@ function playVideo(file, signal, currentAd) {
       try {
         player.stop?.();
       } catch (error) {
-        console.log("player close....", error?.message);
+        //console.log("player close....", error?.message);
         player.close?.();
       }
 
@@ -424,16 +421,20 @@ function playVideo(file, signal, currentAd) {
       }
 
       let successCallback = function () {
-        console.log("The media has finished preparing");
+        //console.log("The media has finished preparing");
         player.setVideoStillMode("false");
+        document.getElementById("image-player1").style.display = "none";
+        document.getElementById("image-player2").style.display = "none";
+        document.getElementById("av-player").classList.add("vid");
+        document.getElementById("av-player2").classList.add("vid");
         player.play();
-        console.log("🎞️ Playing video:", file);
+        //console.log("🎞️ Playing video:", file);
         let state = player.getState();
-        console.log("[Player][seekBackward] state 1: ", state);
+        //console.log("[Player][seekBackward] state 1: ", state);
       };
 
       let errorCallback = function () {
-        console.log("The media has failed to prepare");
+        //console.log("The media has failed to prepare");
         addErrorLog("Video playback error: Failed to prepare media");
         player.stop();
         clearTimeout(timeoutFallback);
@@ -442,28 +443,28 @@ function playVideo(file, signal, currentAd) {
 
       const dynamicListener = {
         onbufferingstart: () => {
-          console.log("⏳ Buffering start.");
+          //console.log("⏳ Buffering start.");
         },
         onbufferingprogress: function (percent) {
-          console.log("Buffering progress data : " + percent);
+          //console.log("Buffering progress data : " + percent);
         },
         onbufferingcomplete: function () {
-          console.log("✅ Buffering complete");
+          //console.log("✅ Buffering complete");
           hasStarted = true;
         },
         oncurrentplaytime: function (currentTime) {
           let state = player.getState();
-          console.log("[Player][seekBackward] state 2: ", state);
+          //console.log("[Player][seekBackward] state 2: ", state);
           if (state === "PLYING") {
             if (!timeoutFallback) {
               timeoutFallbackHandler();
             }
           }
-          console.log("Current playtime: " + currentTime);
+          //console.log("Current playtime: " + currentTime);
         },
         onstreamcompleted: () => {
           if (!aborted) {
-            console.log("🎞️ Stream completed:", file);
+            //console.log("🎞️ Stream completed:", file);
             player.setVideoStillMode("true"); // Turn on still mode to keep last frame
             player.stop();
             clearTimeout(timeoutFallback);
@@ -479,7 +480,7 @@ function playVideo(file, signal, currentAd) {
         },
 
         onevent: function (eventType, eventData) {
-          console.log("event type: " + eventType + ", data: " + eventData);
+          //console.log("event type: " + eventType + ", data: " + eventData);
         },
 
         onerror: (errType) => {

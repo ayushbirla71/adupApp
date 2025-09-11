@@ -8,16 +8,17 @@ class Logger {
       WARN: 1,
       INFO: 2,
       DEBUG: 3,
-      TRACE: 4
+      TRACE: 4,
     };
-    
+
     this.currentLevel = this.logLevels.INFO; // Default log level
     this.isProduction = false; // Set to true in production
   }
 
   setLogLevel(level) {
-    if (typeof level === 'string') {
-      this.currentLevel = this.logLevels[level.toUpperCase()] || this.logLevels.INFO;
+    if (typeof level === "string") {
+      this.currentLevel =
+        this.logLevels[level.toUpperCase()] || this.logLevels.INFO;
     } else {
       this.currentLevel = level;
     }
@@ -35,7 +36,9 @@ class Logger {
     if (this.currentLevel >= this.logLevels.ERROR) {
       console.error(`❌ [ERROR] ${message}`, ...args);
       if (window.addErrorLog) {
-        window.addErrorLog(`${message} ${args.length ? JSON.stringify(args) : ''}`);
+        window.addErrorLog(
+          `${message} ${args.length ? JSON.stringify(args) : ""}`
+        );
       }
     }
   }
@@ -44,7 +47,9 @@ class Logger {
     if (this.currentLevel >= this.logLevels.WARN) {
       console.warn(`⚠️ [WARN] ${message}`, ...args);
       if (window.addInfoLog) {
-        window.addInfoLog(`WARN: ${message} ${args.length ? JSON.stringify(args) : ''}`);
+        window.addInfoLog(
+          `WARN: ${message} ${args.length ? JSON.stringify(args) : ""}`
+        );
       }
     }
   }
@@ -53,7 +58,9 @@ class Logger {
     if (this.currentLevel >= this.logLevels.INFO && !this.isProduction) {
       console.info(`ℹ️ [INFO] ${message}`, ...args);
       if (window.addInfoLog) {
-        window.addInfoLog(`${message} ${args.length ? JSON.stringify(args) : ''}`);
+        window.addInfoLog(
+          `${message} ${args.length ? JSON.stringify(args) : ""}`
+        );
       }
     }
   }
@@ -133,67 +140,53 @@ class Logger {
 window.logger = new Logger();
 
 // Convenience functions for backward compatibility
-window.logError = function(message, ...args) {
+window.logError = function (message, ...args) {
   window.logger.error(message, ...args);
 };
 
-window.logWarn = function(message, ...args) {
+window.logWarn = function (message, ...args) {
   window.logger.warn(message, ...args);
 };
 
-window.logInfo = function(message, ...args) {
+window.logInfo = function (message, ...args) {
   window.logger.info(message, ...args);
 };
 
-window.logDebug = function(message, ...args) {
+window.logDebug = function (message, ...args) {
   window.logger.debug(message, ...args);
 };
 
 // Context-specific logging functions
-window.logMqtt = function(message, ...args) {
+window.logMqtt = function (message, ...args) {
   window.logger.mqtt(message, ...args);
 };
 
-window.logVideo = function(message, ...args) {
+window.logVideo = function (message, ...args) {
   window.logger.video(message, ...args);
 };
 
-window.logDownload = function(message, ...args) {
+window.logDownload = function (message, ...args) {
   window.logger.download(message, ...args);
 };
 
-window.logCleanup = function(message, ...args) {
+window.logCleanup = function (message, ...args) {
   window.logger.cleanup(message, ...args);
 };
 
-window.logMemory = function(message, ...args) {
+window.logMemory = function (message, ...args) {
   window.logger.memory(message, ...args);
 };
 
-window.logPerformance = function(message, ...args) {
+window.logPerformance = function (message, ...args) {
   window.logger.performance(message, ...args);
 };
 
 // Production mode detection
-if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+if (
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1"
+) {
   window.logger.setProduction(true);
 }
 
-// Memory-aware console override (less aggressive than memory-manager.js)
-const originalConsoleLog = console.log;
-let consoleLogCount = 0;
-const MAX_CONSOLE_LOGS_LOGGER = 200;
-
-console.log = function(...args) {
-  consoleLogCount++;
-  if (consoleLogCount <= MAX_CONSOLE_LOGS_LOGGER) {
-    originalConsoleLog.apply(console, args);
-  } else if (consoleLogCount === MAX_CONSOLE_LOGS_LOGGER + 1) {
-    originalConsoleLog.warn('🚨 Logger: Console log limit reached. Use logger.info() instead.');
-  }
-  
-  // Reset count periodically
-  if (consoleLogCount > MAX_CONSOLE_LOGS_LOGGER * 2) {
-    consoleLogCount = 0;
-  }
-};
+// Note: Console override is handled by memory-manager.js to avoid conflicts
