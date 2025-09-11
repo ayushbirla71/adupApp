@@ -358,6 +358,9 @@ function showSection(id) {
     case "systemInfo":
       showSystemInfo();
       break;
+    case "memory":
+      renderMemoryStats();
+      break;
   }
 
   // Set focus to first focusable
@@ -463,6 +466,104 @@ function renderErrors() {
       `<li class="error-item focusable" id="error-${i}">${err}</li>`
     );
   });
+}
+
+// Memory monitoring functions
+function renderMemoryStats() {
+  const $list = $("#memory-stats-list");
+  if (!$list.length) return;
+
+  $list.empty();
+
+  // Get memory stats from memory manager
+  const memoryStats = window.memoryManager
+    ? window.memoryManager.getMemoryStats()
+    : {};
+  const resourceStats = window.resourceCleanup
+    ? window.resourceCleanup.getResourceStats()
+    : {};
+
+  // Combine stats
+  const stats = [
+    ["Info Logs", memoryStats.infoLogs || window.INFO_LOGS.length],
+    ["Error Logs", memoryStats.errorLogs || window.ERROR_LOGS.length],
+    [
+      "Downloaded Files",
+      memoryStats.downloadedFiles || window.DOWNLOADED_FILES.length,
+    ],
+    ["Console Log Count", memoryStats.consoleLogCount || 0],
+    ["Active Timeouts", resourceStats.timeouts || 0],
+    ["Active Intervals", resourceStats.intervals || 0],
+    ["Event Listeners", resourceStats.eventListeners || 0],
+    ["Observers", resourceStats.observers || 0],
+    ["Abort Controllers", resourceStats.abortControllers || 0],
+    ["Media Elements", resourceStats.mediaElements || 0],
+    ["Object URLs", resourceStats.objectUrls || 0],
+  ];
+
+  stats.forEach(([key, value], i) => {
+    const className =
+      value > 50
+        ? "memory-warning"
+        : value > 100
+        ? "memory-critical"
+        : "memory-normal";
+    $list.append(
+      `<li class="memory-stat-item focusable ${className}" id="memory-${i}">
+        <span class="stat-label">${key}:</span>
+        <span class="stat-value">${value}</span>
+      </li>`
+    );
+  });
+
+  // Add memory actions
+  $list.append(`
+    <li class="memory-action-item focusable" id="memory-clear-logs">
+      <button onclick="clearAllLogs()">🧹 Clear All Logs</button>
+    </li>
+    <li class="memory-action-item focusable" id="memory-cleanup">
+      <button onclick="performMemoryCleanup()">🚨 Emergency Cleanup</button>
+    </li>
+    <li class="memory-action-item focusable" id="memory-gc">
+      <button onclick="forceGarbageCollection()">♻️ Force GC</button>
+    </li>
+  `);
+}
+
+function forceGarbageCollection() {
+  if (window.gc && typeof window.gc === "function") {
+    try {
+      window.gc();
+      addInfoLog("Forced garbage collection");
+      showToast("success", "Garbage collection performed");
+    } catch (e) {
+      addErrorLog("Failed to force garbage collection: " + e.message);
+      showToast("error", "GC not available");
+    }
+  } else {
+    addInfoLog("Garbage collection not available");
+    showToast("info", "GC not available in this environment");
+  }
+}
+
+function performMemoryCleanup() {
+  if (window.emergencyMemoryCleanup) {
+    window.emergencyMemoryCleanup();
+    showToast("success", "Emergency memory cleanup performed");
+  } else if (window.performMemoryCleanup) {
+    window.performMemoryCleanup();
+    showToast("success", "Memory cleanup performed");
+  } else {
+    clearAllLogs();
+    showToast("info", "Basic cleanup performed");
+  }
+
+  // Refresh memory stats
+  setTimeout(() => {
+    if ($("#memory").hasClass("active")) {
+      renderMemoryStats();
+    }
+  }, 1000);
 }
 
 function renderProgress() {

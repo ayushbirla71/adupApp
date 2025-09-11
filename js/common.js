@@ -229,20 +229,71 @@ function showToast(type, message, timer) {
   }, timer || 3000);
 }
 
+// These functions are now handled by memory-manager.js
+// Keeping these as fallbacks if memory manager is not loaded
 function addInfoLog(message) {
-  const time = new Date().toLocaleTimeString();
-  window.INFO_LOGS.push(`[${time}] ${message}`);
+  if (window.memoryManager) {
+    window.memoryManager.addInfoLog(message);
+  } else {
+    const time = new Date().toLocaleTimeString();
+    window.INFO_LOGS.push(`[${time}] ${message}`);
+
+    // Basic rotation if memory manager not available
+    if (window.INFO_LOGS.length > (window.MAX_LOG_ENTRIES || 100)) {
+      window.INFO_LOGS = window.INFO_LOGS.slice(-50);
+    }
+  }
 }
 
 function addErrorLog(message) {
-  const time = new Date().toLocaleTimeString();
-  window.ERROR_LOGS.push(`[${time}] ${message}`);
+  if (window.memoryManager) {
+    window.memoryManager.addErrorLog(message);
+  } else {
+    const time = new Date().toLocaleTimeString();
+    window.ERROR_LOGS.push(`[${time}] ${message}`);
+
+    // Basic rotation if memory manager not available
+    if (window.ERROR_LOGS.length > (window.MAX_LOG_ENTRIES || 100)) {
+      window.ERROR_LOGS = window.ERROR_LOGS.slice(-50);
+    }
+  }
 }
 
 function addDownloadedFile(name) {
   if (!window.DOWNLOADED_FILES.includes(name)) {
     window.DOWNLOADED_FILES.push(name);
+
+    // Rotate downloaded files if too many
+    if (window.DOWNLOADED_FILES.length > (window.MAX_LOG_ENTRIES || 100)) {
+      window.DOWNLOADED_FILES = window.DOWNLOADED_FILES.slice(-50);
+    }
   }
+}
+
+// Enhanced clear logs function with memory management
+function clearAllLogs() {
+  if (window.memoryManager) {
+    window.memoryManager.clearAllLogs();
+  } else {
+    // Fallback if memory manager not available
+    window.ERROR_LOGS = [];
+    window.INFO_LOGS = [];
+    window.DOWNLOADED_FILES = [];
+    window.DOWNLOAD_STATUS = [];
+    window.DOWNLOAD_PROGRESS = [];
+
+    // Clear UI elements
+    const logList = document.getElementById("logList");
+    const errorList = document.getElementById("error-list");
+    const downloadedList = document.getElementById("downloaded-list");
+
+    if (logList) logList.innerHTML = "";
+    if (errorList) errorList.innerHTML = "";
+    if (downloadedList) downloadedList.innerHTML = "";
+  }
+
+  addInfoLog("All logs cleared");
+  showToast("success", "All logs have been cleared");
 }
 
 function trackDownloadProgress(name, url, progress) {

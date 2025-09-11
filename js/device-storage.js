@@ -70,20 +70,20 @@ async function handleMQTTAds(payload) {
 
   try {
     await cleanUpOldAds(filenames);
-    console.log("🧹 Cleanup done!");
+    logCleanup("Cleanup done!");
 
     // Download all files first (sequential or parallel)
     for (let i = 0; i < filenames.length; i++) {
       await checkAndDownloadContent(ads[i].url, filenames[i]);
     }
-    console.log("✅ All downloads complete, starting playback");
+    logDownload("All downloads complete, starting playback");
     localAds = filenames;
     stopCurrentPlayback(); // 💥 Stop current playback first
     adsFromServer = ads;
     playAllContentInLoop(filenames, ads, rcs);
     // document.getElementById("ad_player").innerHTML = ""; // Clear previous content
   } catch (err) {
-    console.error("❌ Error in ad handling:", err.message || err);
+    logError("Error in ad handling:", err.message || err);
   }
 }
 
@@ -294,9 +294,9 @@ function playImage(file, signal) {
     document.getElementById("av-player2").classList.remove("vid");
     showImage(file, resolve); // your own image render logic
 
-    timeoutBox = setTimeout(() => {
+    timeoutBox = managedSetTimeout(() => {
       if (!signal.aborted) {
-        console.log("🖼️ Image display complete:", file);
+        logVideo("Image display complete:", file);
         resolve();
       }
     }, 10000); // 10 seconds per image
@@ -312,19 +312,19 @@ function playImage(file, signal) {
 let currentAbortController = null;
 
 async function playAllContentInLoop(filenames, ads, rcs) {
-  console.log("🧹 Cleaning previous timeouts and DOM...");
+  logCleanup("Cleaning previous timeouts and DOM...");
   addInfoLog("🔁 Re-Start the Loop.....");
-  console.log("Loaded ads list in localAds ...", localAds);
-  console.log("Loaded ads in filenames :", filenames);
+  logInfo("Loaded ads list in localAds", localAds);
+  logInfo("Loaded ads in filenames", filenames);
   iterator = 0;
 
   // 🛑 Abort existing controller and wait for it to settle
   if (currentAbortController) {
-    console.log("🛑 Aborting previous loop...");
+    logInfo("Aborting previous loop...");
     currentAbortController.abort();
 
     // Wait a short time to let pending image/video resolves finish
-    await new Promise((res) => setTimeout(res, 50));
+    await new Promise((res) => managedSetTimeout(res, 50));
   }
 
   currentAbortController = new AbortController();
@@ -541,7 +541,7 @@ function playVideo(file, signal, currentAd) {
 }
 
 window.addEventListener("unload", () => {
-  console.log("🔁 Unloading... cleaning up");
+  logCleanup("Unloading... cleaning up");
 
   // 1. Clear all ad loop timeouts
   adLoopTimeouts.forEach(clearTimeout);
@@ -564,7 +564,12 @@ window.addEventListener("unload", () => {
       p2.close();
     }
   } catch (e) {
-    console.warn("⚠️ Player cleanup failed:", e);
+    logWarn("Player cleanup failed:", e);
+  }
+
+  // 4. Perform complete memory cleanup
+  if (window.performMemoryCleanup) {
+    window.performMemoryCleanup();
   }
 
   // 4. Clear image display
