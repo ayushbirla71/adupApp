@@ -8,6 +8,11 @@ let currentVideo = null; // 🔇 To track currently playing video
 let lastAdSignature = ""; // For checking ad updates
 var p1, p2;
 var iterator = 0;
+// Remove global element references - get them when needed instead
+// var imageElement1 = document.getElementById("image-player1");
+// var imageElement2 = document.getElementById("image-player2");
+
+let useImage1 = true;
 let useP1Next = true; // Global or scoped toggle
 
 // ✅ Ensure directory exists
@@ -52,7 +57,7 @@ async function handleMQTTAds(payload) {
   const filenames = ads.map((ad) => getFileName(ad));
   const newSignature = filenames.join(",");
 
-  startAdSlide("ad_snippet", rcs, 2);
+  startAdSlide("ad_snippet", rcs, 4);
 
   console.log("placeholderUpdate:", payload.placeholderUpdate);
 
@@ -178,7 +183,10 @@ function stopCurrentPlayback() {
   adLoopTimeouts.forEach(clearTimeout);
   adLoopTimeouts = [];
 
-  document.getElementById("image-player").style.display = "none";
+  const imageElement1 = document.getElementById("image-player1");
+  const imageElement2 = document.getElementById("image-player2");
+  if (imageElement1) imageElement1.style.display = "none";
+  if (imageElement2) imageElement2.style.display = "none";
   document.getElementById("av-player").classList.remove("vid");
   document.getElementById("av-player2").classList.remove("vid");
 }
@@ -234,7 +242,18 @@ function isVideo(fileName) {
 function showImage(file, resolve) {
   try {
     $(".login_loader").hide();
-    var imgElement = document.getElementById("image-player");
+    const imageElement1 = document.getElementById("image-player1");
+    const imageElement2 = document.getElementById("image-player2");
+
+    if (!imageElement1 || !imageElement2) {
+      console.error("❌ Image elements not found in DOM");
+      addErrorLog("Image elements not found in DOM");
+      resolve();
+      return;
+    }
+
+    let imgElement = useImage1 ? imageElement1 : imageElement2;
+    let otherImgElement = useImage1 ? imageElement2 : imageElement1;
     var videoElement1 = document.getElementById("av-player");
     var videoElement2 = document.getElementById("av-player2");
 
@@ -242,6 +261,7 @@ function showImage(file, resolve) {
     videoElement1.classList.remove("vid");
     videoElement2.classList.remove("vid");
     imgElement.style.display = "block";
+    otherImgElement.style.display = "none";
     // Show image
 
     imgElement.onerror = function () {
@@ -253,9 +273,9 @@ function showImage(file, resolve) {
     console.log("image_url " + sources + "/" + file);
     console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
-    // if (file.startsWith("placeholder")) {
-    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
-    // }
+    if (file.startsWith("placeholder")) {
+      image_url = image_url + "?v=" + new Date().getTime(); // cache buster
+    }
     imgElement.src = image_url; // ✅ use updated URL
   } catch (err) {
     addErrorLog(" Error preparing or Image file:", err.message || err);
@@ -327,19 +347,26 @@ async function playAllContentInLoop(filenames, ads, rcs) {
     console.log("playing index...." + iterator);
     console.log("Playing Index is " + (iterator % filenames.length));
     $(".login_loader").hide();
-    var imgElement = document.getElementById("image-player");
+
+    const imageElement1 = document.getElementById("image-player1");
+    const imageElement2 = document.getElementById("image-player2");
+    let imgElement = useImage1 ? imageElement1 : imageElement2;
+    let otherImgElement = useImage1 ? imageElement2 : imageElement1;
     try {
       if (isVideo(currentFile)) {
         console.log(
           "🎥 Displaying video:",
           adsFromServer[iterator % adsFromServer.length]
         );
-        await playVideo(currentFile, signal, currentAd);
         let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
-        if (!isVideo(filenames[nexIndex])) {
+        if (!isVideo(filenames[nexIndex]) && imgElement) {
           console.log("next content is show...");
-          imgElement.src = filenames[nexIndex];
+          console.log("imagess", imgElement);
+          console.log("image1", imageElement1);
+          console.log("image2", imageElement2);
+          imgElement.src = sources + "/" + filenames[nexIndex];
         }
+        await playVideo(currentFile, signal, currentAd);
       } else {
         await playImage(currentFile, signal);
       }
@@ -358,9 +385,11 @@ function playVideo(file, signal, currentAd) {
     let aborted = false;
     let hasStarted = false;
     let timeoutFallback = null;
-    document.getElementById("image-player").style.display = "none";
+    document.getElementById("image-player1").style.display = "none";
+    document.getElementById("image-player2").style.display = "none";
     document.getElementById("av-player").classList.add("vid");
     document.getElementById("av-player2").classList.add("vid");
+
     try {
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
@@ -376,11 +405,31 @@ function playVideo(file, signal, currentAd) {
         player.close?.();
       }
 
+      function timeoutFallbackHandler() {
+        timeoutFallback = setTimeout(() => {
+          if (!hasStarted) {
+            console.warn("⏭️ Timeout: Skipping stuck video:", file);
+            player.stop();
+            addErrorLog("Video playback timeout: Skipping stuck video");
+            resolve();
+          } else {
+            console.warn(
+              "⏭️ Timeout: Video playback took too long, stopping player."
+            );
+            player.stop();
+            addErrorLog("Video playback timeout: Stopping player");
+            resolve();
+          }
+        }, currentAd?.duration * 1000 || 15000); // e.g., 15 sec fallback
+      }
+
       let successCallback = function () {
         console.log("The media has finished preparing");
         player.setVideoStillMode("false");
         player.play();
         console.log("🎞️ Playing video:", file);
+        let state = player.getState();
+        console.log("[Player][seekBackward] state 1: ", state);
       };
 
       let errorCallback = function () {
@@ -392,22 +441,25 @@ function playVideo(file, signal, currentAd) {
       };
 
       const dynamicListener = {
-        onbufferingstart: () => console.log("⏳ Buffering start."),
-        onbufferingprogress: (percent) =>
-          console.log("📶 Buffering: " + percent + "%"),
-        onbufferingcomplete: () => {
+        onbufferingstart: () => {
+          console.log("⏳ Buffering start.");
+        },
+        onbufferingprogress: function (percent) {
+          console.log("Buffering progress data : " + percent);
+        },
+        onbufferingcomplete: function () {
           console.log("✅ Buffering complete");
           hasStarted = true;
-
-          // ⏳ Backup timeout if video hangs without completing
-          timeoutFallback = setTimeout(() => {
-            if (!aborted) {
-              console.warn("⏰ Playback stuck, skipping video:", file);
-              addErrorLog("Playback stuck (no stream complete): " + file);
-              player.stop();
-              resolve();
+        },
+        oncurrentplaytime: function (currentTime) {
+          let state = player.getState();
+          console.log("[Player][seekBackward] state 2: ", state);
+          if (state === "PLYING") {
+            if (!timeoutFallback) {
+              timeoutFallbackHandler();
             }
-          }, currentAd?.duration || 180000); // Or 10000 for 10s detection
+          }
+          console.log("Current playtime: " + currentTime);
         },
         onstreamcompleted: () => {
           if (!aborted) {
@@ -425,6 +477,11 @@ function playVideo(file, signal, currentAd) {
             resolve();
           }
         },
+
+        onevent: function (eventType, eventData) {
+          console.log("event type: " + eventType + ", data: " + eventData);
+        },
+
         onerror: (errType) => {
           if (!aborted) {
             console.error("❌ Playback error:", errType);
@@ -446,6 +503,14 @@ function playVideo(file, signal, currentAd) {
       player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
       player.setDisplayRect(0, 0, 1080, 1824);
       // player.prepare();
+
+      // --- SET THE SKIP TIMEOUT HERE ---
+      // timeoutFallback = setTimeout(() => {
+      //   console.warn("⏭️ Timeout: Skipping stuck video:", file);
+      //   player.stop();
+      //   resolve();
+      // }, currentAd?.duration || 15000); // e.g., 15 sec fallback
+
       player.prepareAsync(successCallback, errorCallback);
       // player.setVideoStillMode("false");
       // player.play();
@@ -503,10 +568,15 @@ window.addEventListener("unload", () => {
   }
 
   // 4. Clear image display
-  const img = document.getElementById("image-player");
-  if (img) {
-    img.src = "";
-    img.style.display = "none";
+  const img1 = document.getElementById("image-player1");
+  if (img1) {
+    img1.src = "";
+    img1.style.display = "none";
+  }
+  const img2 = document.getElementById("image-player2");
+  if (img2) {
+    img2.src = "";
+    img2.style.display = "none";
   }
 
   // 5. Optional: remove listeners on players if any (safety)

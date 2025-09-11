@@ -133,8 +133,8 @@ window.onload = async function () {
   SN.init();
   manage_spatial_navigation("settings-container");
   // const newToken = "your_token_here"; // Set this appropriately
-  // localStorage.setItem("group_id", "e1b24f5a-7cec-4024-8e23-c71d3ba896f1");
-  // localStorage.setItem("device_id", "5745f6a4-7190-41c4-afef-a31ccff06f6c");
+  // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
+  // localStorage.setItem("device_id", "4c9d0a2f-a489-4f81-9e17-ed7c5af3cc9d");
 
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {

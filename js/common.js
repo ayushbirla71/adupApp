@@ -133,25 +133,84 @@ function startAdSlide(containerId, textData, speed) {
   var text = document.getElementById("sliding_text");
   if (!container || !text) return;
 
+  // Set the text content
   text.innerHTML = textData;
 
-  var pos = container.offsetWidth;
-  var animationFrameId;
+  // Remove any existing animation classes
+  text.className = "sliding-text";
 
-  function animate() {
-    pos -= speed;
-    if (pos < -text.offsetWidth) {
-      pos = container.offsetWidth;
-    }
-    text.style.left = pos + "px";
-    animationFrameId = requestAnimationFrame(animate);
-  }
-
-  // Cancel previous frame if any
+  // Cancel any previous animation frame (cleanup from old JS animation)
   if (container._slideAnimationFrameId) {
     cancelAnimationFrame(container._slideAnimationFrameId);
+    container._slideAnimationFrameId = null;
   }
-  container._slideAnimationFrameId = requestAnimationFrame(animate);
+
+  // Clear any inline styles from previous JS animation
+  text.style.left = "";
+
+  // Add CSS animation classes based on speed
+  var speedClass = "speed-" + Math.min(Math.max(Math.round(speed), 1), 5);
+  text.classList.add("animate", speedClass);
+
+  console.log("CSS Animation started with speed class:", speedClass);
+}
+
+function stopAdSlide(containerId) {
+  console.log("Ad Slide Stop", containerId);
+
+  if (!containerId) return;
+
+  var container = document.getElementById(containerId);
+  var text = document.getElementById("sliding_text");
+  if (!container || !text) return;
+
+  // Remove animation classes
+  text.classList.remove(
+    "animate",
+    "speed-1",
+    "speed-2",
+    "speed-3",
+    "speed-4",
+    "speed-5"
+  );
+
+  // Cancel any previous animation frame (cleanup from old JS animation)
+  if (container._slideAnimationFrameId) {
+    cancelAnimationFrame(container._slideAnimationFrameId);
+    container._slideAnimationFrameId = null;
+  }
+
+  console.log("CSS Animation stopped");
+}
+
+// Test function to verify CSS animation is working
+function testAdSlideAnimation() {
+  console.log("Testing CSS-based ad slide animation...");
+
+  // Test with sample text and different speeds
+  const testTexts = [
+    "🎬 Welcome to our premium advertising platform!",
+    "📺 Experience smooth CSS animations on Tizen TV",
+    "⚡ Optimized for better performance and lower CPU usage",
+  ];
+
+  let testIndex = 0;
+
+  function runTest() {
+    if (testIndex < testTexts.length) {
+      const speed = (testIndex % 5) + 1; // Test speeds 1-5
+      console.log(`Testing with speed ${speed}: "${testTexts[testIndex]}"`);
+      startAdSlide("ad_snippet", testTexts[testIndex], speed);
+
+      testIndex++;
+      setTimeout(runTest, 8000); // Wait 8 seconds between tests
+    } else {
+      console.log("✅ CSS Animation test completed!");
+      stopAdSlide("ad_snippet");
+    }
+  }
+
+  runTest();
 }
 
 function showToast(type, message, timer) {

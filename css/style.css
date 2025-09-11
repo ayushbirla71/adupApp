@@ -164,15 +164,8 @@ button:focus {
 }
 
 #sliding_text {
-  position: absolute;
-  top: 50%;
-  color: white;
-  white-space: nowrap;
-  font-weight: bold;
-  font-size: 36px;
-
-  transform: translateY(-50%);
-  /* background-color: #050b12; */
+  /* Base styles are now defined in .sliding-text class below */
+  /* This selector is kept for specificity but styles moved to class */
 }
 
 /* =================================log in loader CSS ============================= */
@@ -261,37 +254,77 @@ button:focus {
   opacity: 1;
   top: 80px;
 }
-/* 
-.ad-snippet {
-  z-index: 3;
-  width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  position: relative;
-  height: 5vh; 
-}
-
+/* CSS-based sliding text animations for better performance on Tizen TV */
 .sliding-text {
-  display: inline-flex;
-  width: 100%;
   position: absolute;
-  white-space: nowrap;
-  will-change: transform;
-  animation: slide-left 30s linear infinite;
+  top: 50%;
   color: white;
+  white-space: nowrap;
   font-weight: bold;
-  font-size: 40px;
-  text-align: center;
+  font-size: 36px;
+  transform: translateY(-50%);
+  /* Initial position off-screen to the right */
+  left: 100%;
+  /* Optimize for animations on Tizen TV */
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  /* Hardware acceleration for better performance */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0) translateY(-50%);
+  /* Smooth rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Animation class to trigger the sliding */
+.sliding-text.animate {
+  animation: slide-left linear infinite;
+}
+
+/* Speed variations for different animation speeds */
+.sliding-text.speed-1 {
+  animation-duration: 60s; /* Slowest */
+}
+
+.sliding-text.speed-2 {
+  animation-duration: 45s; /* Slow */
+}
+
+.sliding-text.speed-3 {
+  animation-duration: 30s; /* Medium */
+}
+
+.sliding-text.speed-4 {
+  animation-duration: 20s; /* Fast */
+}
+
+.sliding-text.speed-5 {
+  animation-duration: 15s; /* Fastest */
+}
+
+/* Keyframe animation for sliding from right to left with hardware acceleration */
 @keyframes slide-left {
   0% {
-    transform: translateX(100%);
+    transform: translateZ(0) translateY(-50%) translateX(0%);
   }
   100% {
-    transform: translateX(-100%);
+    transform: translateZ(0) translateY(-50%) translateX(-100%);
   }
-} */
+}
+
+/* Additional optimization for Tizen TV */
+@media screen and (max-device-width: 1920px) {
+  .sliding-text.animate {
+    /* Use GPU acceleration specifically for TV displays */
+    transform: translateZ(0);
+  }
+}
+
+/* Pause animation on hover for debugging (optional) */
+.sliding-text.animate:hover {
+  animation-play-state: paused;
+}
 
 .pairing-container {
   display: flex;
