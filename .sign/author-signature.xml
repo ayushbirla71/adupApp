@@ -94,8 +94,8 @@ zcqqvmXAIg==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdevice-storage.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>dy9Q990eLN3mMrSMTAffhbibVIzHsdgl3AIuEvA7rHura9iDGw8FU3+KQvY6zhsZEoxQhs8Re88I
-AX9MosmFxg==</DigestValue>
+<DigestValue>AJwDm7MDom4ialX208taYm5ROo7Z+Qt+UBJXkGlbRRh1nhMhXUSuRdaIajI9fNx4QsLhJKi2bQim
+lC8ZVMkLyQ==</DigestValue>
 </Reference>
 <Reference URI="js%2FdeviceMqtt.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -192,11 +192,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-a5BZdCyiggpM1/yNp63JPb211M/0MkXww95Jxk8+SGW9rwf10j8z+Kc1a0fUAwXVPPuHEPs1Dl8J
-dKVAHpdF60HRBE+eKI48pCl6QNN9RpniOW+xY9Pr+W/+/Fo+RW4dSeqWOf+XH34C2AUEgyixRXhg
-6/IME0y6NPjghT7KH0tAGTh8Bg7CtbezXCvANYE+nomFMO1kFhhgvg1piHE10t6QsNsg8r+DPkIm
-tQ3qA7NFalcZ+eKgSJU4frxEWzFB+0Ku6uDhDksbHLAmaawCDSfkl2ZIdF+lGOJKywTxY9u8hg56
-5NTOsga6mw33GbkDM9as8sIfNx83cVXDY2Hhxg==
+FPZaqR1Edata5DdWN8XhCOP0t37ffxpCASIxQKCXxvNvsTUHnENYtW2Nsx7Lo04Wu+1hcbZt/F4m
+JdhYVveH1pXCsroLRRl+qUu8MLDzGn0OXkwHUxgoztvRpvtwDnNo/hdA0ooLJ3PuRBatnjwKIp4U
+2m15HzN3m8oXAUJ2xB+R2gFa3UvvhZtPfCwqJOJeVnM2o4sKC9di38sK5jVxVdLIftQoVsHRF56q
+zRBEeFGQYb7TE2t3zXN/v7JZOUF9yWXnVImjGj540ZuzBrIVJbIYu9y5wNJkVdNyj1aOzjgqAYS5
+p3FHworwjN232v+w2jOe5xhgAGDwAGI3jKal4g==
 </SignatureValue>
 <KeyInfo>
 <X509Data>
