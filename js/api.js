@@ -1,6 +1,6 @@
 async function joinGroup() {
-  // const groupId = $("#groupId").val();
-  var groupId = "AYUSHGOQOI"; // Use var, not const
+  const groupId = $("#groupId").val();
+  // var groupId = "AYUSHGOQOI"; // Use var, not const
   if (!groupId) {
     alert("Please enter license key.");
     return;
@@ -75,6 +75,85 @@ async function joinGroup() {
       error: function (error) {
         console.error("Error joining group:", error);
         alert("Failed to join group.");
+      },
+      complete: function () {
+        $(".login_loader").hide();
+      },
+    });
+  });
+}
+
+async function registerDevice() {
+  $(".login_loader").show();
+  getTVDeviceInfo().then(function (deviceInfo) {
+    console.log("Device Info:", deviceInfo);
+    $.ajax({
+      url: API_BASE_URL + "device/new-register",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      data: JSON.stringify({
+        android_id: deviceInfo.android_id,
+      }),
+      success: function (response) {
+        console.log("Device registered successfully:", response);
+        showToast("success", "Device registered successfully");
+        let { pairing_code } = response;
+        localStorage.setItem("android_id", response.android_id);
+        localStorage.setItem("device_id", response.device_id);
+        // Assuming pairing_code is a string of 6 digits
+        for (let i = 0; i < pairing_code.length; i++) {
+          $(`#digit-${i}`).text(pairing_code[i]);
+        }
+
+        $(".pairing-box").show();
+        waitingForMqttReplyForDeviceConfirmation(
+          response.android_id,
+          response.device_id
+        );
+      },
+      error: function (error) {
+        console.error("Error registering device:", error);
+        $(".pairing-box").show();
+        alert("Failed to register device.");
+      },
+      complete: function () {
+        $(".login_loader").hide();
+      },
+    });
+  });
+}
+
+async function completeRegisterNewDevice(device_id) {
+  const android_id = localStorage.getItem("android_id");
+  if (!android_id) {
+    alert("Android ID not found. Please join a group first.");
+    return;
+  }
+  $(".login_loader").show();
+  getTVDeviceInfo().then(function (deviceInfo) {
+    if (!deviceInfo) {
+      alert("Failed to retrieve device information.");
+      return;
+    }
+    console.log("Device Info:", deviceInfo);
+    $.ajax({
+      url: API_BASE_URL + "device/complete-registration",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      data: JSON.stringify({
+        device_id: device_id,
+      }),
+      success: function (response) {
+        console.log("Device registration completed successfully:", response);
+        showToast("success", "Device registration completed successfully");
+      },
+      error: function (error) {
+        console.error("Error completing device registration:", error);
+        alert("Failed to complete device registration.");
       },
       complete: function () {
         $(".login_loader").hide();

@@ -21,13 +21,14 @@
     <!-- App Scripts -->
     <script src="js/common.js" type="text/javascript"></script>
     <script src="js/ads.js" type="text/javascript"></script>
+    <script src="js/deviceMqtt.js" type="text/javascript"></script>
     <script src="js/api.js" type="text/javascript"></script>
     <script src="js/mqtt.min.js" type="text/javascript"></script>
     <script src="js/device-storage.js" type="text/javascript"></script>
   </head>
   <body>
     <div class="main-container">
-      <div class="joinGroup-container active" id="joinGroupContainer">
+      <!-- <div class="joinGroup-container active" id="joinGroupContainer">
         <div class="joinGroup">
           <h1>Join Group</h1>
           <label for="groupId">Group license key:</label>
@@ -56,6 +57,32 @@
               Join
             </button>
           </div>
+         
+        </div> -->
+
+      <!-- <div class="pairing-container" id="pairingContainer">
+        <div class="pairing-box" id="pairingBox">
+          <span class="pairing-pairing-code" id="pairing_code">12345</span>
+        </div>
+      </div> -->
+
+      <div class="pairing-container" id="pairingContainer">
+        <div class="welcome-section">
+          <img src="./icon.png" alt="AD96 Logo" class="logo" />
+          <h1 class="welcome-text">
+            Welcome to the <span class="highlight">AD96</span>
+          </h1>
+        </div>
+        <div class="pairing-box focusable" id="pairingBox">
+          <div class="pairing-title">Pairing Code</div>
+          <div class="pairing-code-display" id="pairing_code">
+            <div class="pairing-digit" id="digit-0"></div>
+            <div class="pairing-digit" id="digit-1"></div>
+            <div class="pairing-digit" id="digit-2"></div>
+            <div class="pairing-digit" id="digit-3"></div>
+            <div class="pairing-digit" id="digit-4"></div>
+            <div class="pairing-digit" id="digit-5"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -63,13 +90,98 @@
     <!-- Ad Player Section -->
     <div class="ad-player-container">
       <div class="ad-player-container-box">
-        <div class="ad-player" id="ad_player"></div>
+        <div class="ad-player" id="ad_player">
+          <object id="av-player" type="application/avplayer" class=""></object>
+          <object id="av-player2" type="application/avplayer" class=""></object>
+          <img
+            id="image-player1"
+            style="display: none; width: 100%; height: 100%; object-fit: fill"
+          />
+          <img
+            id="image-player2"
+            style="display: none; width: 100%; height: 100%; object-fit: fill"
+          />
+        </div>
+
         <div id="ad_snippet" class="ad-snippet">
           <div id="sliding_text" class="sliding-text"></div>
         </div>
       </div>
     </div>
+    <div class="settings-container" id="settings-container">
+      <div class="settings-slider" id="settingsSlider">
+        <div class="settings-header" id="settings-header">
+          <h2 id="settings-title">Settings</h2>
+          <button id="closeSlider" class="close-btn focusable">&times;</button>
+        </div>
 
+        <ul class="settings-list" id="settings-list">
+          <li>
+            <button id="systemInfo-btn" class="settings-button focusable">
+              System Info
+            </button>
+          </li>
+          <li>
+            <button id="logs-btn" class="settings-button focusable">
+              Logs
+            </button>
+          </li>
+          <li>
+            <button id="downloaded-btn" class="settings-button focusable">
+              Downloaded Files
+            </button>
+          </li>
+          <li>
+            <button id="processing-btn" class="settings-button focusable">
+              Processing Files
+            </button>
+          </li>
+          <li>
+            <button id="errors-btn" class="settings-button focusable">
+              Errors
+            </button>
+          </li>
+
+          <!-- <li>
+            <button id="exit-btn" class="settings-button focusable">
+              Exit Group
+            </button>
+          </li> -->
+        </ul>
+
+        <div class="settings-content" id="settings-content">
+          <!-- System Info Panel -->
+          <div id="systemInfo" class="section-panel">
+            <h3>Device Info</h3>
+            <ul class="list-view" id="systemInfoList">
+              <!-- Populated by JavaScript -->
+            </ul>
+          </div>
+
+          <div id="logs" class="section-panel active">
+            <h3>Logs</h3>
+            <ul id="logList" class="list-view"></ul>
+            <!-- <button id="download-logs-btn" class="download-btn focusable">
+              Download Logs
+            </button> -->
+          </div>
+
+          <div id="downloaded" class="section-panel">
+            <h3>Downloaded Files</h3>
+            <ul id="downloaded-list" class="list-view"></ul>
+          </div>
+
+          <div id="processing" class="section-panel">
+            <h3>Processing Files</h3>
+          </div>
+
+          <div id="errors" class="section-panel">
+            <h3>Error Logs</h3>
+            <ul id="error-list" class="error-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Loader -->
     <div class="login_loader" id="login_loader">
       <div class="login_circle_loader"></div>
@@ -84,8 +196,9 @@
     </span>
 
     <!-- Additional Scripts -->
-    <script src="js/add-numbers-key.js" type="text/javascript"></script>
     <script src="js/config.js" type="text/javascript"></script>
+    <script src="js/simple-memory-manager.js" type="text/javascript"></script>
+    <script src="js/add-numbers-key.js" type="text/javascript"></script>
     <script src="js/modal.js" type="text/javascript"></script>
     <script src="js/main.js" type="text/javascript"></script>
     <script src="js/utility.js" type="text/javascript"></script>

@@ -5,7 +5,7 @@
         version="1.0.0"
         viewmodes="fullscreen">
 
-    <name>BasicProject</name>
+    <name>Ad96</name>
     <content src="index.html"/>
     <icon src="icon.png"/>
     <description>Your Ad Display App</description>
@@ -16,7 +16,7 @@
     <access origin="*"/>
     <access origin="http://*"/>
 
-    <tizen:application id="0lKtwciFfw.adupApp" package="0lKtwciFfw" required_version="2.3"/>
+    <tizen:application id="0lKtwciFfw.ad96" package="0lKtwciFfw" required_version="2.3"/>
 
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
@@ -25,7 +25,7 @@
     <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
     <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
      <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
-    <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
+     <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
 
     <tizen:setting 
         screen-orientation="portrait"

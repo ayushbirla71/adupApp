@@ -1,9 +1,20 @@
 // MQTT Configuration
+
+var mqttClient = null;
+var currentGroupTopic = null;
+
 function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
 
   var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // var url = "ws://console.adup.live:9001/mqtt";
+
+  handleMQTTAds({
+    ads: options.ads,
+    rcs: options.rcs,
+    placeholderUpdate: true,
+  });
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -17,11 +28,13 @@ function connectMQTT(options) {
   publishAcknowledgment(client); // Send acknowledgment after connecting
 
   console.log("🚀 MQTT Client Created");
+  console.log("data", options);
 
   client.on("connect", function () {
     console.log("✅ MQTT Connected");
 
     var groupTopic = "ads/" + group_id;
+    currentGroupTopic = groupTopic;
     client.subscribe(groupTopic, function (err) {
       if (err) {
         console.error(
@@ -33,7 +46,7 @@ function connectMQTT(options) {
       }
     });
 
-    var deviceTopic = "device/" + localStorage.getItem("device_id");
+    var deviceTopic = "device/" + device_id;
     client.subscribe(deviceTopic, function (err) {
       if (err) {
         console.error(
@@ -52,26 +65,30 @@ function connectMQTT(options) {
       console.log("📥 MQTT message on topic '" + topic + "':", data);
 
       if (topic.indexOf("ads/") === 0) {
-        var ads = data.ads || [];
+        let ads = data.ads || [];
         localStorage.setItem("ads", JSON.stringify(ads));
         localStorage.setItem("rcs", data.rcs || "");
 
         if (data.placeholder) {
+          let timestamps = new Date().getTime();
           localStorage.setItem("placeholder", data.placeholder);
-          deletePlaceHolderFile("placeholder")
-            .then(function () {
-              ads.push({
-                url: data.placeholder,
+          localStorage.setItem("timestamp", timestamps),
+            deletePlaceHolderFile("placeholder")
+              .then(function () {
+                ads.push({
+                  url: data.placeholder,
+                  timestamp: timestamps,
+                });
+                processAds(client, ads, data.rcs, true);
+              })
+              .catch(function (error) {
+                console.error("❌ Error deleting placeholder file:", error);
+                processAds(client, ads, data.rcs, false);
               });
-              processAds(client, ads, data.rcs, true);
-            })
-            .catch(function (error) {
-              console.error("❌ Error deleting placeholder file:", error);
-              processAds(client, ads, data.rcs, false);
-            });
         } else {
           ads.push({
             url: localStorage.getItem("placeholder"),
+            timestamp: localStorage.getItem("timestamp"),
           });
           processAds(client, ads, data.rcs, false);
         }
@@ -100,6 +117,9 @@ function connectMQTT(options) {
               "⚠️ Unable to close window. This may be blocked by browser security."
             );
           }
+        } else if (data.action === "updateGroup") {
+          console.log("🔄 Updating group subscription...");
+          resubscribeGroupTopic(data.group_id);
         } else {
           console.log("ℹ️ Unknown device command:", data);
         }
@@ -117,23 +137,7 @@ function connectMQTT(options) {
     showToast("error", "MQTT Connection Error – loading from local ads");
 
     try {
-      let placeholder = localStorage.getItem("placeholder");
-      let adsFromLocalStorage = localStorage.getItem("ads");
-      let rcsFromLocalStorage = localStorage.getItem("rcs");
-
-      if (placeholder) {
-        ads.push({ url: placeholder });
-      }
-
-      if (adsFromLocalStorage) {
-        ads.push(...JSON.parse(adsFromLocalStorage));
-      }
-
-      if (typeof processAds === "function") {
-        processAds(client, ads, rcsFromLocalStorage || "", false);
-      } else {
-        console.warn("⚠️ processAds function is not available.");
-      }
+      console.warn("⚠️ processAds function is not available.");
     } catch (e) {
       console.error("❌ Error while loading local ads:", e.message);
     }
@@ -151,7 +155,44 @@ function connectMQTT(options) {
     console.log("🔁 MQTT Reconnecting...");
   });
 
-  window.mqttClient = client;
+  mqttClient = client;
+}
+
+// 🔄 Call this when you need to change the group subscription
+function resubscribeGroupTopic(newGroupId) {
+  if (!mqttClient || !mqttClient.connected) {
+    console.error("❌ MQTT client is not connected yet.");
+    return;
+  }
+
+  localStorage.setItem("group_id", newGroupId);
+  var newTopic = "ads/" + newGroupId;
+
+  if (currentGroupTopic) {
+    mqttClient.unsubscribe(currentGroupTopic, function (err) {
+      if (err) {
+        console.error("❌ Unsubscribe Error:", err);
+      } else {
+        console.log("🚫 Unsubscribed from:", currentGroupTopic);
+      }
+
+      subscribeNewGroupTopic(newTopic, newGroupId);
+    });
+  } else {
+    subscribeNewGroupTopic(newTopic, newGroupId);
+  }
+}
+
+function subscribeNewGroupTopic(topic, newGroupId) {
+  mqttClient.subscribe(topic, function (err) {
+    if (err) {
+      console.error("❌ Subscription Error:", err);
+    } else {
+      currentGroupTopic = topic;
+      localStorage.setItem("group_id", newGroupId);
+      console.log("📡 Resubscribed to:", topic);
+    }
+  });
 }
 
 function processAds(client, ads, rcs, placeholderUpdate) {
@@ -165,6 +206,7 @@ function processAds(client, ads, rcs, placeholderUpdate) {
   );
 
   publishAcknowledgment(client);
+
   handleMQTTAds({
     ads: ads,
     rcs: rcs || "",

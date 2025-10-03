@@ -8,11 +8,6 @@ let currentVideo = null; // 🔇 To track currently playing video
 let lastAdSignature = ""; // For checking ad updates
 var p1, p2;
 var iterator = 0;
-// Remove global element references - get them when needed instead
-// var imageElement1 = document.getElementById("image-player1");
-// var imageElement2 = document.getElementById("image-player2");
-
-let useImage1 = true;
 let useP1Next = true; // Global or scoped toggle
 
 // ✅ Ensure directory exists
@@ -44,7 +39,7 @@ function increaseIterator(x) {
   if (iterator >= x.length) {
     iterator = 0;
   }
-  //console.log("Current iterator value: " + iterator);
+  console.log("Current iterator value: " + iterator);
 }
 
 // 📥 Handle ads from MQTT payload
@@ -57,7 +52,7 @@ async function handleMQTTAds(payload) {
   const filenames = ads.map((ad) => getFileName(ad));
   const newSignature = filenames.join(",");
 
-  startAdSlide("ad_snippet", rcs, 4);
+  startAdSlide("ad_snippet", rcs, 2);
 
   console.log("placeholderUpdate:", payload.placeholderUpdate);
 
@@ -70,20 +65,20 @@ async function handleMQTTAds(payload) {
 
   try {
     await cleanUpOldAds(filenames);
-    logCleanup("Cleanup done!");
+    console.log("🧹 Cleanup done!");
 
     // Download all files first (sequential or parallel)
     for (let i = 0; i < filenames.length; i++) {
       await checkAndDownloadContent(ads[i].url, filenames[i]);
     }
-    logDownload("All downloads complete, starting playback");
+    console.log("✅ All downloads complete, starting playback");
     localAds = filenames;
     stopCurrentPlayback(); // 💥 Stop current playback first
     adsFromServer = ads;
     playAllContentInLoop(filenames, ads, rcs);
     // document.getElementById("ad_player").innerHTML = ""; // Clear previous content
   } catch (err) {
-    logError("Error in ad handling:", err.message || err);
+    console.error("❌ Error in ad handling:", err.message || err);
   }
 }
 
@@ -102,7 +97,7 @@ function getFileName(adsData) {
   const extension = originalName.substring(dotIndex);
 
   if (nameWithoutExt.startsWith("placeholder")) {
-    //console.log("data in placehoder", adsData);
+    console.log("data in placehoder", adsData);
     return `${nameWithoutExt}_${adsData?.timestamp}${extension}`;
   }
 
@@ -183,10 +178,7 @@ function stopCurrentPlayback() {
   adLoopTimeouts.forEach(clearTimeout);
   adLoopTimeouts = [];
 
-  const imageElement1 = document.getElementById("image-player1");
-  const imageElement2 = document.getElementById("image-player2");
-  if (imageElement1) imageElement1.style.display = "none";
-  if (imageElement2) imageElement2.style.display = "none";
+  document.getElementById("image-player").style.display = "none";
   document.getElementById("av-player").classList.remove("vid");
   document.getElementById("av-player2").classList.remove("vid");
 }
@@ -242,18 +234,7 @@ function isVideo(fileName) {
 function showImage(file, resolve) {
   try {
     $(".login_loader").hide();
-    const imageElement1 = document.getElementById("image-player1");
-    const imageElement2 = document.getElementById("image-player2");
-
-    if (!imageElement1 || !imageElement2) {
-      console.error("❌ Image elements not found in DOM");
-      addErrorLog("Image elements not found in DOM");
-      resolve();
-      return;
-    }
-
-    let imgElement = useImage1 ? imageElement1 : imageElement2;
-    let otherImgElement = useImage1 ? imageElement2 : imageElement1;
+    var imgElement = document.getElementById("image-player");
     var videoElement1 = document.getElementById("av-player");
     var videoElement2 = document.getElementById("av-player2");
 
@@ -261,7 +242,6 @@ function showImage(file, resolve) {
     videoElement1.classList.remove("vid");
     videoElement2.classList.remove("vid");
     imgElement.style.display = "block";
-    otherImgElement.style.display = "none";
     // Show image
 
     imgElement.onerror = function () {
@@ -270,12 +250,12 @@ function showImage(file, resolve) {
       resolve();
       console.error("❌ Error loading image:", file);
     };
-    //console.log("image_url " + sources + "/" + file);
-    //console.log("🖼️ Displaying image:", adsFromServer[iterator]);
+    console.log("image_url " + sources + "/" + file);
+    console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
-    if (file.startsWith("placeholder")) {
-      image_url = image_url + "?v=" + new Date().getTime(); // cache buster
-    }
+    // if (file.startsWith("placeholder")) {
+    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
+    // }
     imgElement.src = image_url; // ✅ use updated URL
   } catch (err) {
     addErrorLog(" Error preparing or Image file:", err.message || err);
@@ -294,9 +274,9 @@ function playImage(file, signal) {
     document.getElementById("av-player2").classList.remove("vid");
     showImage(file, resolve); // your own image render logic
 
-    timeoutBox = managedSetTimeout(() => {
+    timeoutBox = setTimeout(() => {
       if (!signal.aborted) {
-        logVideo("Image display complete:", file);
+        console.log("🖼️ Image display complete:", file);
         resolve();
       }
     }, 10000); // 10 seconds per image
@@ -312,19 +292,19 @@ function playImage(file, signal) {
 let currentAbortController = null;
 
 async function playAllContentInLoop(filenames, ads, rcs) {
-  logCleanup("Cleaning previous timeouts and DOM...");
+  console.log("🧹 Cleaning previous timeouts and DOM...");
   addInfoLog("🔁 Re-Start the Loop.....");
-  logInfo("Loaded ads list in localAds", localAds);
-  logInfo("Loaded ads in filenames", filenames);
+  console.log("Loaded ads list in localAds ...", localAds);
+  console.log("Loaded ads in filenames :", filenames);
   iterator = 0;
 
   // 🛑 Abort existing controller and wait for it to settle
   if (currentAbortController) {
-    logInfo("Aborting previous loop...");
+    console.log("🛑 Aborting previous loop...");
     currentAbortController.abort();
 
     // Wait a short time to let pending image/video resolves finish
-    await new Promise((res) => managedSetTimeout(res, 50));
+    await new Promise((res) => setTimeout(res, 50));
   }
 
   currentAbortController = new AbortController();
@@ -343,33 +323,25 @@ async function playAllContentInLoop(filenames, ads, rcs) {
   while (!signal.aborted) {
     const currentFile = filenames[iterator % filenames.length];
     const currentAd = ads[iterator % ads.length];
-    //console.log("▶️ Now playing: " + currentFile);
-    //console.log("playing index...." + iterator);
-    //console.log("Playing Index is " + (iterator % filenames.length));
+    console.log("▶️ Now playing: " + currentFile);
+    console.log("playing index...." + iterator);
+    console.log("Playing Index is " + (iterator % filenames.length));
     $(".login_loader").hide();
-
-    const imageElement1 = document.getElementById("image-player1");
-    const imageElement2 = document.getElementById("image-player2");
-    let imgElement = useImage1 ? imageElement1 : imageElement2;
-    let otherImgElement = useImage1 ? imageElement2 : imageElement1;
+    var imgElement = document.getElementById("image-player");
     try {
       if (isVideo(currentFile)) {
         console.log(
           "🎥 Displaying video:",
           adsFromServer[iterator % adsFromServer.length]
         );
-        let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
-        if (!isVideo(filenames[nexIndex]) && imgElement) {
-          //console.log("next content is show...");
-          //console.log("imagess", imgElement);
-          //console.log("image1", imageElement1);
-          //console.log("image2", imageElement2);
-          imgElement.src = sources + "/" + filenames[nexIndex];
-        }
         await playVideo(currentFile, signal, currentAd);
+        let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
+        if (!isVideo(filenames[nexIndex])) {
+          console.log("next content is show...");
+          imgElement.src = filenames[nexIndex];
+        }
       } else {
         await playImage(currentFile, signal);
-        //useImage1 = !useImage1;
       }
     } catch (err) {
       console.error("❌ Error during media playback:", err.message || err);
@@ -386,6 +358,9 @@ function playVideo(file, signal, currentAd) {
     let aborted = false;
     let hasStarted = false;
     let timeoutFallback = null;
+    document.getElementById("image-player").style.display = "none";
+    document.getElementById("av-player").classList.add("vid");
+    document.getElementById("av-player2").classList.add("vid");
 
     try {
       const player = useP1Next ? p1 : p2;
@@ -398,7 +373,7 @@ function playVideo(file, signal, currentAd) {
       try {
         player.stop?.();
       } catch (error) {
-        //console.log("player close....", error?.message);
+        console.log("player close....", error?.message);
         player.close?.();
       }
 
@@ -421,20 +396,16 @@ function playVideo(file, signal, currentAd) {
       }
 
       let successCallback = function () {
-        //console.log("The media has finished preparing");
+        console.log("The media has finished preparing");
         player.setVideoStillMode("false");
-        document.getElementById("image-player1").style.display = "none";
-        document.getElementById("image-player2").style.display = "none";
-        document.getElementById("av-player").classList.add("vid");
-        document.getElementById("av-player2").classList.add("vid");
         player.play();
-        //console.log("🎞️ Playing video:", file);
+        console.log("🎞️ Playing video:", file);
         let state = player.getState();
-        //console.log("[Player][seekBackward] state 1: ", state);
+        console.log("[Player][seekBackward] state 1: ", state);
       };
 
       let errorCallback = function () {
-        //console.log("The media has failed to prepare");
+        console.log("The media has failed to prepare");
         addErrorLog("Video playback error: Failed to prepare media");
         player.stop();
         clearTimeout(timeoutFallback);
@@ -443,28 +414,28 @@ function playVideo(file, signal, currentAd) {
 
       const dynamicListener = {
         onbufferingstart: () => {
-          //console.log("⏳ Buffering start.");
+          console.log("⏳ Buffering start.");
         },
         onbufferingprogress: function (percent) {
-          //console.log("Buffering progress data : " + percent);
+          console.log("Buffering progress data : " + percent);
         },
         onbufferingcomplete: function () {
-          //console.log("✅ Buffering complete");
+          console.log("✅ Buffering complete");
           hasStarted = true;
         },
         oncurrentplaytime: function (currentTime) {
           let state = player.getState();
-          //console.log("[Player][seekBackward] state 2: ", state);
+          console.log("[Player][seekBackward] state 2: ", state);
           if (state === "PLYING") {
             if (!timeoutFallback) {
               timeoutFallbackHandler();
             }
           }
-          //console.log("Current playtime: " + currentTime);
+          console.log("Current playtime: " + currentTime);
         },
         onstreamcompleted: () => {
           if (!aborted) {
-            //console.log("🎞️ Stream completed:", file);
+            console.log("🎞️ Stream completed:", file);
             player.setVideoStillMode("true"); // Turn on still mode to keep last frame
             player.stop();
             clearTimeout(timeoutFallback);
@@ -480,7 +451,7 @@ function playVideo(file, signal, currentAd) {
         },
 
         onevent: function (eventType, eventData) {
-          //console.log("event type: " + eventType + ", data: " + eventData);
+          console.log("event type: " + eventType + ", data: " + eventData);
         },
 
         onerror: (errType) => {
@@ -542,7 +513,7 @@ function playVideo(file, signal, currentAd) {
 }
 
 window.addEventListener("unload", () => {
-  logCleanup("Unloading... cleaning up");
+  console.log("🔁 Unloading... cleaning up");
 
   // 1. Clear all ad loop timeouts
   adLoopTimeouts.forEach(clearTimeout);
@@ -565,24 +536,14 @@ window.addEventListener("unload", () => {
       p2.close();
     }
   } catch (e) {
-    logWarn("Player cleanup failed:", e);
-  }
-
-  // 4. Perform complete memory cleanup
-  if (window.performMemoryCleanup) {
-    window.performMemoryCleanup();
+    console.warn("⚠️ Player cleanup failed:", e);
   }
 
   // 4. Clear image display
-  const img1 = document.getElementById("image-player1");
-  if (img1) {
-    img1.src = "";
-    img1.style.display = "none";
-  }
-  const img2 = document.getElementById("image-player2");
-  if (img2) {
-    img2.src = "";
-    img2.style.display = "none";
+  const img = document.getElementById("image-player");
+  if (img) {
+    img.src = "";
+    img.style.display = "none";
   }
 
   // 5. Optional: remove listeners on players if any (safety)
