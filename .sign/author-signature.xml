@@ -4,8 +4,8 @@
 <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></SignatureMethod>
 <Reference URI="MEMORY_MANAGEMENT_GUIDE.md">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>UgWaIJK6xyPl2KnUjspR2cpGMXWDtxcmGnFjeKflTdkrhzhgt1w9veJMf6dGw2t2oI3uZoO8TZtP
-R2/lgKkaoA==</DigestValue>
+<DigestValue>vaPYYo340NwLP6UIYUOQqshR5Rts8Y0BeL9lUohrELwo4f/fLjZqUuvBPSMMQ1oNEtemVlWGYFC3
+3dQ+G6ng5Q==</DigestValue>
 </Reference>
 <Reference URI="README.md">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -14,8 +14,8 @@ EAJxpUYGoA==</DigestValue>
 </Reference>
 <Reference URI="config.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>0WMU49DZb3ZYgdgI6UiSDCDgDHAfCX/yjDzSFDcflJsNLW/obdaYV/EqcrG1JdMnoBbJKS3NWqEb
-AYQpA51Bng==</DigestValue>
+<DigestValue>mn8mRHSD7eubX2gKrF/Bw30fjntRMJM8j6Qg+3Z7TsObvHt3xzPhnOcbW93paXhXqW0KEjKBo2IL
+6GdRk0qlMQ==</DigestValue>
 </Reference>
 <Reference URI="css%2Fmodal.css">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -94,8 +94,8 @@ zcqqvmXAIg==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdevice-storage.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>AJwDm7MDom4ialX208taYm5ROo7Z+Qt+UBJXkGlbRRh1nhMhXUSuRdaIajI9fNx4QsLhJKi2bQim
-lC8ZVMkLyQ==</DigestValue>
+<DigestValue>hgr6kPa/HaCHO1avufryRV4KME/n+xUwmOeAiAcmauWC6XcQq7lggcvtHa46990ue00Pgu6Ia73g
+K1zqjpxnVg==</DigestValue>
 </Reference>
 <Reference URI="js%2FdeviceMqtt.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -134,8 +134,8 @@ F16+8V9U8A==</DigestValue>
 </Reference>
 <Reference URI="js%2Fsimple-memory-manager.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>BItk7oi98sldW+ko58TNY260OyE3mQ9FpaxGy0oh0zhbFUKBnoGTmttlFrXrLefKABVRtTQZPGsm
-42QZdgI1dw==</DigestValue>
+<DigestValue>PNURwAMgCazLUTVegFYUVYb47/9xR0wADelA2BAiU4vFWC6XHnB9i1oLLiv9LcF4pOzd7Sb9NVxF
+0YsHxbO3Uw==</DigestValue>
 </Reference>
 <Reference URI="js%2Futility.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -192,11 +192,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-FPZaqR1Edata5DdWN8XhCOP0t37ffxpCASIxQKCXxvNvsTUHnENYtW2Nsx7Lo04Wu+1hcbZt/F4m
-JdhYVveH1pXCsroLRRl+qUu8MLDzGn0OXkwHUxgoztvRpvtwDnNo/hdA0ooLJ3PuRBatnjwKIp4U
-2m15HzN3m8oXAUJ2xB+R2gFa3UvvhZtPfCwqJOJeVnM2o4sKC9di38sK5jVxVdLIftQoVsHRF56q
-zRBEeFGQYb7TE2t3zXN/v7JZOUF9yWXnVImjGj540ZuzBrIVJbIYu9y5wNJkVdNyj1aOzjgqAYS5
-p3FHworwjN232v+w2jOe5xhgAGDwAGI3jKal4g==
+Yxuv8G5oHIux9vP9FClL1gxAAXSJkYHaLMuhRVKucaDnpdkpRCIkuR+u0umpHeBu64WlXPvfvSan
+/3/vjYCYuQxfYILnZRlfkjSFM/87G/rYyujwBOWYcqgNaX17ZCvSOt8IILNekKLQYjI4CeCa+HDf
+0AW5nochlfCS0yRHo03zRDcDD+ksb5LoCYHkmih5lkJPWML6QN0KMpGxOayHMVkclSkKjXkbACnw
+Z5B2gdhI0MuECeniBWmws2XardJpWczd3/qd8vKpEBgXVNxz0AnTpzwFGuYVQ6qVJwHM3GpJ/3Z4
+BDX4I+NAdt62XGTEA9Q/9GnNvZDaA8AHSuRn0g==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

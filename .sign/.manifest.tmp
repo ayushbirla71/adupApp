@@ -1,9 +1,9 @@
-MEMORY_MANAGEMENT_GUIDE.md__DEL__UgWaIJK6xyPl2KnUjspR2cpGMXWDtxcmGnFjeKflTdkrhzhgt1w9veJMf6dGw2t2oI3uZoO8TZtP
-R2/lgKkaoA==
+MEMORY_MANAGEMENT_GUIDE.md__DEL__vaPYYo340NwLP6UIYUOQqshR5Rts8Y0BeL9lUohrELwo4f/fLjZqUuvBPSMMQ1oNEtemVlWGYFC3
+3dQ+G6ng5Q==
 README.md__DEL__R6PXrA7X0MyGiKct74phy8ZbkFdV24Tnp+74Y3iwYqWjlpi2p/S3wsXxkkHulgOkWG3eM23AHY9M
 EAJxpUYGoA==
-config.xml__DEL__0WMU49DZb3ZYgdgI6UiSDCDgDHAfCX/yjDzSFDcflJsNLW/obdaYV/EqcrG1JdMnoBbJKS3NWqEb
-AYQpA51Bng==
+config.xml__DEL__mn8mRHSD7eubX2gKrF/Bw30fjntRMJM8j6Qg+3Z7TsObvHt3xzPhnOcbW93paXhXqW0KEjKBo2IL
+6GdRk0qlMQ==
 css/modal.css__DEL__hn48cSybPzfuNEYYfw+96fLUnBF5i8GtZwYwP5JzV6RHzeJvKW7j7ell39amp4zh5HSv8ekM05Ar
 EZeDF6IJYA==
 css/style.css__DEL__A/Yy8dIx9++ryI6blAgTPHwddyJCWrrkZ0l1HAmZ9z4uC7jIDBriY7uMNnl/8D79SDhHK0rxApas
@@ -34,8 +34,8 @@ js/device-storage-old.js__DEL__g0fIsJisJF23//NAoqm2MUoyyNNK4HbETHiD+wgGGUVDjiOvv
 evSGvAj4/w==
 js/device-storage-v1.js__DEL__azrCo/uuKmbwgUmRLt6ZxgbBffTBsZxTKKtSTXen6YmjE4LZDU/J2AT/QO5bxPPsCjul/vBeILAt
 zcqqvmXAIg==
-js/device-storage.js__DEL__AJwDm7MDom4ialX208taYm5ROo7Z+Qt+UBJXkGlbRRh1nhMhXUSuRdaIajI9fNx4QsLhJKi2bQim
-lC8ZVMkLyQ==
+js/device-storage.js__DEL__hgr6kPa/HaCHO1avufryRV4KME/n+xUwmOeAiAcmauWC6XcQq7lggcvtHa46990ue00Pgu6Ia73g
+K1zqjpxnVg==
 js/deviceMqtt.js__DEL__1krpEHaubygs2tLL4hmTB7+bw1eUwlbYsEnxgz+55I158Nv8srksborAqOwGXQtFLyZBuWTAW88K
 1cCoKmIS3Q==
 js/logger.js__DEL__wVcL6r1YYKy/CAGpxyaQEtp77J9cbHE3juWkpY/gGwX6fUz0dE3D6EtUB37Fe2hm8dx0m5nuNhk+
@@ -50,8 +50,8 @@ js/mqtt.min.js__DEL__Kj/M1EttdLLnhAD+ymGUbntmcRxtzC1CDaXIBQ6zxYr44abdnbxY6C9VgXO
 hlLKADLW0w==
 js/resource-cleanup.js__DEL__g0Bbwh8gemNIHhrklpdwSqC/71hw9eOOxSDXluwKoaGxXAKgLqSRS0JXBg4TsOEvOWiswenMzAMC
 F16+8V9U8A==
-js/simple-memory-manager.js__DEL__BItk7oi98sldW+ko58TNY260OyE3mQ9FpaxGy0oh0zhbFUKBnoGTmttlFrXrLefKABVRtTQZPGsm
-42QZdgI1dw==
+js/simple-memory-manager.js__DEL__PNURwAMgCazLUTVegFYUVYb47/9xR0wADelA2BAiU4vFWC6XHnB9i1oLLiv9LcF4pOzd7Sb9NVxF
+0YsHxbO3Uw==
 js/utility.js__DEL__KdFTjZx+9c8kgHeFhT9Y9XeGmqDHJZcWASVFl5vXbJcexl9kmEpajsqeJRTetX2xo7SQMb8utLeI
 kEhAmiNWfw==
 js/video-player.js__DEL__z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGl
@@ -70,5 +70,5 @@ lib/navigation/lodash.min.js__DEL__PBWbv79m5BD+PylWz+QxZc+HWXcN+f2tb3Nu0nMLUXspZ
 e4RFFgmYsw==
 lib/navigation/spatial_navigation.js__DEL__yyRONeVRde42hzXuInSvncnDzidRXFC6BNn9fhQaQILFOz2JeaA0dUxkTtyqlDiZQwEZ0KI0QwiD
 L7yD+rPWPg==
-author-signature.xml__DEL__fuX8kdvajjUxYeK/e67g5kBTNGR7QBuoznepm+cLUgoByjBGFjM/KuMro+DZZBEuMMMbfmxlKC9G
-0q022ypStA==
+author-signature.xml__DEL__ch28fg7FAHp4QuZwTj4sA6OmICQMYhP9M+kYwIGLAFlXXkLeURRRINwH0/GsrmDsucCm7PRkn5Ms
+AFvpYwp+ZA==

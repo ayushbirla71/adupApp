@@ -381,6 +381,24 @@ async function playAllContentInLoop(filenames, ads, rcs) {
   console.log("🛑 Playback loop terminated.");
 }
 
+function getRotationValue() {
+  const orientationType = screen.orientation.type;
+  console.log("orrrr", orientationType);
+
+  switch (orientationType) {
+    case "portrait-primary":
+      return "PLAYER_DISPLAY_ROTATION_90";
+    case "portrait-secondary":
+      return "PLAYER_DISPLAY_ROTATION_180";
+    case "landscape-primary":
+      return "PLAYER_DISPLAY_ROTATION_NONE";
+    case "landscape-secondary":
+      return "PLAYER_DISPLAY_ROTATION_270";
+    default:
+      return "PLAYER_DISPLAY_ROTATION_NONE";
+  }
+}
+
 function playVideo(file, signal, currentAd) {
   return new Promise((resolve, reject) => {
     let aborted = false;
@@ -501,8 +519,12 @@ function playVideo(file, signal, currentAd) {
 
       player.open(sources + "/" + file);
       player.setListener(dynamicListener);
-      player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
-      player.setDisplayRect(0, 0, 1080, 1824);
+      // player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
+      const rotation = getRotationValue();
+      console.log("outpeee", rotation);
+      player.setDisplayRotation(rotation);
+      // player.setDisplayRect(0, 0, 1080, 1824);
+      player.setDisplayRect(0, 0, window.innerWidth, window.innerHeight);
       // player.prepare();
 
       // --- SET THE SKIP TIMEOUT HERE ---
