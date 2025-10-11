@@ -36,8 +36,41 @@ tizen.filesystem.resolve(
   "r"
 );
 
-p1 = webapis.avplaystore.getPlayer();
-p2 = webapis.avplaystore.getPlayer();
+// Comment out regular players for YouTube live testing
+// p1 = webapis.avplaystore.getPlayer();
+// p2 = webapis.avplaystore.getPlayer();
+
+// Initialize players only when not using YouTube live mode
+function initializeRegularPlayers() {
+  if (!window.isYoutubeLiveMode) {
+    p1 = webapis.avplaystore.getPlayer();
+    p2 = webapis.avplaystore.getPlayer();
+    logInfo("🎥 Regular video players initialized");
+  }
+}
+
+// Test function for YouTube live player
+function testYouTubePlayback() {
+  logInfo("🔴 Testing YouTube Live Player...");
+
+  // Test YouTube URL - you can replace this with your testing link
+  const testUrl =
+    "https://www.youtube.com/live/lj-FQ6ynmek?si=Yvd0pgkhr5xlx4wj"; // LoFi Hip Hop 24/7
+
+  const testSignal = new AbortController().signal;
+  const testAd = { duration: 3600 }; // 15 seconds for testing
+
+  if (window.playYouTubeLive) {
+    return window.playYouTubeLive(testUrl, testSignal, testAd);
+  } else {
+    logError("YouTube Live Player not available");
+    return Promise.resolve();
+  }
+}
+
+// Make test function globally available
+window.testYouTubePlayback = testYouTubePlayback;
+window.initializeRegularPlayers = initializeRegularPlayers;
 
 function increaseIterator(x) {
   iterator++;
@@ -406,6 +439,20 @@ function playVideo(file, signal, currentAd) {
     let timeoutFallback = null;
 
     try {
+      // Check if this is a YouTube live stream URL
+      if (window.isYouTubeUrl && window.isYouTubeUrl(file)) {
+        logInfo("🔴 Detected YouTube URL, using YouTube Live Player:", file);
+        return window
+          .playYouTubeLive(file, signal, currentAd)
+          .then(resolve)
+          .catch(reject);
+      }
+
+      // Initialize regular players if not already done
+      if (!p1 || !p2) {
+        initializeRegularPlayers();
+      }
+
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
 

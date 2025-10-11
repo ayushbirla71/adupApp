@@ -132,6 +132,9 @@ window.onload = async function () {
   window.SN = SpatialNavigation;
   SN.init();
   manage_spatial_navigation("settings-container");
+
+  // Register number keys and special keys for YouTube testing
+  register_number_keys();
   // const newToken = "your_token_here"; // Set this appropriately
   // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
   // localStorage.setItem("device_id", "4c9d0a2f-a489-4f81-9e17-ed7c5af3cc9d");
