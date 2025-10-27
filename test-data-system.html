@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data System Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; }
+        #log { background: #f8f9fa; padding: 10px; height: 300px; overflow-y: auto; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Data Management System Test</h1>
+    
+    <div id="status" class="status info">Initializing...</div>
+    
+    <div>
+        <button onclick="testProofOfPlay()">Test Proof of Play</button>
+        <button onclick="testTelemetry()">Test Telemetry</button>
+        <button onclick="testEvent()">Test Event</button>
+        <button onclick="testSync()">Test Sync</button>
+        <button onclick="getStats()">Get Stats</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <h3>Log:</h3>
+    <div id="log"></div>
+
+    <!-- Core Scripts -->
+    <script src="js/common.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/logger.js"></script>
+    <script src="js/api.js"></script>
+    
+    <!-- Data Management Scripts -->
+    <script src="js/data-manager.js"></script>
+    <script src="js/network-monitor.js"></script>
+    <script src="js/telemetry-collector.js"></script>
+    <script src="js/event-logger.js"></script>
+    <script src="js/proof-of-play-tracker.js"></script>
+    <script src="js/sync-engine.js"></script>
+    <script src="js/data-config-monitor.js"></script>
+    <script src="js/data-management-init.js"></script>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let statusElement = document.getElementById('status');
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        function clearLog() {
+            logElement.innerHTML = '';
+        }
+        
+        // Override console methods to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog(args.join(' '), 'warning');
+        };
+        
+        // Wait for system initialization
+        function waitForSystem() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50; // 10 seconds
+                
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    
+                    if (window.dataManagementSystem && window.dataManagementSystem.isInitialized) {
+                        clearInterval(checkInterval);
+                        updateStatus('Data management system ready!', 'success');
+                        addLog('✅ System initialized successfully', 'success');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        updateStatus('System initialization timeout', 'error');
+                        addLog('❌ System initialization timeout', 'error');
+                        reject(new Error('Timeout'));
+                    } else {
+                        updateStatus(`Initializing... (${attempts}/${maxAttempts})`, 'warning');
+                    }
+                }, 200);
+            });
+        }
+        
+        // Test functions
+        async function testProofOfPlay() {
+            try {
+                await waitForSystem();
+                
+                if (!window.proofOfPlayTracker) {
+                    throw new Error('ProofOfPlayTracker not available');
+                }
+                
+                const adData = {
+                    adId: 'test-ad-' + Date.now(),
+                    scheduleId: 'test-schedule-1',
+                    startTime: new Date().toISOString(),
+                    endTime: new Date(Date.now() + 30000).toISOString(),
+                    durationPlayedMs: 30000
+                };
+                
+                await window.proofOfPlayTracker.recordProofOfPlay(adData);
+                addLog('✅ Proof of play recorded successfully', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Proof of play test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testTelemetry() {
+            try {
+                await waitForSystem();
+                
+                if (!window.telemetryCollector) {
+                    throw new Error('TelemetryCollector not available');
+                }
+                
+                await window.telemetryCollector.collectTelemetry();
+                addLog('✅ Telemetry collected successfully', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Telemetry test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEvent() {
+            try {
+                await waitForSystem();
+                
+                if (!window.eventLogger) {
+                    throw new Error('EventLogger not available');
+                }
+                
+                window.eventLogger.logEvent('TEST_EVENT', {
+                    message: 'This is a test event',
+                    timestamp: new Date().toISOString()
+                });
+                
+                addLog('✅ Event logged successfully', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Event test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testSync() {
+            try {
+                await waitForSystem();
+                
+                if (!window.dataManager) {
+                    throw new Error('DataManager not available');
+                }
+                
+                const result = await window.dataManager.triggerSync();
+                addLog(`✅ Sync triggered: ${result ? 'Success' : 'No data to sync'}`, 'success');
+                
+            } catch (error) {
+                addLog(`❌ Sync test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getStats() {
+            try {
+                await waitForSystem();
+                
+                if (!window.dataManagementSystem) {
+                    throw new Error('DataManagementSystem not available');
+                }
+                
+                const stats = await window.dataManagementSystem.getSystemStats();
+                addLog('📊 System Stats:', 'info');
+                addLog(JSON.stringify(stats, null, 2), 'info');
+                
+            } catch (error) {
+                addLog(`❌ Stats failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Start monitoring
+        document.addEventListener('DOMContentLoaded', () => {
+            addLog('🚀 Starting data management system test...', 'info');
+            waitForSystem().catch(error => {
+                addLog(`❌ System failed to initialize: ${error.message}`, 'error');
+            });
+        });
+    </script>
+</body>
+</html>

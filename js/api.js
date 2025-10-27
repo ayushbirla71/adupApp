@@ -84,6 +84,7 @@ async function joinGroup() {
 }
 
 async function registerDevice() {
+  let deviceInfo = await getTizenSignageInfo();
   $(".login_loader").show();
   getTVDeviceInfo().then(function (deviceInfo) {
     console.log("Device Info:", deviceInfo);
@@ -93,9 +94,7 @@ async function registerDevice() {
       headers: {
         "Content-Type": "application/json",
       },
-      data: JSON.stringify({
-        android_id: deviceInfo.android_id,
-      }),
+      data: JSON.stringify(deviceInfo),
       success: function (response) {
         console.log("Device registered successfully:", response);
         showToast("success", "Device registered successfully");
@@ -160,4 +159,48 @@ async function completeRegisterNewDevice(device_id) {
       },
     });
   });
+}
+
+// Enhanced API functions for data management system
+class DataAPI {
+  static async sendLogsToAPI(payload) {
+    try {
+      const response = await fetch(LOGS_API_BASE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Device-ID": localStorage.getItem("device_id"),
+          "X-Android-ID": localStorage.getItem("android_id"),
+        },
+        body: JSON.stringify(payload),
+        timeout: 30000,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        logInfo("Logs sent to API successfully:", result);
+        return { success: true, data: result };
+      } else {
+        const errorText = await response.text();
+        logError("API logs request failed:", response.status, errorText);
+        return {
+          success: false,
+          error: `HTTP ${response.status}: ${errorText}`,
+          retryable: response.status >= 500, // Retry server errors
+        };
+      }
+    } catch (error) {
+      logError("Failed to send logs to API:", error);
+      return {
+        success: false,
+        error: error.message,
+        retryable: true, // Network errors are retryable
+      };
+    }
+  }
+
+  static async sendBatchLogsToAPI(payload) {
+    // Use the same single logs endpoint for batch data
+    return this.sendLogsToAPI(payload);
+  }
 }

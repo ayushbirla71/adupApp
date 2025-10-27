@@ -95,17 +95,22 @@ function getFileName(adsData) {
   const dotIndex = originalName.lastIndexOf(".");
 
   if (dotIndex === -1) {
-    return ad_id ? `${originalName}_${ad_id}` : originalName;
+    console.log("no extension found", originalName);
+    return ad_id
+      ? `${originalName}_${ad_id}.${adsData.file_extension}`
+      : originalName + "." + adsData.file_extension;
   }
 
   const nameWithoutExt = originalName.substring(0, dotIndex);
-  const extension = originalName.substring(dotIndex);
+  const extension =
+    originalName.substring(dotIndex) || adsData.file_extension || "mp4";
 
   if (nameWithoutExt.startsWith("placeholder")) {
     //console.log("data in placehoder", adsData);
     return `${nameWithoutExt}_${adsData?.timestamp}${extension}`;
   }
 
+  console.log("final name", `${nameWithoutExt}_${ad_id}${extension}`);
   return ad_id ? `${nameWithoutExt}_${ad_id}${extension}` : originalName;
 }
 
@@ -125,6 +130,10 @@ async function checkAndDownloadContent(url, fileName) {
           trackDownloadProgress(fileName, url, 0);
           console.log("⬇️ Downloading:", fileName);
           const request = new tizen.DownloadRequest(url, fileDir, fileName);
+          // Set custom HTTP headers (e.g., Authorization, Content-Type)
+          request.httpHeader = {
+            "x-player-width": window.DEVICE_WIDTH,
+          };
           const downloadId = tizen.download.start(request);
 
           tizen.download.setListener(downloadId, {
@@ -366,9 +375,9 @@ async function playAllContentInLoop(filenames, ads, rcs) {
           //console.log("image2", imageElement2);
           imgElement.src = sources + "/" + filenames[nexIndex];
         }
-        await playVideo(currentFile, signal, currentAd);
+        await playVideoWithTracking(currentFile, signal, currentAd);
       } else {
-        await playImage(currentFile, signal);
+        await playImageWithTracking(currentFile, signal, currentAd);
         //useImage1 = !useImage1;
       }
     } catch (err) {
@@ -399,7 +408,81 @@ function getRotationValue() {
   }
 }
 
-function playVideo(file, signal, currentAd) {
+// Wrapper functions with proof of play tracking
+async function playVideoWithTracking(file, signal, currentAd) {
+  let trackingId = null;
+
+  try {
+    // Start tracking
+    if (window.proofOfPlayTracker && currentAd) {
+      trackingId = window.proofOfPlayTracker.startTracking(currentAd, "video");
+    }
+
+    // Add playback started event
+    if (trackingId) {
+      window.proofOfPlayTracker.addPlaybackEvent(
+        trackingId,
+        "PLAYBACK_STARTED",
+        {
+          fileName: file,
+          expectedDuration: currentAd?.duration,
+        }
+      );
+    }
+
+    // Call original playVideo function
+    await playVideo(file, signal, currentAd, trackingId);
+
+    // End tracking on successful completion
+    if (trackingId) {
+      window.proofOfPlayTracker.endTracking(trackingId, "completed");
+    }
+  } catch (error) {
+    logError("Enhanced video playback failed:", error);
+    if (trackingId) {
+      window.proofOfPlayTracker.endTracking(trackingId, "error");
+    }
+    throw error;
+  }
+}
+
+async function playImageWithTracking(file, signal, currentAd) {
+  let trackingId = null;
+
+  try {
+    // Start tracking
+    if (window.proofOfPlayTracker && currentAd) {
+      trackingId = window.proofOfPlayTracker.startTracking(currentAd, "image");
+    }
+
+    // Add display event
+    if (trackingId) {
+      window.proofOfPlayTracker.addPlaybackEvent(
+        trackingId,
+        "IMAGE_DISPLAY_STARTED",
+        {
+          fileName: file,
+        }
+      );
+    }
+
+    // Call original playImage function
+    await playImage(file, signal);
+
+    // End tracking
+    if (trackingId) {
+      window.proofOfPlayTracker.endTracking(trackingId, "completed");
+    }
+  } catch (error) {
+    logError("Enhanced image playback failed:", error);
+    if (trackingId) {
+      window.proofOfPlayTracker.endTracking(trackingId, "error");
+    }
+    throw error;
+  }
+}
+
+function playVideo(file, signal, currentAd, trackingId = null) {
   return new Promise((resolve, reject) => {
     let aborted = false;
     let hasStarted = false;
@@ -469,6 +552,14 @@ function playVideo(file, signal, currentAd) {
         onbufferingcomplete: function () {
           //console.log("✅ Buffering complete");
           hasStarted = true;
+
+          // Add tracking event for buffering complete
+          if (trackingId && window.proofOfPlayTracker) {
+            window.proofOfPlayTracker.addPlaybackEvent(
+              trackingId,
+              "BUFFERING_COMPLETE"
+            );
+          }
         },
         oncurrentplaytime: function (currentTime) {
           let state = player.getState();
@@ -483,6 +574,15 @@ function playVideo(file, signal, currentAd) {
         onstreamcompleted: () => {
           if (!aborted) {
             //console.log("🎞️ Stream completed:", file);
+
+            // Add tracking event for stream completion
+            if (trackingId && window.proofOfPlayTracker) {
+              window.proofOfPlayTracker.addPlaybackEvent(
+                trackingId,
+                "STREAM_COMPLETED"
+              );
+            }
+
             player.setVideoStillMode("true"); // Turn on still mode to keep last frame
             player.stop();
             clearTimeout(timeoutFallback);
@@ -491,6 +591,15 @@ function playVideo(file, signal, currentAd) {
             console.log(
               "🛑 Aborted during stream completion, stopping player."
             );
+
+            // Add tracking event for aborted completion
+            if (trackingId && window.proofOfPlayTracker) {
+              window.proofOfPlayTracker.addPlaybackEvent(
+                trackingId,
+                "STREAM_ABORTED"
+              );
+            }
+
             player.stop();
             clearTimeout(timeoutFallback);
             resolve();
@@ -505,11 +614,35 @@ function playVideo(file, signal, currentAd) {
           if (!aborted) {
             console.error("❌ Playback error:", errType);
             addErrorLog("Playback error: " + errType);
+
+            // Add tracking event for playback error
+            if (trackingId && window.proofOfPlayTracker) {
+              window.proofOfPlayTracker.addPlaybackEvent(
+                trackingId,
+                "PLAYBACK_ERROR",
+                {
+                  errorType: errType,
+                }
+              );
+            }
+
             player.stop();
             clearTimeout(timeoutFallback);
             resolve();
           } else {
             console.log("🛑 Aborted during error handling, stopping player.");
+
+            // Add tracking event for aborted error handling
+            if (trackingId && window.proofOfPlayTracker) {
+              window.proofOfPlayTracker.addPlaybackEvent(
+                trackingId,
+                "ERROR_ABORTED",
+                {
+                  errorType: errType,
+                }
+              );
+            }
+
             player.stop();
             clearTimeout(timeoutFallback);
             resolve();

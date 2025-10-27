@@ -15,14 +15,21 @@
     info: console.info.bind(console),
   };
 
-  // Simple console log limiting
+  // Console log limiting (disabled in development mode)
   console.log = function (...args) {
+    // In development mode, allow unlimited logging
+    if (window.ENABLE_FULL_LOGGING) {
+      originalConsole.log(...args);
+      return;
+    }
+
+    // In production mode, limit console logs
     window.CONSOLE_LOG_COUNT++;
     if (window.CONSOLE_LOG_COUNT <= window.MAX_CONSOLE_LOGS) {
       originalConsole.log(...args);
     } else if (window.CONSOLE_LOG_COUNT === window.MAX_CONSOLE_LOGS + 1) {
       originalConsole.warn(
-        "🚨 Console log limit reached. Further logs suppressed to save memory."
+        "🚨 Console log limit reached. Further logs suppressed to save memory. Set ENVIRONMENT='dev' in config.js for full logging."
       );
     }
 
@@ -271,15 +278,30 @@
   setInterval(() => {
     const stats = window.getMemoryStats();
     const totalLogs = stats.infoLogs + stats.errorLogs;
+    const maxEntries = window.MAX_LOG_ENTRIES || 100;
+    const threshold = (window.LOG_CLEANUP_THRESHOLD || 80) / 100;
 
-    // Automatic log rotation when 80% full
-    if (totalLogs > (window.MAX_LOG_ENTRIES || 100) * 0.8) {
+    // Skip aggressive cleanup in development mode
+    if (window.ENABLE_FULL_LOGGING) {
+      // Only emergency cleanup in dev mode when logs are extremely high
+      if (totalLogs > maxEntries * 5) {
+        console.log(
+          "🚨 Emergency cleanup triggered (dev mode - very high usage)"
+        );
+        window.emergencyMemoryCleanup();
+      }
+      return;
+    }
+
+    // Production mode: normal cleanup behavior
+    // Automatic log rotation when threshold reached
+    if (totalLogs > maxEntries * threshold) {
       console.log("🔄 Auto-rotating logs due to high usage");
       rotateLogsIfNeeded();
     }
 
     // Emergency cleanup when logs are very high
-    if (totalLogs > (window.MAX_LOG_ENTRIES || 100) * 1.5) {
+    if (totalLogs > maxEntries * 1.5) {
       console.log("🚨 Emergency cleanup triggered");
       window.emergencyMemoryCleanup();
     }

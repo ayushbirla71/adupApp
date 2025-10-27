@@ -400,3 +400,113 @@ if (typeof window !== "undefined") {
     console.log("🔧 Background memory management initialized");
   }, 1000);
 }
+
+// Check device resolution
+const checkDeviceResolution = () => {
+  try {
+    const width = tizen.systeminfo.getCapability(
+      "http://tizen.org/feature/screen.width"
+    );
+    const height = tizen.systeminfo.getCapability(
+      "http://tizen.org/feature/screen.height"
+    );
+
+    console.log(`Device resolution: ${width} x ${height}`);
+
+    let resolutionType = "";
+    window.DEVICE_WIDTH = width;
+    window.DEVICE_HEIGHT = height;
+
+    if (width >= 3840 && height >= 2160) {
+      resolutionType = "4K (Ultra HD)";
+    } else if (width >= 1920 && height >= 1080) {
+      resolutionType = "Full HD (1080p)";
+    } else if (width >= 1280 && height >= 720) {
+      resolutionType = "HD (720p)";
+    } else {
+      resolutionType = "Below HD";
+    }
+
+    console.log("Screen supports:", resolutionType);
+  } catch (error) {
+    console.error("Error checking screen capabilities:", error);
+  }
+};
+
+async function getTizenSignageInfo() {
+  const safeCapability = (key) => {
+    try {
+      return tizen.systeminfo.getCapability(key) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  try {
+    const info = {};
+
+    // 1. Unique ID (Tizen ID might not exist on all signage)
+    info.device_id =
+      safeCapability("http://tizen.org/system/tizenid") ||
+      safeCapability("http://tizen.org/system/platform.uuid") ||
+      "unknown";
+
+    // 2. Device type
+    const isTV = safeCapability("http://tizen.org/feature/tv") === true;
+    info.device_type = isTV ? "tv" : "signage";
+
+    // 3. Model name
+    info.device_model =
+      safeCapability("http://tizen.org/system/model_name") || "Samsung Signage";
+
+    // 4. OS details
+    info.device_os = "tizen";
+    info.device_os_version =
+      safeCapability("http://tizen.org/feature/platform.version") || "unknown";
+
+    // 5. Orientation (most signage fixed landscape)
+    let orientation = "landscape";
+    try {
+      const display = tizen.display.getCurrentDisplay();
+      orientation = display.currentOrientation === 0 ? "landscape" : "portrait";
+    } catch {
+      orientation = "landscape";
+    }
+    info.device_orientation = orientation;
+
+    // 6. Resolution
+    const width = safeCapability("http://tizen.org/feature/screen.width") || 0;
+    const height =
+      safeCapability("http://tizen.org/feature/screen.height") || 0;
+    info.device_resolution = `${width}x${height}`;
+
+    // 7. Device name
+    info.device_name =
+      safeCapability("http://tizen.org/system/device_name") ||
+      info.device_model;
+
+    // 8. Network details (safe fallback)
+    info.network_type = safeCapability("http://tizen.org/feature/network.wifi")
+      ? "WIFI"
+      : "ETHERNET";
+    info.device_mac =
+      safeCapability("http://tizen.org/system/wifi.mac") ||
+      safeCapability("http://tizen.org/system/ethernet.mac") ||
+      "unknown";
+
+    // 9. Location via IP (optional)
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      const loc = await res.json();
+      info.location = loc.city || "unknown";
+    } catch {
+      info.location = "unknown";
+    }
+
+    console.log("Tizen Signage Info:", info);
+    return info;
+  } catch (error) {
+    console.error("Error getting signage info:", error);
+    return null;
+  }
+}
