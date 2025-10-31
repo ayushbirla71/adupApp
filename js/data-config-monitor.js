@@ -8,14 +8,14 @@ class DataConfigMonitor {
     // Initialize default config first
     this.defaultConfig = {
       sync: {
-        interval: 2 * 60 * 1000, // 2 minutes
+        interval: 5 * 60 * 1000, // 2 minutes
         batchSize: 50,
         maxRetries: 3,
         retryDelay: 5000,
         enabled: true,
       },
       telemetry: {
-        collectionInterval: 5 * 60 * 1000, // 5 minutes
+        collectionInterval: 10 * 60 * 1000, // 5 minutes
         enabled: true,
         includePerformanceMetrics: true,
         includeSystemInfo: true,
@@ -39,7 +39,7 @@ class DataConfigMonitor {
         cleanupInterval: 24 * 60 * 60 * 1000, // 24 hours
       },
       network: {
-        connectivityCheckInterval: 30000, // 30 seconds
+        connectivityCheckInterval: 10 * 60 * 1000, // 30 seconds
         timeoutMs: 10000,
         retryOnFailure: true,
       },

@@ -1,8 +1,8 @@
 window.APP_NAME = "ADUP APP";
-window.APP_VERSION = "1.0.0";
-window.APP_BUILD = "1.0.0";
+window.APP_VERSION = "1.0.1";
+window.APP_BUILD = "1.0.1";
 
-window.APP_BUILD_DATE = "2023-10-01";
+window.APP_BUILD_DATE = "2025-10-30";
 window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
@@ -12,6 +12,9 @@ window.SECRETKEY =
 
 window.DEVICE_WIDTH = 1920;
 window.DEVICE_HEIGHT = 1080;
+window.DEVICE_WINDOW_WIDTH = 1920;
+window.DEVICE_WINDOW_HEIGHT = 1080;
+window.DEVICE_WINDOW_ORIENT = "landscape";
 window.APP_ID = "com.adup.halliv";
 window.APP_ID_ANDROID = "com.adup.halliv";
 window.SNIPIT_TEXT_ITIMEOUT_ID = 10000; // 10 sec
@@ -21,7 +24,7 @@ window.FILE_DIRECTORY = "";
 window.DOWNLOAD_PROGRESS = [];
 
 // Environment Configuration
-window.ENVIRONMENT = "dev"; // "dev" or "prod"
+window.ENVIRONMENT = "prod"; // "dev" or "prod"
 window.IS_DEVELOPMENT = window.ENVIRONMENT === "dev";
 
 // Memory Management Configuration

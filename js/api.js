@@ -84,44 +84,54 @@ async function joinGroup() {
 }
 
 async function registerDevice() {
-  let deviceInfo = await getTizenSignageInfo();
   $(".login_loader").show();
-  getTVDeviceInfo().then(function (deviceInfo) {
-    console.log("Device Info:", deviceInfo);
-    $.ajax({
-      url: API_BASE_URL + "device/new-register",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      data: JSON.stringify(deviceInfo),
-      success: function (response) {
-        console.log("Device registered successfully:", response);
-        showToast("success", "Device registered successfully");
-        let { pairing_code } = response;
-        localStorage.setItem("android_id", response.android_id);
-        localStorage.setItem("device_id", response.device_id);
-        // Assuming pairing_code is a string of 6 digits
-        for (let i = 0; i < pairing_code.length; i++) {
-          $(`#digit-${i}`).text(pairing_code[i]);
-        }
+  getTizenSignageInfo()
+    .then(function (deviceInfo) {
+      console.log("Device Info:", deviceInfo);
+      $.ajax({
+        url: API_BASE_URL + "device/new-register",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        data: JSON.stringify(deviceInfo),
+        success: function (response) {
+          console.log("Device registered successfully:", response);
+          showToast("success", "Device registered successfully");
+          let { pairing_code } = response;
+          localStorage.setItem("android_id", response.android_id);
+          localStorage.setItem("device_id", response.device_id);
+          // Assuming pairing_code is a string of 6 digits
+          for (let i = 0; i < pairing_code.length; i++) {
+            $(`#digit-${i}`).text(pairing_code[i]);
+          }
 
-        $(".pairing-box").show();
-        waitingForMqttReplyForDeviceConfirmation(
-          response.android_id,
-          response.device_id
-        );
-      },
-      error: function (error) {
-        console.error("Error registering device:", error);
-        $(".pairing-box").show();
-        alert("Failed to register device.");
-      },
-      complete: function () {
-        $(".login_loader").hide();
-      },
+          $(".pairing-box").show();
+          waitingForMqttReplyForDeviceConfirmation(
+            response.android_id,
+            response.device_id
+          );
+
+          deviceOriantationChange(
+            DEVICE_WINDOW_ORIENT,
+            DEVICE_WINDOW_WIDTH + "x" + DEVICE_WINDOW_HEIGHT
+          );
+        },
+
+        error: function (error) {
+          console.error("Error registering device:", error);
+          $(".pairing-box").show();
+          alert("Failed to register device.");
+        },
+        complete: function () {
+          $(".login_loader").hide();
+        },
+      });
+    })
+    .catch(function (error) {
+      console.error("Error getting device info:", error);
+      $(".login_loader").hide();
     });
-  });
 }
 
 async function completeRegisterNewDevice(device_id) {
@@ -203,4 +213,30 @@ class DataAPI {
     // Use the same single logs endpoint for batch data
     return this.sendLogsToAPI(payload);
   }
+}
+
+async function deviceOriantationChange(orientationType, resolution) {
+  if (!localStorage.getItem("device_id")) {
+    return;
+  }
+  $.ajax({
+    url:
+      API_BASE_URL +
+      "device/update/metadata-confirm/" +
+      localStorage.getItem("device_id"),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: JSON.stringify({
+      device_orientation: orientationType,
+      device_resolution: resolution,
+    }),
+    success: function (response) {
+      console.log("Device orientation changed successfully:", response);
+    },
+    error: function (error) {
+      console.error("Error changing device orientation:", error);
+    },
+  });
 }

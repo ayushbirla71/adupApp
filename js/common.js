@@ -122,7 +122,7 @@ function escapeHtml(unsafe) {
     .replace(/'/g, "&#039;");
 }
 
-function startAdSlide(containerId, textData, speed) {
+function startAdSlide(containerId, textData, speed, rcs_enabled) {
   console.log("Ad Slide Start", containerId, textData, speed);
 
   if (!containerId) return;
@@ -130,6 +130,14 @@ function startAdSlide(containerId, textData, speed) {
   if (!speed) speed = 1;
 
   var container = document.getElementById(containerId);
+  updateUiHeight(rcs_enabled);
+  if (rcs_enabled == false) {
+    container.style.display = "none";
+
+    return;
+  } else {
+    container.style.display = "block";
+  }
   var text = document.getElementById("sliding_text");
   if (!container || !text) return;
 
@@ -446,14 +454,14 @@ async function getTizenSignageInfo() {
     const info = {};
 
     // 1. Unique ID (Tizen ID might not exist on all signage)
-    info.device_id =
+    info.android_id =
       safeCapability("http://tizen.org/system/tizenid") ||
       safeCapability("http://tizen.org/system/platform.uuid") ||
       "unknown";
 
     // 2. Device type
     const isTV = safeCapability("http://tizen.org/feature/tv") === true;
-    info.device_type = isTV ? "tv" : "signage";
+    info.device_type = isTV ? "tv" : "tv";
 
     // 3. Model name
     info.device_model =
@@ -464,20 +472,28 @@ async function getTizenSignageInfo() {
     info.device_os_version =
       safeCapability("http://tizen.org/feature/platform.version") || "unknown";
 
-    // 5. Orientation (most signage fixed landscape)
+    // 5. Orientation - detect based on actual screen dimensions
     let orientation = "landscape";
     try {
-      const display = tizen.display.getCurrentDisplay();
-      orientation = display.currentOrientation === 0 ? "landscape" : "portrait";
-    } catch {
+      // Use actual screen dimensions for accurate orientation detection
+      const screenWidth = screen.width;
+      const screenHeight = screen.height;
+      orientation = screenWidth > screenHeight ? "landscape" : "portrait";
+      console.log(
+        "Detected orientation:",
+        orientation,
+        `(${screenWidth}x${screenHeight})`
+      );
+    } catch (err) {
+      console.error("Error detecting orientation:", err);
+      // Fallback to landscape for signage devices
       orientation = "landscape";
     }
     info.device_orientation = orientation;
 
-    // 6. Resolution
-    const width = safeCapability("http://tizen.org/feature/screen.width") || 0;
-    const height =
-      safeCapability("http://tizen.org/feature/screen.height") || 0;
+    // 6. Resolution - use actual screen dimensions
+    const width = screen.width || 0;
+    const height = screen.height || 0;
     info.device_resolution = `${width}x${height}`;
 
     // 7. Device name
@@ -509,4 +525,27 @@ async function getTizenSignageInfo() {
     console.error("Error getting signage info:", error);
     return null;
   }
+}
+function updateUiHeight(rcs_enabled) {
+  console.log("updateUiHeight", rcs_enabled);
+  const elements = [
+    document.getElementById("av-player"),
+    document.getElementById("av-player2"),
+    ...document.querySelectorAll(
+      ".ad-player-image, .ad-player, .ad_image, .ad_video"
+    ),
+  ];
+
+  elements.forEach((el) => {
+    if (!el) return;
+
+    if (rcs_enabled == false) {
+      console.log("updateUiHeight rcs_enabled", rcs_enabled);
+      el.classList.add("custome-height");
+      el.style.height = ""; // clear inline height
+    } else {
+      el.classList.remove("custome-height");
+      el.style.height = "100vh !important"; // default inline height
+    }
+  });
 }

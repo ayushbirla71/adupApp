@@ -133,6 +133,8 @@ window.onload = async function () {
   SN.init();
   manage_spatial_navigation("settings-container");
   checkDeviceResolution();
+  // Call once during startup
+  initOrientationListener();
   // const newToken = "your_token_here"; // Set this appropriately
   // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
   // localStorage.setItem("device_id", "4c9d0a2f-a489-4f81-9e17-ed7c5af3cc9d");
@@ -148,7 +150,10 @@ window.onload = async function () {
     const group_id = localStorage.getItem("group_id");
     let placeholder = localStorage.getItem("placeholder");
     let timestamps = localStorage.getItem("timestamp");
-    if (placeholder) {
+    let placeholder_enabled =
+      JSON.parse(localStorage.getItem("placeholder_enabled")) || true;
+    let rcs_enabled = JSON.parse(localStorage.getItem("rcs_enabled")) || true;
+    if (placeholder && placeholder_enabled == true) {
       ads.push({ url: placeholder, timestamp: timestamps });
     }
     let rcs = localStorage.getItem("rcs");
@@ -169,12 +174,18 @@ window.onload = async function () {
     //   $element.html(""); // Optionally clear
     //   $element.html(contentHTML); // Uncomment if needed
     // }
+    deviceOriantationChange(
+      DEVICE_WINDOW_ORIENT,
+      DEVICE_WINDOW_WIDTH + "x" + DEVICE_WINDOW_HEIGHT
+    );
 
     connectMQTT({
       ads: ads,
       rcs: rcs,
       device_id: device_id,
       group_id: group_id,
+      placeholder_enabled: placeholder_enabled,
+      rcs_enabled: rcs_enabled,
     });
   } else {
     manage_spatial_navigation("joinGroup-container");
@@ -239,8 +250,61 @@ window.onload = async function () {
   });
 };
 
-// Lock the screen to portrait mode
-screen.lockOrientation("portrait-primary");
+const safeCapability = (key) => {
+  try {
+    return tizen.systeminfo.getCapability(key) ?? null;
+  } catch {
+    return null;
+  }
+};
+function initOrientationListener() {
+  function handleOrientationChange() {
+    console.log("Orientation changed!");
+
+    try {
+      let orientation = "unknown";
+
+      // --- Detect orientation based on actual screen dimensions ---
+      // Use screen.width and screen.height for actual device resolution
+      const screenWidth = screen.width;
+      const screenHeight = screen.height;
+
+      // Determine orientation based on which dimension is larger
+      orientation = screenWidth > screenHeight ? "landscape" : "portrait";
+
+      // --- Get screen resolution using actual screen dimensions ---
+      const device_resolution = `${screenWidth}x${screenHeight}`;
+
+      console.log("Orientation:", orientation);
+      console.log("Resolution:", device_resolution);
+      console.log("Screen dimensions:", screenWidth, "x", screenHeight);
+
+      window.DEVICE_WINDOW_WIDTH = screenWidth;
+      window.DEVICE_WINDOW_HEIGHT = screenHeight;
+      window.DEVICE_WINDOW_ORIENT = orientation;
+
+      // Send orientation change to API if device is registered
+      if (localStorage.getItem("device_id")) {
+        // deviceOriantationChange(orientation, device_resolution);
+      }
+    } catch (error) {
+      console.error("Error getting orientation:", error);
+    }
+  }
+
+  // --- Add event listener for orientation changes ---
+  if (screen.orientation && screen.orientation.addEventListener) {
+    // ✅ Modern browsers (including Tizen 6+)
+    screen.orientation.addEventListener("change", handleOrientationChange);
+  } else {
+    // ✅ Fallback for older browsers or Tizen models
+    window.addEventListener("orientationchange", handleOrientationChange);
+    window.addEventListener("resize", handleOrientationChange);
+  }
+
+  // Trigger once on load
+  handleOrientationChange();
+}
 
 function set_focus(containerId, itemId) {
   console.log("set focus");
@@ -501,6 +565,9 @@ function showSystemInfo() {
   try {
     const infoItems = [];
 
+    infoItems.push(["App Version", window.APP_VERSION]);
+    infoItems.push(["Build Date", window.APP_BUILD_DATE]);
+
     // Basic info
     infoItems.push([
       "Android ID",
@@ -529,6 +596,7 @@ function showSystemInfo() {
       ),
     ]);
     infoItems.push(["Screen Resolution", `${screen.width} x ${screen.height}`]);
+    infoItems.push(["Orientation", window.DEVICE_WINDOW_ORIENT]);
 
     // Optional: storage
     tizen.systeminfo.getPropertyValue(

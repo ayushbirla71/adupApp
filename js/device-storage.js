@@ -51,13 +51,27 @@ function increaseIterator(x) {
 async function handleMQTTAds(payload) {
   const ads = payload.ads;
   const rcs = payload.rcs;
+  const placeholder_enabled = payload.placeholder_enabled;
+  const rcs_enabled = payload.rcs_enabled;
 
+  let old_placeholder_enabled =
+    localStorage.getItem("placeholder_enabled") || true;
+  let old_rcs_enabled = localStorage.getItem("rcs_enabled") || true;
   console.log("📥 Received ads:", ads);
+
+  if (placeholder_enabled !== old_placeholder_enabled) {
+    localStorage.setItem("placeholder_enabled", placeholder_enabled);
+  }
+  if (rcs_enabled !== old_rcs_enabled) {
+    localStorage.setItem("rcs_enabled", rcs_enabled);
+  }
 
   const filenames = ads.map((ad) => getFileName(ad));
   const newSignature = filenames.join(",");
 
-  startAdSlide("ad_snippet", rcs, 4);
+  console.log("rcs_enabled", rcs_enabled);
+  console.log("placeholder_enabled", placeholder_enabled);
+  startAdSlide("ad_snippet", rcs, 4, rcs_enabled);
 
   console.log("placeholderUpdate:", payload.placeholderUpdate);
 
@@ -657,7 +671,13 @@ function playVideo(file, signal, currentAd, trackingId = null) {
       console.log("outpeee", rotation);
       player.setDisplayRotation(rotation);
       // player.setDisplayRect(0, 0, 1080, 1824);
-      player.setDisplayRect(0, 0, window.innerWidth, window.innerHeight);
+
+      console.log("rcs_enabled", localStorage.getItem("rcs_enabled"));
+      let height =
+        localStorage.getItem("rcs_enabled") == "true"
+          ? window.innerHeight - 50
+          : window.innerHeight;
+      player.setDisplayRect(0, 0, window.innerWidth, height);
       // player.prepare();
 
       // --- SET THE SKIP TIMEOUT HERE ---

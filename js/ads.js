@@ -14,6 +14,8 @@ function connectMQTT(options) {
     ads: options.ads,
     rcs: options.rcs,
     placeholderUpdate: true,
+    placeholder_enabled: options.placeholder_enabled,
+    rcs_enabled: options.rcs_enabled,
   });
 
   var client = mqtt.connect(url, {
@@ -68,29 +70,64 @@ function connectMQTT(options) {
         let ads = data.ads || [];
         localStorage.setItem("ads", JSON.stringify(ads));
         localStorage.setItem("rcs", data.rcs || "");
-
-        if (data.placeholder) {
-          let timestamps = new Date().getTime();
-          localStorage.setItem("placeholder", data.placeholder);
-          localStorage.setItem("timestamp", timestamps),
-            deletePlaceHolderFile("placeholder")
-              .then(function () {
-                ads.push({
-                  url: data.placeholder,
-                  timestamp: timestamps,
+        if (
+          data.placeholder_enabled !== null &&
+          data.placeholder_enabled !== undefined &&
+          data.placeholder_enabled == true
+        ) {
+          if (data.placeholder) {
+            let timestamps = new Date().getTime();
+            localStorage.setItem("placeholder", data.placeholder);
+            localStorage.setItem("timestamp", timestamps),
+              deletePlaceHolderFile("placeholder")
+                .then(function () {
+                  ads.push({
+                    url: data.placeholder,
+                    timestamp: timestamps,
+                  });
+                  processAds(
+                    client,
+                    ads,
+                    data.rcs,
+                    true,
+                    data.placeholder_enabled,
+                    data.rcs_enabled
+                  );
+                })
+                .catch(function (error) {
+                  console.error("❌ Error deleting placeholder file:", error);
+                  processAds(
+                    client,
+                    ads,
+                    data.rcs,
+                    false,
+                    data.rcs_enabled,
+                    data.rcs_enabled
+                  );
                 });
-                processAds(client, ads, data.rcs, true);
-              })
-              .catch(function (error) {
-                console.error("❌ Error deleting placeholder file:", error);
-                processAds(client, ads, data.rcs, false);
-              });
+          } else {
+            ads.push({
+              url: localStorage.getItem("placeholder"),
+              timestamp: localStorage.getItem("timestamp"),
+            });
+            processAds(
+              client,
+              ads,
+              data.rcs,
+              false,
+              data.placeholder_enabled,
+              data.rcs_enabled
+            );
+          }
         } else {
-          ads.push({
-            url: localStorage.getItem("placeholder"),
-            timestamp: localStorage.getItem("timestamp"),
-          });
-          processAds(client, ads, data.rcs, false);
+          processAds(
+            client,
+            ads,
+            data.rcs,
+            false,
+            data.placeholder_enabled,
+            data.rcs_enabled
+          );
         }
       } else if (topic.indexOf("device/") === 0) {
         console.log("🔧 Handling device-specific action...");
@@ -195,7 +232,14 @@ function subscribeNewGroupTopic(topic, newGroupId) {
   });
 }
 
-function processAds(client, ads, rcs, placeholderUpdate) {
+function processAds(
+  client,
+  ads,
+  rcs,
+  placeholderUpdate,
+  placeholder_enabled,
+  rcs_enabled
+) {
   ads = ads.filter(function (ad) {
     return ad.url && ad.url !== "null" && ad.url !== "undefined";
   });
@@ -211,6 +255,8 @@ function processAds(client, ads, rcs, placeholderUpdate) {
     ads: ads,
     rcs: rcs || "",
     placeholderUpdate: placeholderUpdate,
+    placeholder_enabled: placeholder_enabled,
+    rcs_enabled: rcs_enabled,
   });
 }
 

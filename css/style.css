@@ -552,3 +552,11 @@ progress {
 #av-player2.vid {
   display: block;
 }
+
+.custome-height {
+  height: 100vh !important;
+}
+
+.defult-height {
+  height: 95vh;
+}
