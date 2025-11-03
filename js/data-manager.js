@@ -548,7 +548,15 @@ class DataManager {
   }
 
   async triggerSync() {
-    if (this.syncInProgress || !this.isOnline) {
+    if (this.syncInProgress) {
+      logInfo("Sync already in progress, skipping...");
+      return;
+    }
+
+    // Check network connectivity before attempting sync
+    const isConnected = await this.checkNetworkConnectivity();
+    if (!isConnected) {
+      logInfo("⚠️ Device is offline - skipping sync (data stored locally)");
       return;
     }
 
@@ -567,11 +575,45 @@ class DataManager {
 
   async syncAllData() {
     try {
-      // Get all unsynced data
+      // Get batch size and bulk threshold from config
+      const batchSize = window.dataConfigMonitor?.config?.sync?.batchSize || 50;
+      const bulkThreshold =
+        window.dataConfigMonitor?.config?.sync?.bulkSyncThreshold || 500;
+
+      // First, get count of unsynced records
+      const stats = await this.getDataStats();
+      const totalUnsynced =
+        (stats.proofOfPlay?.unsynced || 0) +
+        (stats.telemetry?.unsynced || 0) +
+        (stats.events?.unsynced || 0);
+
+      logInfo(`Total unsynced records: ${totalUnsynced}`);
+
+      // Decide whether to use bulk sync or normal sync
+      if (totalUnsynced > bulkThreshold) {
+        logInfo(
+          `Using BULK SYNC (${totalUnsynced} records > ${bulkThreshold} threshold)`
+        );
+        return await this.syncAllDataBulk();
+      } else {
+        logInfo(
+          `Using NORMAL SYNC (${totalUnsynced} records, batch size: ${batchSize})`
+        );
+        return await this.syncAllDataNormal(batchSize);
+      }
+    } catch (error) {
+      logError("Sync process failed:", error);
+      throw error;
+    }
+  }
+
+  async syncAllDataNormal(batchSize = 50) {
+    try {
+      // Get limited unsynced data (max 50 records per table)
       const [proofOfPlayData, telemetryData, eventsData] = await Promise.all([
-        this.getUnsyncedRecords(this.tables.proofOfPlay),
-        this.getUnsyncedRecords(this.tables.telemetry),
-        this.getUnsyncedRecords(this.tables.events),
+        this.getUnsyncedRecords(this.tables.proofOfPlay, batchSize),
+        this.getUnsyncedRecords(this.tables.telemetry, batchSize),
+        this.getUnsyncedRecords(this.tables.events, batchSize),
       ]);
 
       if (
@@ -613,7 +655,7 @@ class DataManager {
         },
       };
 
-      logInfo("Syncing data:", {
+      logInfo("Syncing data (NORMAL):", {
         proofOfPlay: proofOfPlayData.length,
         telemetry: telemetryData.length,
         events: eventsData.length,
@@ -641,17 +683,119 @@ class DataManager {
 
         logInfo("Data marked as synced successfully");
 
+        // Update last sync time
+        this.setLastSyncTime();
+
         // Clean up old synced records
         await this.cleanupOldRecords();
       }
     } catch (error) {
-      logError("Sync process failed:", error);
+      logError("Normal sync process failed:", error);
+      throw error;
+    }
+  }
+
+  async syncAllDataBulk() {
+    try {
+      // Get ALL unsynced data (no limit)
+      const [proofOfPlayData, telemetryData, eventsData] = await Promise.all([
+        this.getUnsyncedRecords(this.tables.proofOfPlay, 999999),
+        this.getUnsyncedRecords(this.tables.telemetry, 999999),
+        this.getUnsyncedRecords(this.tables.events, 999999),
+      ]);
+
+      if (
+        proofOfPlayData.length === 0 &&
+        telemetryData.length === 0 &&
+        eventsData.length === 0
+      ) {
+        logInfo("No data to sync");
+        return;
+      }
+
+      // Prepare bulk payload
+      const bulkPayload = {
+        deviceId: this.getCurrentDeviceId(),
+        sentAt: new Date().toISOString(),
+        syncType: "BULK",
+        totalRecords:
+          proofOfPlayData.length + telemetryData.length + eventsData.length,
+        logs: {
+          proofOfPlay: proofOfPlayData.map((record) => ({
+            eventId: record.eventId,
+            adId: record.adId,
+            scheduleId: record.scheduleId,
+            startTime: record.startTime,
+            endTime: record.endTime,
+            durationPlayedMs: record.durationPlayedMs,
+          })),
+          telemetry: telemetryData.map((record) => ({
+            timestamp: record.timestamp,
+            cpuUsage: record.cpuUsage,
+            ramFreeMb: record.ramFreeMb,
+            storageFreeMb: record.storageFreeMb,
+            networkType: record.networkType,
+            appVersionCode: record.appVersionCode,
+          })),
+          events: eventsData.map((record) => ({
+            eventId: record.eventId,
+            timestamp: record.timestamp,
+            eventType: record.eventType,
+            payload: record.payload,
+          })),
+        },
+      };
+
+      logInfo("Syncing data (BULK):", {
+        proofOfPlay: proofOfPlayData.length,
+        telemetry: telemetryData.length,
+        events: eventsData.length,
+        totalRecords: bulkPayload.totalRecords,
+      });
+
+      // Send to BULK API
+      const success = await this.sendBulkDataToAPI(bulkPayload);
+
+      if (success) {
+        // Mark records as synced
+        await Promise.all([
+          this.markAsSynced(
+            this.tables.proofOfPlay,
+            proofOfPlayData.map((r) => r.eventId)
+          ),
+          this.markAsSynced(
+            this.tables.telemetry,
+            telemetryData.map((r) => r.id)
+          ),
+          this.markAsSynced(
+            this.tables.events,
+            eventsData.map((r) => r.eventId)
+          ),
+        ]);
+
+        logInfo("Bulk data marked as synced successfully");
+
+        // Update last sync time
+        this.setLastSyncTime();
+
+        // Clean up old synced records
+        await this.cleanupOldRecords();
+      }
+    } catch (error) {
+      logError("Bulk sync process failed:", error);
       throw error;
     }
   }
 
   async sendDataToAPI(payload) {
     try {
+      // Double-check network connectivity before API call
+      const isConnected = await this.checkNetworkConnectivity();
+      if (!isConnected) {
+        logWarn("⚠️ Cannot send data to API - device is offline");
+        return false;
+      }
+
       // Use the enhanced DataAPI class
       if (window.DataAPI) {
         const result = await window.DataAPI.sendLogsToAPI(payload);
@@ -678,7 +822,79 @@ class DataManager {
         return false;
       }
     } catch (error) {
-      logError("Failed to send data to API:", error);
+      // Check if error is network-related
+      if (
+        error.name === "TypeError" ||
+        error.message.includes("fetch") ||
+        error.message.includes("network")
+      ) {
+        logWarn("⚠️ Network error - device may be offline:", error.message);
+        // Update offline status
+        this.isOnline = false;
+      } else {
+        logError("Failed to send data to API:", error);
+      }
+      return false;
+    }
+  }
+
+  async sendBulkDataToAPI(bulkPayload) {
+    try {
+      // Double-check network connectivity before API call
+      const isConnected = await this.checkNetworkConnectivity();
+      if (!isConnected) {
+        logWarn("⚠️ Cannot send bulk data to API - device is offline");
+        return false;
+      }
+
+      logInfo(
+        `Sending BULK data to API: ${bulkPayload.totalRecords} total records`
+      );
+
+      // Use the DataAPI class (single source of truth for API calls)
+      if (window.DataAPI) {
+        const result = await window.DataAPI.sendBulkLogsToAPI(bulkPayload);
+        return result.success;
+      }
+
+      // Fallback if DataAPI not available (shouldn't happen)
+      logWarn("DataAPI not available, using fallback");
+      const response = await fetch(BULK_LOGS_API_BASE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Device-ID": this.getCurrentDeviceId(),
+          "X-Android-ID": localStorage.getItem("android_id"),
+          "X-Sync-Type": "BULK",
+        },
+        body: JSON.stringify(bulkPayload),
+        timeout: 120000,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        logInfo("Bulk data sent to API successfully:", result);
+        return true;
+      } else {
+        logError("Bulk API request failed:", response.status);
+        return false;
+      }
+    } catch (error) {
+      // Check if error is network-related
+      if (
+        error.name === "TypeError" ||
+        error.message.includes("fetch") ||
+        error.message.includes("network")
+      ) {
+        logWarn(
+          "⚠️ Network error during bulk sync - device may be offline:",
+          error.message
+        );
+        // Update offline status
+        this.isOnline = false;
+      } else {
+        logError("Failed to send bulk data to API:", error);
+      }
       return false;
     }
   }
@@ -696,16 +912,178 @@ class DataManager {
         `Cleaning up synced records older than ${retentionDays} days (before ${cutoffDate.toISOString()})`
       );
 
-      await Promise.all([
-        this.deleteOldSyncedRecords(this.tables.proofOfPlay, cutoffDate),
-        this.deleteOldSyncedRecords(this.tables.telemetry, cutoffDate),
-        this.deleteOldSyncedRecords(this.tables.events, cutoffDate),
-      ]);
+      // Only cleanup old synced proof of play records (keep all unsynced)
+      await this.deleteOldSyncedRecords(this.tables.proofOfPlay, cutoffDate);
+
+      // Aggressively cleanup events and telemetry (they are less important)
+      await this.cleanupEventsAndTelemetry();
 
       logInfo("Old records cleaned up successfully");
     } catch (error) {
       logError("Failed to cleanup old records:", error);
     }
+  }
+
+  async cleanupEventsAndTelemetry() {
+    try {
+      const config = window.dataConfigMonitor?.config?.storage || {};
+      const offlineThresholdDays = config.offlineThresholdDays || 3;
+      const maxEventsRecords = config.maxEventsRecords || 1000;
+      const maxTelemetryRecords = config.maxTelemetryRecords || 2000;
+
+      // Check if device has been offline for more than threshold
+      const lastSyncTime = this.getLastSyncTime();
+      const now = new Date();
+      const offlineDays = lastSyncTime
+        ? (now - new Date(lastSyncTime)) / (1000 * 60 * 60 * 24)
+        : 0;
+
+      const isOfflineTooLong = offlineDays > offlineThresholdDays;
+
+      if (isOfflineTooLong) {
+        logInfo(
+          `⚠️ Device offline for ${offlineDays.toFixed(
+            1
+          )} days (> ${offlineThresholdDays} days threshold)`
+        );
+        logInfo(
+          "🗑️ Cleaning up ALL events and telemetry to save space for proof of play"
+        );
+
+        // Delete ALL events and telemetry (both synced and unsynced)
+        await Promise.all([
+          this.deleteAllRecords(this.tables.events),
+          this.deleteAllRecords(this.tables.telemetry),
+        ]);
+
+        logInfo(
+          "✅ All events and telemetry deleted due to long offline period"
+        );
+      } else {
+        // Check if we have too many events or telemetry records
+        const stats = await this.getDataStats();
+        const totalEvents = stats.total?.events || 0;
+        const totalTelemetry = stats.total?.telemetry || 0;
+
+        // Cleanup events if exceeds limit
+        if (totalEvents > maxEventsRecords) {
+          logInfo(
+            `⚠️ Too many event records: ${totalEvents} (max: ${maxEventsRecords})`
+          );
+          await this.deleteOldestRecords(
+            this.tables.events,
+            totalEvents - maxEventsRecords
+          );
+          logInfo(
+            `✅ Deleted ${totalEvents - maxEventsRecords} oldest event records`
+          );
+        }
+
+        // Cleanup telemetry if exceeds limit
+        if (totalTelemetry > maxTelemetryRecords) {
+          logInfo(
+            `⚠️ Too many telemetry records: ${totalTelemetry} (max: ${maxTelemetryRecords})`
+          );
+          await this.deleteOldestRecords(
+            this.tables.telemetry,
+            totalTelemetry - maxTelemetryRecords
+          );
+          logInfo(
+            `✅ Deleted ${
+              totalTelemetry - maxTelemetryRecords
+            } oldest telemetry records`
+          );
+        }
+      }
+    } catch (error) {
+      logError("Failed to cleanup events and telemetry:", error);
+    }
+  }
+
+  getLastSyncTime() {
+    try {
+      // Get last successful sync time from localStorage
+      return localStorage.getItem("lastSuccessfulSync");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  setLastSyncTime() {
+    try {
+      localStorage.setItem("lastSuccessfulSync", new Date().toISOString());
+    } catch (error) {
+      logError("Failed to set last sync time:", error);
+    }
+  }
+
+  deleteAllRecords(tableName) {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([tableName], "readwrite");
+      const store = transaction.objectStore(tableName);
+
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        logInfo(`✅ Cleared all records from ${tableName}`);
+        resolve();
+      };
+      clearRequest.onerror = () => {
+        logError(`Failed to clear records from ${tableName}`);
+        reject(clearRequest.error);
+      };
+    });
+  }
+
+  deleteOldestRecords(tableName, countToDelete) {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([tableName], "readwrite");
+      const store = transaction.objectStore(tableName);
+
+      // Get all records sorted by timestamp
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const allRecords = request.result;
+
+        // Sort by timestamp (oldest first)
+        allRecords.sort((a, b) => {
+          const dateA = new Date(a.timestamp || a.createdAt);
+          const dateB = new Date(b.timestamp || b.createdAt);
+          return dateA - dateB;
+        });
+
+        // Get the oldest records to delete
+        const recordsToDelete = allRecords.slice(0, countToDelete);
+
+        if (recordsToDelete.length === 0) {
+          resolve();
+          return;
+        }
+
+        let deletedCount = 0;
+        let completedDeletes = 0;
+
+        recordsToDelete.forEach((record) => {
+          const deleteRequest = store.delete(record.id || record.eventId);
+          deleteRequest.onsuccess = () => {
+            deletedCount++;
+            completedDeletes++;
+            if (completedDeletes === recordsToDelete.length) {
+              resolve();
+            }
+          };
+          deleteRequest.onerror = () => {
+            completedDeletes++;
+            if (completedDeletes === recordsToDelete.length) {
+              resolve();
+            }
+          };
+        });
+      };
+      request.onerror = () => {
+        logError(`Failed to get records from ${tableName}`);
+        reject(request.error);
+      };
+    });
   }
 
   deleteOldSyncedRecords(tableName, cutoffDate) {
@@ -764,21 +1142,26 @@ class DataManager {
 
   // Network connectivity check
   async checkNetworkConnectivity() {
+    // Use NetworkMonitor if available (more reliable)
+    if (window.networkMonitor) {
+      const status = window.networkMonitor.getStatus();
+      if (!status.isOnline) {
+        logInfo("NetworkMonitor reports device is offline");
+        return false;
+      }
+      // If NetworkMonitor says online, trust it
+      return true;
+    }
+
+    // Fallback to basic navigator.onLine check
     if (!navigator.onLine) {
+      logInfo("navigator.onLine reports device is offline");
       return false;
     }
 
-    try {
-      // Try to reach the API endpoint
-      const response = await fetch(API_BASE_URL + "health", {
-        method: "HEAD",
-        timeout: 5000,
-      });
-      return response.ok;
-    } catch (error) {
-      logWarn("Network connectivity check failed:", error);
-      return false;
-    }
+    // If navigator says online, assume it's true
+    // (Don't make additional HTTP requests to check connectivity)
+    return true;
   }
 
   // Get statistics

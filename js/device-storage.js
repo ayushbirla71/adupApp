@@ -395,9 +395,9 @@ async function playAllContentInLoop(filenames, ads, rcs) {
           //console.log("image2", imageElement2);
           // imgElement.src = sources + "/" + filenames[nexIndex];
         }
-        await playVideoWithTracking(currentFile, signal, currentAd);
+        await playVideoWithTracking(currentFile, signal, currentAd, filenames);
       } else {
-        await playImageWithTracking(currentFile, signal, currentAd);
+        await playImageWithTracking(currentFile, signal, currentAd, filenames);
         // imgElement.style.display = "none";
         //useImage1 = !useImage1;
       }
@@ -430,7 +430,7 @@ function getRotationValue() {
 }
 
 // Wrapper functions with proof of play tracking
-async function playVideoWithTracking(file, signal, currentAd) {
+async function playVideoWithTracking(file, signal, currentAd, filenames) {
   let trackingId = null;
 
   try {
@@ -452,7 +452,7 @@ async function playVideoWithTracking(file, signal, currentAd) {
     }
 
     // Call original playVideo function
-    await playVideo(file, signal, currentAd, trackingId);
+    await playVideo(file, signal, currentAd, trackingId, filenames);
 
     // End tracking on successful completion
     if (trackingId) {
@@ -467,7 +467,7 @@ async function playVideoWithTracking(file, signal, currentAd) {
   }
 }
 
-async function playImageWithTracking(file, signal, currentAd) {
+async function playImageWithTracking(file, signal, currentAd, filenames) {
   let trackingId = null;
 
   try {
@@ -503,7 +503,7 @@ async function playImageWithTracking(file, signal, currentAd) {
   }
 }
 
-function playVideo(file, signal, currentAd, trackingId = null) {
+function playVideo(file, signal, currentAd, trackingId = null, filenames) {
   return new Promise((resolve, reject) => {
     let aborted = false;
     let hasStarted = false;
@@ -553,7 +553,7 @@ function playVideo(file, signal, currentAd, trackingId = null) {
         player.play();
         const currentFile = filenames[iterator % filenames.length];
         let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
-        if (!isVideo(filenames[nexIndex]) && imgElement) {
+        if (!isVideo(filenames[nexIndex]) && imageElement1) {
           imageElement1.src = sources + "/" + filenames[nexIndex];
         }
         //console.log("🎞️ Playing video:", file);

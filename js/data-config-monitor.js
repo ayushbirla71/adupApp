@@ -9,7 +9,8 @@ class DataConfigMonitor {
     this.defaultConfig = {
       sync: {
         interval: 5 * 60 * 1000, // 2 minutes
-        batchSize: 50,
+        batchSize: 50, // Max 50 records per normal sync
+        bulkSyncThreshold: 50000, // Use bulk API if > 500 records
         maxRetries: 3,
         retryDelay: 5000,
         enabled: true,
@@ -34,7 +35,10 @@ class DataConfigMonitor {
       },
       storage: {
         retentionDays: 30, // Increased to 30 days for offline periods
-        maxRecordsPerTable: 20000, // Increased to 20,000 records
+        maxRecordsPerTable: 20000, // Increased to 20,000 records (for proof of play)
+        maxEventsRecords: 1000, // Max 1000 event records (less important)
+        maxTelemetryRecords: 2000, // Max 2000 telemetry records (less important)
+        offlineThresholdDays: 3, // If offline > 3 days, cleanup events/telemetry
         autoCleanup: true,
         cleanupInterval: 24 * 60 * 60 * 1000, // 24 hours
       },
@@ -409,12 +413,26 @@ class DataConfigMonitor {
         </div>
         <div class="config-section">
           <h4>Storage Settings</h4>
-          <label>Retention Days: <input type="number" id="retentionDays" value="${
-            this.config.storage.retentionDays || 7
+          <label>Retention Days (Proof of Play): <input type="number" id="retentionDays" value="${
+            this.config.storage.retentionDays || 30
+          }" min="1" max="30"></label>
+          <label>Max Events Records: <input type="number" id="maxEventsRecords" value="${
+            this.config.storage.maxEventsRecords || 1000
+          }" min="100" max="5000"></label>
+          <label>Max Telemetry Records: <input type="number" id="maxTelemetryRecords" value="${
+            this.config.storage.maxTelemetryRecords || 2000
+          }" min="100" max="5000"></label>
+          <label>Offline Threshold (Days): <input type="number" id="offlineThresholdDays" value="${
+            this.config.storage.offlineThresholdDays || 3
           }" min="1" max="30"></label>
           <label><input type="checkbox" id="autoCleanup" ${
             this.config.storage.autoCleanup ? "checked" : ""
           }> Auto Cleanup</label>
+          <p style="font-size: 12px; color: #666; margin-top: 10px;">
+            ⚠️ If offline > ${
+              this.config.storage.offlineThresholdDays || 3
+            } days, ALL events & telemetry will be deleted to save space for proof of play.
+          </p>
         </div>
         <button onclick="window.dataConfigMonitor.saveUIConfig()">Save Configuration</button>
         <button onclick="window.dataConfigMonitor.resetConfig()">Reset to Defaults</button>
@@ -513,6 +531,15 @@ class DataConfigMonitor {
       const retentionDays = parseInt(
         document.getElementById("retentionDays").value
       );
+      const maxEventsRecords = parseInt(
+        document.getElementById("maxEventsRecords").value
+      );
+      const maxTelemetryRecords = parseInt(
+        document.getElementById("maxTelemetryRecords").value
+      );
+      const offlineThresholdDays = parseInt(
+        document.getElementById("offlineThresholdDays").value
+      );
       const autoCleanup = document.getElementById("autoCleanup").checked;
 
       // Update configuration
@@ -522,6 +549,9 @@ class DataConfigMonitor {
       this.config.telemetry.collectionInterval = telemetryInterval;
       this.config.telemetry.enabled = telemetryEnabled;
       this.config.storage.retentionDays = retentionDays;
+      this.config.storage.maxEventsRecords = maxEventsRecords;
+      this.config.storage.maxTelemetryRecords = maxTelemetryRecords;
+      this.config.storage.offlineThresholdDays = offlineThresholdDays;
       this.config.storage.autoCleanup = autoCleanup;
 
       this.saveConfig();

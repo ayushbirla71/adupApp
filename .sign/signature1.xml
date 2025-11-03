@@ -12,10 +12,15 @@
 <DigestValue>R6PXrA7X0MyGiKct74phy8ZbkFdV24Tnp+74Y3iwYqWjlpi2p/S3wsXxkkHulgOkWG3eM23AHY9M
 EAJxpUYGoA==</DigestValue>
 </Reference>
+<Reference URI="SYNC_DATA_FLOW_DOCUMENTATION.md">
+<DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
+<DigestValue>ADIGT6xenmzuMpxpVlvZu5xMjBOLCi2G1iMNsdgNG1Q0zw9mVpMD6nxVQmXlUxCdy/UQCmXH6FKi
+o7Gib597aQ==</DigestValue>
+</Reference>
 <Reference URI="author-signature.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>JTIjt0lwimlTHCkS5bP5KLuDqB3FLWwToGbipBFd1rpTY7hFYMcd+7U0RSsY3HOr24i43Elv5Ovu
-eVT1a5QliA==</DigestValue>
+<DigestValue>QR5ne25SHaRstKy7zXo9yidAqCiBUAOhwBFQxVRVgFW7FxZBrnAHYV7/2TH5zkVmTWJr8RW7zOi5
+7r9bbT4hvA==</DigestValue>
 </Reference>
 <Reference URI="config.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -74,8 +79,8 @@ cw1jFeariw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fapi.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>6lNt45pSQivmgBrEVNdz9Ovx3j9nBugn1uFqWydZ8FJ2eVoy8KokBW7KHAhYI0ErKQEbWzRfPsBJ
-sMxQRwdtqg==</DigestValue>
+<DigestValue>0Q/KrCKwGfCkNEFl985FpPFooDlinsHRa/ZG67m0A/Z0ISro0OXLiylqCJyJQWeZoTtkhAUqNhdt
+kyiO8BYphA==</DigestValue>
 </Reference>
 <Reference URI="js%2Fcommon.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -84,13 +89,13 @@ GwI6BnZ6ng==</DigestValue>
 </Reference>
 <Reference URI="js%2Fconfig.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>3ciWEPuWKw7LzZLL0ZNgrf5cvR14rrjBY4SCAXpy2pOaWhfzwcC1mfHY5/GBxTq1A7i38Khh2n51
-vawmrHfEIQ==</DigestValue>
+<DigestValue>AqL0noM0CIVjli9CD6XZhN2TthOzylw3uzjRwnEZ6Skc6sc2rmfF56RYpt2McGKsNRWjJAQ3q7OT
+hDuIlyeeLg==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdata-config-monitor.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>jtNrUkthh+dNaBPkm0G71noltFbgxOGY3FGVnqyl0KVAw+M+couJ240Y8hSrl0Q0OcgcKNV+iwTX
-I92PBbWeKQ==</DigestValue>
+<DigestValue>GDxkT6c0Dv6xKY4TcYb+OPqR8YYFYaEzWrj5xco+So3ilkdlebZp0s1CQWDJofvP5TbWjTO3UbKE
+zTnjYo6Enw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdata-management-init.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -99,13 +104,13 @@ Bl3EkSODoA==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdata-manager.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>cazY8snC+ooxtC/GL5LJ72hVUcZA9UYm+QBBfbOG6KXWj0kGkZ1O/LPFA/x2v4Cr5ZdurTmkPATN
-Nk92kMhrXg==</DigestValue>
+<DigestValue>OTyoXxCyA9S5d907LZYLnka1GIit5wUnzx2Fh59bULj7WNZzUmrCL2U3AoPNJCBF1olMxknmhE5h
+FzSFmx9LoA==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdevice-storage.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>YCVS9XJVkbi3+t8TwgaQRP89BxQqV/D9EBSK6i/0z9QjmAsox7ZtM/KnoM70W+C2RpBk2aFraotM
-WCwd7G0+Ww==</DigestValue>
+<DigestValue>pg0zhgOxAuvozxo7TDjzezFK/tM6ZPYGFGKvPCJZFarU9EjqRd/YQoKx8IvMsro87Xjk3wG+OunU
+jH+nzWMmGA==</DigestValue>
 </Reference>
 <Reference URI="js%2FdeviceMqtt.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -232,11 +237,11 @@ GyvKX9Snig==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-JSK42sb+pGBbk6l7P+8Cg5kFQXhoyPvhqUFosTO+vtitHUaj7jqoWqSHhxHtptVI+YntEUyt715j
-1qb3qu74KVoKTbMDvFh8+vriKofVK8lrLzptfY/uJUPf85W+vIrk5c9LoGe71TJ8nMOPa16klv2y
-30RI/NYj6OvGqiF7WP/tW2Q8g9AminsKFp2h5yfdLA6+3rNg44CUw016FAa+aN2rXp7XdjWLCMBm
-xr4UvUdXau5m9wYaejbQzXGkiYR3k/Xf2Uz7vN241hIyKpDeQrxi5PIH1Fx0I7H7E7yrEz4+Fjx5
-puf+mY1oBGOOmr95GVhtluywQPaGfSZCrcP1dw==
+Xdn0Xr3tbfeQL1+DvR9KU2l7hU8AGeEQTHK7FjinRShST4RscI5mOj4BZpVVerQEpv0TA9/gugRZ
+8zdzTGmvG7+DIZw3KmiBN5j8gUA3pnYtcUMGaIsXPZkkP1X9lLw7+F0hzKQkkQEB7rKnC2jCXdZ2
+/7QQr7xY1Bnq4BTYilS5GoSKHZdmgC3Ldhk5n+nS89mTVHzCbUWH3VByskJY49/ueGX3q3udA+AV
+TOIe6YfBeE0nHhq0s2A/a1Y3zuoSOESjGv3izT5sxDcjI+ZHzt8irhoRsrWuDFpKm9FWJLK40qXf
+LvRV3aF+Ajv5sE9CjU9JlnW4AaIw9eyegsU2Ew==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

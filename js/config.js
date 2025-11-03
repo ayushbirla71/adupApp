@@ -6,6 +6,8 @@ window.APP_BUILD_DATE = "2025-10-30";
 window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
+window.BULK_LOGS_API_BASE_URL =
+  "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
 // window.API_BASE_URL = "http://3.110.179.237:8081/api/";
 window.SECRETKEY =
   "2182zy64mc64nswkemzmcbvjlaie44bd8cdkhsg312c81187ab82bbe053df6b7aa55";
