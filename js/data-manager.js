@@ -201,6 +201,10 @@ class DataManager {
       timestamp: new Date().toISOString(),
       cpuUsage: telemetryData.cpuUsage || 0,
       ramFreeMb: telemetryData.ramFreeMb || 0,
+      storageFreeMb: telemetryData.storageFreeMb || 0,
+      networkType: telemetryData.networkType || "UNKNOWN",
+      appVersionCode: telemetryData.appVersionCode || "UNKNOWN",
+
       synced: false,
     };
 
@@ -434,7 +438,7 @@ class DataManager {
     return stats;
   }
 
-  async cleanupOldRecords(retentionDays = 7) {
+  async cleanupOldRecords(retentionDays = 30) {
     await this.waitForInitialization();
 
     if (!this.db) {
@@ -540,7 +544,7 @@ class DataManager {
       if (this.isOnline && !this.syncInProgress) {
         this.triggerSync();
       }
-    }, 2 * 60 * 1000);
+    }, 15 * 60 * 1000); // 4 minutes
   }
 
   async triggerSync() {
@@ -596,6 +600,9 @@ class DataManager {
             timestamp: record.timestamp,
             cpuUsage: record.cpuUsage,
             ramFreeMb: record.ramFreeMb,
+            storageFreeMb: record.storageFreeMb,
+            networkType: record.networkType,
+            appVersionCode: record.appVersionCode,
           })),
           events: eventsData.map((record) => ({
             eventId: record.eventId,
@@ -678,8 +685,16 @@ class DataManager {
 
   async cleanupOldRecords() {
     try {
+      // Get retention days from config, default to 30 days for offline periods
+      const retentionDays =
+        window.dataConfigMonitor?.config?.storage?.retentionDays || 30;
+
       const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - 7); // Keep 7 days of synced data
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+      logInfo(
+        `Cleaning up synced records older than ${retentionDays} days (before ${cutoffDate.toISOString()})`
+      );
 
       await Promise.all([
         this.deleteOldSyncedRecords(this.tables.proofOfPlay, cutoffDate),

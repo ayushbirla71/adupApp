@@ -7,20 +7,20 @@ class TelemetryCollector {
     this.collectionInterval = 5 * 60 * 1000; // 5 minutes
     this.intervalId = null;
     this.lastCollection = null;
-    
+
     // Performance tracking
     this.performanceMetrics = {
       memoryUsage: [],
       downloadSpeeds: [],
       playbackErrors: 0,
-      networkLatency: []
+      networkLatency: [],
     };
 
     this.init();
   }
 
   init() {
-    logInfo('TelemetryCollector initialized');
+    logInfo("TelemetryCollector initialized");
     this.startCollection();
   }
 
@@ -30,16 +30,16 @@ class TelemetryCollector {
     }
 
     this.isCollecting = true;
-    
+
     // Collect initial telemetry
     this.collectTelemetry();
-    
+
     // Set up periodic collection
     this.intervalId = setInterval(() => {
       this.collectTelemetry();
     }, this.collectionInterval);
 
-    logInfo('Telemetry collection started');
+    logInfo("Telemetry collection started");
   }
 
   stopCollection() {
@@ -48,198 +48,293 @@ class TelemetryCollector {
     }
 
     this.isCollecting = false;
-    
+
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
 
-    logInfo('Telemetry collection stopped');
+    logInfo("Telemetry collection stopped");
   }
 
   async collectTelemetry() {
     try {
       const telemetryData = await this.gatherSystemMetrics();
-      
+
       // Store in data manager
       if (window.dataManager) {
         await window.dataManager.recordTelemetry(telemetryData);
       }
 
       this.lastCollection = new Date().toISOString();
-      logInfo('Telemetry collected successfully');
-
+      logInfo("Telemetry collected successfully");
     } catch (error) {
-      logError('Failed to collect telemetry:', error);
+      logError("Failed to collect telemetry:", error);
     }
   }
 
   async gatherSystemMetrics() {
+    // Collect all real data
+    const cpuData = await this.getCPUUsage();
+    const memoryData = await this.getAvailableRAM();
+    const storageData = await this.getStorageInfo();
+    const networkData = await this.getNetworkInfo();
+    const buildData = await this.getBuildInfo();
+
+    // Format in required structure (camelCase)
     const metrics = {
+      deviceId: localStorage.getItem("device_id"),
       timestamp: new Date().toISOString(),
-      cpuUsage: await this.getCPUUsage(),
-      ramFreeMb: await this.getAvailableRAM(),
-      storageInfo: await this.getStorageInfo(),
-      networkInfo: await this.getNetworkInfo(),
-      displayInfo: await this.getDisplayInfo(),
-      batteryInfo: await this.getBatteryInfo(),
-      performanceMetrics: this.getPerformanceMetrics()
+      cpuUsage: cpuData ? cpuData.load : null,
+      ramFreeMb: memoryData ? memoryData.availableMB : null,
+      storageFreeMb:
+        storageData && storageData.length > 0
+          ? storageData[0].availableCapacityMB
+          : null,
+      networkType: networkData ? networkData.type : null,
+      // appVersionCode: buildData ? buildData.buildVersion : null,
+      appVersionCode: window.APP_VERSION,
     };
 
+    logInfo(
+      "📊 Real Tizen Telemetry collected:",
+      JSON.stringify(metrics, null, 2)
+    );
     return metrics;
   }
 
   async getCPUUsage() {
     try {
-      // Try to get CPU usage from Tizen system info
-      if (tizen && tizen.systeminfo) {
+      // Get real CPU usage from Tizen system info
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
         return new Promise((resolve) => {
-          tizen.systeminfo.getPropertyValue('CPU', 
+          tizen.systeminfo.getPropertyValue(
+            "CPU",
             (cpu) => {
-              // CPU load is typically a value between 0 and 1
-              resolve(cpu.load || this.estimateCPUUsage());
+              // CPU load is a value between 0 and 1
+              const cpuLoad = cpu.load;
+              logInfo(`Real CPU load: ${(cpuLoad * 100).toFixed(2)}%`);
+              resolve(cpuLoad);
             },
-            () => {
-              resolve(this.estimateCPUUsage());
+            (error) => {
+              logWarn("Failed to get CPU usage from Tizen API:", error.message);
+              resolve(null);
             }
           );
         });
       }
     } catch (error) {
-      logWarn('Failed to get CPU usage from Tizen API:', error);
+      logWarn("Failed to get CPU usage from Tizen API:", error);
     }
 
-    return this.estimateCPUUsage();
-  }
-
-  estimateCPUUsage() {
-    // Estimate CPU usage based on performance metrics
-    const baseUsage = 0.2; // Base system usage
-    const playbackUsage = window.currentVideo ? 0.3 : 0; // Additional usage during playback
-    const downloadUsage = window.DOWNLOAD_PROGRESS && window.DOWNLOAD_PROGRESS.length > 0 ? 0.2 : 0;
-    
-    return Math.min(baseUsage + playbackUsage + downloadUsage + (Math.random() * 0.1), 1.0);
+    return null;
   }
 
   async getAvailableRAM() {
     try {
-      // Try to get memory info from Tizen system info
-      if (tizen && tizen.systeminfo) {
-        return new Promise((resolve) => {
-          tizen.systeminfo.getPropertyValue('MEMORY', 
-            (memory) => {
-              // Convert to MB and return available memory
-              const availableMB = memory.available ? Math.floor(memory.available / (1024 * 1024)) : null;
-              resolve(availableMB || this.estimateAvailableRAM());
-            },
-            () => {
-              resolve(this.estimateAvailableRAM());
-            }
-          );
-        });
+      // Get real memory info from Tizen system info
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
+        // Get total and available memory
+        const totalMemory = tizen.systeminfo.getTotalMemory();
+        const availableMemory = tizen.systeminfo.getAvailableMemory();
+
+        const totalMB = Math.floor(totalMemory / (1024 * 1024));
+        const availableMB = Math.floor(availableMemory / (1024 * 1024));
+        const usedMB = totalMB - availableMB;
+        const usagePercent = ((usedMB / totalMB) * 100).toFixed(2);
+
+        logInfo(
+          `Real Memory: ${availableMB}MB free / ${totalMB}MB total (${usagePercent}% used)`
+        );
+
+        return {
+          totalMB: totalMB,
+          availableMB: availableMB,
+          usedMB: usedMB,
+          usagePercent: parseFloat(usagePercent),
+        };
       }
     } catch (error) {
-      logWarn('Failed to get memory info from Tizen API:', error);
+      logWarn("Failed to get memory info from Tizen API:", error);
     }
 
-    return this.estimateAvailableRAM();
-  }
-
-  estimateAvailableRAM() {
-    // Estimate available RAM (typical Tizen TV has 1-4GB)
-    const baseRAM = 2000; // 2GB base
-    const usedByApp = 200 + (window.localAds ? window.localAds.length * 50 : 0); // Estimate app usage
-    return Math.max(baseRAM - usedByApp + (Math.random() * 200 - 100), 500);
+    return null;
   }
 
   async getStorageInfo() {
     try {
-      if (tizen && tizen.filesystem) {
+      // Get real storage info from Tizen system info
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
         return new Promise((resolve) => {
-          tizen.filesystem.resolve('downloads', 
-            (dir) => {
-              // Get storage info for downloads directory
-              resolve({
-                downloadPath: dir.toURI(),
-                available: 'unknown' // Tizen doesn't easily provide storage space
-              });
+          tizen.systeminfo.getPropertyValue(
+            "STORAGE",
+            (storage) => {
+              const storageUnits = storage.units || [];
+              const storageInfo = storageUnits.map((unit) => ({
+                type: unit.type, // "INTERNAL" or "EXTERNAL"
+                capacityBytes: unit.capacity, // Keep raw bytes
+                availableCapacityBytes: unit.availableCapacity, // Keep raw bytes
+                capacityMB: Math.floor(unit.capacity / (1024 * 1024)), // Convert to MB
+                availableCapacityMB: Math.floor(
+                  unit.availableCapacity / (1024 * 1024)
+                ), // Convert to MB
+                isRemovable: unit.isRemovable,
+                usagePercent: (
+                  ((unit.capacity - unit.availableCapacity) / unit.capacity) *
+                  100
+                ).toFixed(2),
+              }));
+
+              logInfo(`Real Storage Info: ${JSON.stringify(storageInfo)}`);
+              resolve(storageInfo);
             },
-            () => {
-              resolve({ available: 'unknown', error: 'Cannot access storage' });
+            (error) => {
+              logWarn(
+                "Failed to get storage info from Tizen API:",
+                error.message
+              );
+              resolve(null);
             }
           );
         });
       }
     } catch (error) {
-      logWarn('Failed to get storage info:', error);
+      logWarn("Failed to get storage info:", error);
     }
 
-    return { available: 'unknown', error: 'Storage API not available' };
+    return null;
   }
 
   async getNetworkInfo() {
     try {
       const networkInfo = {
         isOnline: navigator.onLine,
-        connectionType: 'unknown',
-        effectiveType: 'unknown'
       };
 
-      // Try to get network connection info
-      if (navigator.connection) {
-        networkInfo.connectionType = navigator.connection.type || 'unknown';
-        networkInfo.effectiveType = navigator.connection.effectiveType || 'unknown';
-        networkInfo.downlink = navigator.connection.downlink || null;
-        networkInfo.rtt = navigator.connection.rtt || null;
-      }
+      // Get real network info from Tizen
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
+        // Try to get WiFi network info
+        try {
+          const wifiInfo = await new Promise((resolve) => {
+            tizen.systeminfo.getPropertyValue(
+              "WIFI_NETWORK",
+              (wifi) => {
+                resolve({
+                  type: "WIFI",
+                  status: wifi.status,
+                  ssid: wifi.ssid,
+                  ipAddress: wifi.ipAddress,
+                  ipv6Address: wifi.ipv6Address,
+                  macAddress: wifi.macAddress,
+                  signalStrength: wifi.signalStrength,
+                  signalPercent: parseFloat(
+                    (wifi.signalStrength * 100).toFixed(2)
+                  ),
+                  securityMode: wifi.securityMode,
+                  gateway: wifi.gateway,
+                  dns: wifi.dns,
+                });
+              },
+              () => resolve(null)
+            );
+          });
+          if (wifiInfo && wifiInfo.status === "ON") {
+            Object.assign(networkInfo, wifiInfo);
+            logInfo(`Real WiFi Info: ${JSON.stringify(wifiInfo)}`);
+          }
+        } catch (e) {
+          logWarn("WiFi info not available");
+        }
 
-      // Add network quality from network monitor
-      if (window.networkMonitor) {
-        const status = window.networkMonitor.getStatus();
-        networkInfo.quality = status.quality;
-        networkInfo.lastCheck = status.lastCheck;
+        // Try to get Ethernet network info if WiFi not available
+        if (!networkInfo.type) {
+          try {
+            const ethernetInfo = await new Promise((resolve) => {
+              tizen.systeminfo.getPropertyValue(
+                "ETHERNET_NETWORK",
+                (ethernet) => {
+                  resolve({
+                    type: "ETHERNET",
+                    cable: ethernet.cable,
+                    status: ethernet.status,
+                    ipAddress: ethernet.ipAddress,
+                    ipv6Address: ethernet.ipv6Address,
+                    macAddress: ethernet.macAddress,
+                    gateway: ethernet.gateway,
+                    dns: ethernet.dns,
+                  });
+                },
+                () => resolve(null)
+              );
+            });
+            if (ethernetInfo) {
+              Object.assign(networkInfo, ethernetInfo);
+              logInfo(`Real Ethernet Info: ${JSON.stringify(ethernetInfo)}`);
+            }
+          } catch (e) {
+            logWarn("Ethernet info not available");
+          }
+        }
       }
 
       return networkInfo;
     } catch (error) {
-      logWarn('Failed to get network info:', error);
+      logWarn("Failed to get network info:", error);
       return { isOnline: navigator.onLine, error: error.message };
     }
   }
 
   async getDisplayInfo() {
     try {
-      if (tizen && tizen.systeminfo) {
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
         return new Promise((resolve) => {
-          tizen.systeminfo.getPropertyValue('DISPLAY', 
+          tizen.systeminfo.getPropertyValue(
+            "DISPLAY",
             (display) => {
-              resolve({
-                width: display.resolutionWidth || window.screen.width,
-                height: display.resolutionHeight || window.screen.height,
-                colorDepth: display.colorDepth || window.screen.colorDepth,
-                pixelDepth: display.pixelDepth || window.screen.pixelDepth
-              });
+              const info = {
+                resolutionWidth: display.resolutionWidth,
+                resolutionHeight: display.resolutionHeight,
+                resolution: `${display.resolutionWidth}x${display.resolutionHeight}`,
+                dotsPerInchWidth: display.dotsPerInchWidth,
+                dotsPerInchHeight: display.dotsPerInchHeight,
+                physicalWidth: display.physicalWidth,
+                physicalHeight: display.physicalHeight,
+                brightness: display.brightness,
+                brightnessPercent: parseFloat(
+                  (display.brightness * 100).toFixed(2)
+                ),
+                colorDepth: display.colorDepth,
+                pixelDepth: display.pixelDepth,
+              };
+              logInfo(`Real Display Info: ${JSON.stringify(info)}`);
+              resolve(info);
             },
-            () => {
+            (error) => {
+              logWarn(
+                "Failed to get display info from Tizen API:",
+                error.message
+              );
               resolve({
-                width: window.screen.width,
-                height: window.screen.height,
-                colorDepth: window.screen.colorDepth,
-                pixelDepth: window.screen.pixelDepth
+                resolutionWidth: screen.width,
+                resolutionHeight: screen.height,
+                resolution: `${screen.width}x${screen.height}`,
+                colorDepth: screen.colorDepth,
+                pixelDepth: screen.pixelDepth,
               });
             }
           );
         });
       }
     } catch (error) {
-      logWarn('Failed to get display info:', error);
+      logWarn("Failed to get display info:", error);
     }
 
     return {
-      width: window.screen.width,
-      height: window.screen.height,
-      colorDepth: window.screen.colorDepth,
-      pixelDepth: window.screen.pixelDepth
+      resolutionWidth: screen.width,
+      resolutionHeight: screen.height,
+      resolution: `${screen.width}x${screen.height}`,
+      colorDepth: screen.colorDepth,
+      pixelDepth: screen.pixelDepth,
     };
   }
 
@@ -251,14 +346,99 @@ class TelemetryCollector {
           charging: battery.charging,
           level: battery.level,
           chargingTime: battery.chargingTime,
-          dischargingTime: battery.dischargingTime
+          dischargingTime: battery.dischargingTime,
         };
       }
     } catch (error) {
-      logWarn('Failed to get battery info:', error);
+      logWarn("Failed to get battery info:", error);
     }
 
-    return { available: false, error: 'Battery API not supported' };
+    return { available: false, error: "Battery API not supported" };
+  }
+
+  async getBuildInfo() {
+    try {
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
+        return new Promise((resolve) => {
+          tizen.systeminfo.getPropertyValue(
+            "BUILD",
+            (build) => {
+              const info = {
+                model: build.model,
+                manufacturer: build.manufacturer,
+                buildVersion: build.buildVersion,
+              };
+              logInfo(`Real Build Info: ${JSON.stringify(info)}`);
+              resolve(info);
+            },
+            (error) => {
+              logWarn(
+                "Failed to get build info from Tizen API:",
+                error.message
+              );
+              resolve(null);
+            }
+          );
+        });
+      }
+    } catch (error) {
+      logWarn("Failed to get build info:", error);
+    }
+
+    return null;
+  }
+
+  async getPeripheralInfo() {
+    try {
+      if (typeof tizen !== "undefined" && tizen.systeminfo) {
+        return new Promise((resolve) => {
+          tizen.systeminfo.getPropertyValue(
+            "PERIPHERAL",
+            (peripheral) => {
+              const info = {
+                isVideoOutputOn: peripheral.isVideoOutputOn,
+              };
+              logInfo(`Real Peripheral Info: ${JSON.stringify(info)}`);
+              resolve(info);
+            },
+            (error) => {
+              logWarn(
+                "Failed to get peripheral info from Tizen API:",
+                error.message
+              );
+              resolve(null);
+            }
+          );
+        });
+      }
+    } catch (error) {
+      logWarn("Failed to get peripheral info:", error);
+    }
+
+    return null;
+  }
+
+  async getOrientationInfo() {
+    try {
+      // Use screen dimensions for accurate orientation
+      const screenWidth = screen.width;
+      const screenHeight = screen.height;
+      const orientation = screenWidth > screenHeight ? "landscape" : "portrait";
+
+      const info = {
+        orientation,
+        screenWidth,
+        screenHeight,
+        resolution: `${screenWidth}x${screenHeight}`,
+      };
+
+      logInfo(`Real Orientation: ${JSON.stringify(info)}`);
+      return info;
+    } catch (error) {
+      logWarn("Failed to get orientation info:", error);
+    }
+
+    return null;
   }
 
   getPerformanceMetrics() {
@@ -267,7 +447,7 @@ class TelemetryCollector {
       averageDownloadSpeed: this.calculateAverageDownloadSpeed(),
       playbackErrorCount: this.performanceMetrics.playbackErrors,
       averageNetworkLatency: this.calculateAverageLatency(),
-      uptime: this.getUptime()
+      uptime: this.getUptime(),
     };
   }
 
@@ -275,8 +455,11 @@ class TelemetryCollector {
     if (this.performanceMetrics.downloadSpeeds.length === 0) {
       return 0;
     }
-    
-    const sum = this.performanceMetrics.downloadSpeeds.reduce((a, b) => a + b, 0);
+
+    const sum = this.performanceMetrics.downloadSpeeds.reduce(
+      (a, b) => a + b,
+      0
+    );
     return sum / this.performanceMetrics.downloadSpeeds.length;
   }
 
@@ -284,14 +467,17 @@ class TelemetryCollector {
     if (this.performanceMetrics.networkLatency.length === 0) {
       return null;
     }
-    
-    const sum = this.performanceMetrics.networkLatency.reduce((a, b) => a + b, 0);
+
+    const sum = this.performanceMetrics.networkLatency.reduce(
+      (a, b) => a + b,
+      0
+    );
     return sum / this.performanceMetrics.networkLatency.length;
   }
 
   getUptime() {
     // Estimate app uptime (simplified)
-    const startTime = localStorage.getItem('app_start_time');
+    const startTime = localStorage.getItem("app_start_time");
     if (startTime) {
       return Date.now() - parseInt(startTime);
     }
@@ -302,9 +488,9 @@ class TelemetryCollector {
   recordMemoryUsage(usage) {
     this.performanceMetrics.memoryUsage.push({
       timestamp: Date.now(),
-      usage: usage
+      usage: usage,
     });
-    
+
     // Keep only last 50 readings
     if (this.performanceMetrics.memoryUsage.length > 50) {
       this.performanceMetrics.memoryUsage.shift();
@@ -313,7 +499,7 @@ class TelemetryCollector {
 
   recordDownloadSpeed(speed) {
     this.performanceMetrics.downloadSpeeds.push(speed);
-    
+
     // Keep only last 20 readings
     if (this.performanceMetrics.downloadSpeeds.length > 20) {
       this.performanceMetrics.downloadSpeeds.shift();
@@ -326,7 +512,7 @@ class TelemetryCollector {
 
   recordNetworkLatency(latency) {
     this.performanceMetrics.networkLatency.push(latency);
-    
+
     // Keep only last 20 readings
     if (this.performanceMetrics.networkLatency.length > 20) {
       this.performanceMetrics.networkLatency.shift();
@@ -339,7 +525,7 @@ class TelemetryCollector {
       isCollecting: this.isCollecting,
       lastCollection: this.lastCollection,
       collectionInterval: this.collectionInterval,
-      performanceMetrics: this.performanceMetrics
+      performanceMetrics: this.performanceMetrics,
     };
   }
 
@@ -353,11 +539,11 @@ class TelemetryCollector {
 window.telemetryCollector = null;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   // Set app start time for uptime calculation
-  if (!localStorage.getItem('app_start_time')) {
-    localStorage.setItem('app_start_time', Date.now().toString());
+  if (!localStorage.getItem("app_start_time")) {
+    localStorage.setItem("app_start_time", Date.now().toString());
   }
-  
+
   window.telemetryCollector = new TelemetryCollector();
 });

@@ -191,6 +191,12 @@ async function checkAndDownloadContent(url, fileName) {
 // Stop current playback and clear timeouts
 function stopCurrentPlayback() {
   iterator = 0;
+
+  // Abort all active proof of play tracking sessions
+  if (window.proofOfPlayTracker) {
+    window.proofOfPlayTracker.abortAllActiveTracking("new_content_loaded");
+  }
+
   try {
     p1.stop();
   } catch (e) {
@@ -200,7 +206,7 @@ function stopCurrentPlayback() {
   try {
     p2.stop();
   } catch (e) {
-    console.warn("Error stopping p1:", e);
+    console.warn("Error stopping p2:", e);
   }
 
   adLoopTimeouts.forEach(clearTimeout);
@@ -296,9 +302,9 @@ function showImage(file, resolve) {
     //console.log("image_url " + sources + "/" + file);
     //console.log("🖼️ Displaying image:", adsFromServer[iterator]);
     let image_url = sources + "/" + file;
-    if (file.startsWith("placeholder")) {
-      image_url = image_url + "?v=" + new Date().getTime(); // cache buster
-    }
+    // if (file.startsWith("placeholder")) {
+    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
+    // }
     imgElement.src = image_url; // ✅ use updated URL
   } catch (err) {
     addErrorLog(" Error preparing or Image file:", err.message || err);
@@ -307,7 +313,7 @@ function showImage(file, resolve) {
 
 let timeoutBox = null;
 
-function playImage(file, signal) {
+function playImage(file, signal, currentAd) {
   return new Promise((resolve) => {
     if (timeoutBox) {
       clearTimeout(timeoutBox);
@@ -322,7 +328,7 @@ function playImage(file, signal) {
         logVideo("Image display complete:", file);
         resolve();
       }
-    }, 10000); // 10 seconds per image
+    }, currentAd?.duration * 1000 || 10000); // 10 seconds per image
 
     // signal.addEventListener("abort", () => {
     //   clearTimeout(timeout);
@@ -387,11 +393,12 @@ async function playAllContentInLoop(filenames, ads, rcs) {
           //console.log("imagess", imgElement);
           //console.log("image1", imageElement1);
           //console.log("image2", imageElement2);
-          imgElement.src = sources + "/" + filenames[nexIndex];
+          // imgElement.src = sources + "/" + filenames[nexIndex];
         }
         await playVideoWithTracking(currentFile, signal, currentAd);
       } else {
         await playImageWithTracking(currentFile, signal, currentAd);
+        // imgElement.style.display = "none";
         //useImage1 = !useImage1;
       }
     } catch (err) {
@@ -481,7 +488,7 @@ async function playImageWithTracking(file, signal, currentAd) {
     }
 
     // Call original playImage function
-    await playImage(file, signal);
+    await playImage(file, signal, currentAd);
 
     // End tracking
     if (trackingId) {
@@ -538,11 +545,17 @@ function playVideo(file, signal, currentAd, trackingId = null) {
       let successCallback = function () {
         //console.log("The media has finished preparing");
         player.setVideoStillMode("false");
+        const imageElement1 = document.getElementById("image-player1");
         document.getElementById("image-player1").style.display = "none";
         document.getElementById("image-player2").style.display = "none";
         document.getElementById("av-player").classList.add("vid");
         document.getElementById("av-player2").classList.add("vid");
         player.play();
+        const currentFile = filenames[iterator % filenames.length];
+        let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
+        if (!isVideo(filenames[nexIndex]) && imgElement) {
+          imageElement1.src = sources + "/" + filenames[nexIndex];
+        }
         //console.log("🎞️ Playing video:", file);
         let state = player.getState();
         //console.log("[Player][seekBackward] state 1: ", state);

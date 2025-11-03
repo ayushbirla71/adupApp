@@ -33,8 +33,8 @@ class DataConfigMonitor {
         detailedTracking: true,
       },
       storage: {
-        retentionDays: 7,
-        maxRecordsPerTable: 10000,
+        retentionDays: 30, // Increased to 30 days for offline periods
+        maxRecordsPerTable: 20000, // Increased to 20,000 records
         autoCleanup: true,
         cleanupInterval: 24 * 60 * 60 * 1000, // 24 hours
       },

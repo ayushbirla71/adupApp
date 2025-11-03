@@ -6,47 +6,47 @@ class ProofOfPlayTracker {
     this.activePlaybacks = new Map(); // Track currently playing ads
     this.completedPlaybacks = [];
     this.isEnabled = true;
-    
+
     this.init();
   }
 
   init() {
-    logInfo('ProofOfPlayTracker initialized');
-    
+    logInfo("ProofOfPlayTracker initialized");
+
     // Record app start event
-    this.recordEvent('APP_STARTED', { reason: 'USER_LAUNCH' });
+    this.recordEvent("APP_STARTED", { reason: "USER_LAUNCH" });
   }
 
   // Start tracking an ad playback
-  startTracking(adData, mediaType = 'video') {
+  startTracking(adData, mediaType = "video") {
     if (!this.isEnabled || !adData) {
       return null;
     }
 
     const trackingId = generateUUID();
     const startTime = new Date().toISOString();
-    
+
     const playbackRecord = {
       trackingId: trackingId,
       adId: adData.ad_id || adData.adId || generateUUID(),
       scheduleId: adData.schedule_id || adData.scheduleId || null,
       mediaType: mediaType,
-      fileName: adData.fileName || adData.url || 'unknown',
+      fileName: adData.fileName || adData.url || "unknown",
       startTime: startTime,
       endTime: null,
       durationPlayedMs: 0,
       expectedDurationMs: adData.duration ? adData.duration * 1000 : null,
-      status: 'playing',
-      events: []
+      status: "playing",
+      events: [],
     };
 
     this.activePlaybacks.set(trackingId, playbackRecord);
-    
-    logInfo('Started tracking ad playback:', {
+
+    logInfo("Started tracking ad playback:", {
       trackingId,
       adId: playbackRecord.adId,
       mediaType,
-      fileName: playbackRecord.fileName
+      fileName: playbackRecord.fileName,
     });
 
     return trackingId;
@@ -56,36 +56,45 @@ class ProofOfPlayTracker {
   addPlaybackEvent(trackingId, eventType, eventData = {}) {
     const playback = this.activePlaybacks.get(trackingId);
     if (!playback) {
-      logWarn('Cannot add event to unknown tracking ID:', trackingId);
+      logWarn("Cannot add event to unknown tracking ID:", trackingId);
       return;
     }
 
     const event = {
       timestamp: new Date().toISOString(),
       eventType: eventType,
-      data: eventData
+      data: eventData,
     };
 
     playback.events.push(event);
-    
-    logInfo('Added playback event:', {
+
+    logInfo("Added playback event:", {
       trackingId,
       eventType,
-      adId: playback.adId
+      adId: playback.adId,
     });
   }
 
   // End tracking an ad playback
-  endTracking(trackingId, reason = 'completed') {
+  endTracking(trackingId, reason = "completed") {
     const playback = this.activePlaybacks.get(trackingId);
     if (!playback) {
-      logWarn('Cannot end tracking for unknown tracking ID:', trackingId);
+      logWarn("Cannot end tracking for unknown tracking ID:", trackingId);
       return null;
     }
 
     const endTime = new Date().toISOString();
-    const startTime = new Date(playback.startTime);
-    const durationPlayedMs = Date.now() - startTime.getTime();
+
+    // Use expected duration if available, otherwise calculate actual elapsed time
+    let durationPlayedMs;
+    if (reason === "completed" && playback.expectedDurationMs) {
+      // For completed playback, use the expected duration from ad data
+      durationPlayedMs = playback.expectedDurationMs;
+    } else {
+      // For aborted/error cases, calculate actual elapsed time
+      const startTime = new Date(playback.startTime);
+      durationPlayedMs = Date.now() - startTime.getTime();
+    }
 
     playback.endTime = endTime;
     playback.durationPlayedMs = durationPlayedMs;
@@ -95,11 +104,12 @@ class ProofOfPlayTracker {
     this.activePlaybacks.delete(trackingId);
     this.completedPlaybacks.push(playback);
 
-    logInfo('Ended tracking ad playback:', {
+    logInfo("Ended tracking ad playback:", {
       trackingId,
       adId: playback.adId,
       durationPlayedMs,
-      reason
+      expectedDurationMs: playback.expectedDurationMs,
+      reason,
     });
 
     // Record proof of play in data manager
@@ -111,7 +121,7 @@ class ProofOfPlayTracker {
   // Record proof of play in the data manager
   async recordProofOfPlay(playback) {
     if (!window.dataManager) {
-      logWarn('DataManager not available, cannot record proof of play');
+      logWarn("DataManager not available, cannot record proof of play");
       return;
     }
 
@@ -121,31 +131,31 @@ class ProofOfPlayTracker {
         scheduleId: playback.scheduleId,
         startTime: playback.startTime,
         endTime: playback.endTime,
-        durationPlayedMs: playback.durationPlayedMs
+        durationPlayedMs: playback.durationPlayedMs,
       };
 
       await window.dataManager.recordProofOfPlay(proofData);
-      logInfo('Proof of play recorded successfully:', playback.adId);
+      logInfo("Proof of play recorded successfully:", playback.adId);
     } catch (error) {
-      logError('Failed to record proof of play:', error);
+      logError("Failed to record proof of play:", error);
     }
   }
 
   // Record general events
   async recordEvent(eventType, payload = {}) {
     if (!window.dataManager) {
-      logWarn('DataManager not available, cannot record event');
+      logWarn("DataManager not available, cannot record event");
       return;
     }
 
     try {
       await window.dataManager.recordEvent({
         eventType: eventType,
-        payload: payload
+        payload: payload,
       });
-      logInfo('Event recorded:', eventType);
+      logInfo("Event recorded:", eventType);
     } catch (error) {
-      logError('Failed to record event:', error);
+      logError("Failed to record event:", error);
     }
   }
 
@@ -154,22 +164,43 @@ class ProofOfPlayTracker {
     return {
       activePlaybacks: this.activePlaybacks.size,
       completedPlaybacks: this.completedPlaybacks.length,
-      isEnabled: this.isEnabled
+      isEnabled: this.isEnabled,
     };
   }
 
   // Enable/disable tracking
   setEnabled(enabled) {
     this.isEnabled = enabled;
-    logInfo('Proof of play tracking', enabled ? 'enabled' : 'disabled');
+    logInfo("Proof of play tracking", enabled ? "enabled" : "disabled");
   }
 
   // Clean up old completed playbacks (keep last 100)
   cleanup() {
     if (this.completedPlaybacks.length > 100) {
-      const removed = this.completedPlaybacks.splice(0, this.completedPlaybacks.length - 100);
-      logInfo('Cleaned up old playback records:', removed.length);
+      const removed = this.completedPlaybacks.splice(
+        0,
+        this.completedPlaybacks.length - 100
+      );
+      logInfo("Cleaned up old playback records:", removed.length);
     }
+  }
+
+  // Abort all active playback tracking sessions
+  abortAllActiveTracking(reason = "aborted") {
+    if (this.activePlaybacks.size === 0) {
+      return;
+    }
+
+    logInfo(
+      `Aborting ${this.activePlaybacks.size} active tracking sessions...`
+    );
+
+    const trackingIds = Array.from(this.activePlaybacks.keys());
+    trackingIds.forEach((trackingId) => {
+      this.endTracking(trackingId, reason);
+    });
+
+    logInfo("All active tracking sessions aborted");
   }
 }
 
@@ -177,11 +208,14 @@ class ProofOfPlayTracker {
 class TrackedVideoPlayer {
   static async playVideo(file, signal, currentAd, originalPlayVideoFn) {
     let trackingId = null;
-    
+
     try {
       // Start tracking
       if (window.proofOfPlayTracker && currentAd) {
-        trackingId = window.proofOfPlayTracker.startTracking(currentAd, 'video');
+        trackingId = window.proofOfPlayTracker.startTracking(
+          currentAd,
+          "video"
+        );
       }
 
       // Create a promise wrapper around the original playVideo function
@@ -189,15 +223,17 @@ class TrackedVideoPlayer {
         // Call the original playVideo function with enhanced callbacks
         const enhancedResolve = () => {
           if (trackingId) {
-            window.proofOfPlayTracker.endTracking(trackingId, 'completed');
+            window.proofOfPlayTracker.endTracking(trackingId, "completed");
           }
           resolve();
         };
 
         const enhancedReject = (error) => {
           if (trackingId) {
-            window.proofOfPlayTracker.endTracking(trackingId, 'error');
-            window.proofOfPlayTracker.addPlaybackEvent(trackingId, 'ERROR', { error: error.message });
+            window.proofOfPlayTracker.endTracking(trackingId, "error");
+            window.proofOfPlayTracker.addPlaybackEvent(trackingId, "ERROR", {
+              error: error.message,
+            });
           }
           reject(error);
         };
@@ -205,7 +241,7 @@ class TrackedVideoPlayer {
         // Monitor signal for abortion
         if (signal && signal.aborted) {
           if (trackingId) {
-            window.proofOfPlayTracker.endTracking(trackingId, 'aborted');
+            window.proofOfPlayTracker.endTracking(trackingId, "aborted");
           }
           resolve();
           return;
@@ -213,9 +249,9 @@ class TrackedVideoPlayer {
 
         // Add abort listener
         if (signal) {
-          signal.addEventListener('abort', () => {
+          signal.addEventListener("abort", () => {
             if (trackingId) {
-              window.proofOfPlayTracker.endTracking(trackingId, 'aborted');
+              window.proofOfPlayTracker.endTracking(trackingId, "aborted");
             }
           });
         }
@@ -228,18 +264,21 @@ class TrackedVideoPlayer {
 
       // Add buffering and play events
       if (trackingId) {
-        window.proofOfPlayTracker.addPlaybackEvent(trackingId, 'PLAYBACK_STARTED', {
-          fileName: file,
-          expectedDuration: currentAd?.duration
-        });
+        window.proofOfPlayTracker.addPlaybackEvent(
+          trackingId,
+          "PLAYBACK_STARTED",
+          {
+            fileName: file,
+            expectedDuration: currentAd?.duration,
+          }
+        );
       }
 
       await playbackPromise;
-
     } catch (error) {
-      logError('Enhanced video playback failed:', error);
+      logError("Enhanced video playback failed:", error);
       if (trackingId) {
-        window.proofOfPlayTracker.endTracking(trackingId, 'error');
+        window.proofOfPlayTracker.endTracking(trackingId, "error");
       }
       throw error;
     }
@@ -250,18 +289,25 @@ class TrackedVideoPlayer {
 class TrackedImagePlayer {
   static async playImage(file, signal, currentAd, originalPlayImageFn) {
     let trackingId = null;
-    
+
     try {
       // Start tracking
       if (window.proofOfPlayTracker && currentAd) {
-        trackingId = window.proofOfPlayTracker.startTracking(currentAd, 'image');
+        trackingId = window.proofOfPlayTracker.startTracking(
+          currentAd,
+          "image"
+        );
       }
 
       // Add display event
       if (trackingId) {
-        window.proofOfPlayTracker.addPlaybackEvent(trackingId, 'IMAGE_DISPLAY_STARTED', {
-          fileName: file
-        });
+        window.proofOfPlayTracker.addPlaybackEvent(
+          trackingId,
+          "IMAGE_DISPLAY_STARTED",
+          {
+            fileName: file,
+          }
+        );
       }
 
       // Call original function
@@ -269,13 +315,12 @@ class TrackedImagePlayer {
 
       // End tracking
       if (trackingId) {
-        window.proofOfPlayTracker.endTracking(trackingId, 'completed');
+        window.proofOfPlayTracker.endTracking(trackingId, "completed");
       }
-
     } catch (error) {
-      logError('Enhanced image playback failed:', error);
+      logError("Enhanced image playback failed:", error);
       if (trackingId) {
-        window.proofOfPlayTracker.endTracking(trackingId, 'error');
+        window.proofOfPlayTracker.endTracking(trackingId, "error");
       }
       throw error;
     }
@@ -286,20 +331,20 @@ class TrackedImagePlayer {
 window.proofOfPlayTracker = null;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   window.proofOfPlayTracker = new ProofOfPlayTracker();
-  
+
   // Record content download events
-  window.proofOfPlayTracker.recordEvent('CONTENT_DOWNLOAD_STARTED', {
-    timestamp: new Date().toISOString()
+  window.proofOfPlayTracker.recordEvent("CONTENT_DOWNLOAD_STARTED", {
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     ProofOfPlayTracker,
     TrackedVideoPlayer,
-    TrackedImagePlayer
+    TrackedImagePlayer,
   };
 }
