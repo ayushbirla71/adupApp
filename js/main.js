@@ -133,11 +133,15 @@ window.onload = async function () {
   SN.init();
   manage_spatial_navigation("settings-container");
   checkDeviceResolution();
-  // Call once during startup
-  initOrientationListener();
+
+  // ✅ Wait for orientation to be initialized BEFORE proceeding
+  console.log("Initializing orientation listener...");
+  await initOrientationListener();
+  console.log("Orientation listener initialized successfully");
+
   // const newToken = "your_token_here"; // Set this appropriately
   // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
-  // localStorage.setItem("device_id", "4c9d0a2f-a489-4f81-9e17-ed7c5af3cc9d");
+  // localStorage.setItem("device_id", "83de41b0-4cac-480e-a8f9-3278d8fb7e69");
 
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {
@@ -175,8 +179,8 @@ window.onload = async function () {
     //   $element.html(contentHTML); // Uncomment if needed
     // }
     deviceOriantationChange(
-      DEVICE_WINDOW_ORIENT,
-      DEVICE_WINDOW_WIDTH + "x" + DEVICE_WINDOW_HEIGHT
+      window.DEVICE_WINDOW_ORIENT,
+      window.DEVICE_WINDOW_WIDTH + "x" + window.DEVICE_WINDOW_HEIGHT
     );
 
     connectMQTT({
@@ -258,52 +262,71 @@ const safeCapability = (key) => {
   }
 };
 function initOrientationListener() {
-  function handleOrientationChange() {
-    console.log("Orientation changed!");
+  return new Promise((resolve) => {
+    function handleOrientationChange() {
+      console.log("Orientation changed!");
 
-    try {
-      let orientation = "unknown";
+      try {
+        let orientation = "unknown";
 
-      // --- Detect orientation based on actual screen dimensions ---
-      // Use screen.width and screen.height for actual device resolution
-      const screenWidth = screen.width;
-      const screenHeight = screen.height;
+        // --- Detect orientation based on CURRENT window dimensions ---
+        // ✅ Use window.innerWidth/innerHeight which reflect current orientation
+        // ❌ Don't use screen.width/height as they don't change with orientation
+        const screenWidth = window.innerWidth || screen.width;
+        const screenHeight = window.innerHeight || screen.height;
 
-      // Determine orientation based on which dimension is larger
-      orientation = screenWidth > screenHeight ? "landscape" : "portrait";
+        // Determine orientation based on which dimension is larger
+        orientation = screenWidth > screenHeight ? "landscape" : "portrait";
 
-      // --- Get screen resolution using actual screen dimensions ---
-      const device_resolution = `${screenWidth}x${screenHeight}`;
+        // --- Get screen resolution using current window dimensions ---
+        const device_resolution = `${screenWidth}x${screenHeight}`;
 
-      console.log("Orientation:", orientation);
-      console.log("Resolution:", device_resolution);
-      console.log("Screen dimensions:", screenWidth, "x", screenHeight);
+        console.log("Orientation:", orientation);
+        console.log("Resolution:", device_resolution);
+        console.log("Window dimensions:", screenWidth, "x", screenHeight);
+        console.log(
+          "Screen dimensions (static):",
+          screen.width,
+          "x",
+          screen.height
+        );
 
-      window.DEVICE_WINDOW_WIDTH = screenWidth;
-      window.DEVICE_WINDOW_HEIGHT = screenHeight;
-      window.DEVICE_WINDOW_ORIENT = orientation;
+        window.DEVICE_WINDOW_WIDTH = screenWidth;
+        window.DEVICE_WINDOW_HEIGHT = screenHeight;
+        window.DEVICE_WINDOW_ORIENT = orientation;
 
-      // Send orientation change to API if device is registered
-      if (localStorage.getItem("device_id")) {
-        // deviceOriantationChange(orientation, device_resolution);
+        // Send orientation change to API if device is registered
+        if (localStorage.getItem("device_id")) {
+          // deviceOriantationChange(orientation, device_resolution);
+        }
+      } catch (error) {
+        console.error("Error getting orientation:", error);
       }
-    } catch (error) {
-      console.error("Error getting orientation:", error);
     }
-  }
 
-  // --- Add event listener for orientation changes ---
-  if (screen.orientation && screen.orientation.addEventListener) {
-    // ✅ Modern browsers (including Tizen 6+)
-    screen.orientation.addEventListener("change", handleOrientationChange);
-  } else {
-    // ✅ Fallback for older browsers or Tizen models
-    window.addEventListener("orientationchange", handleOrientationChange);
-    window.addEventListener("resize", handleOrientationChange);
-  }
+    // --- Add event listener for orientation changes ---
+    if (screen.orientation && screen.orientation.addEventListener) {
+      // ✅ Modern browsers (including Tizen 6+)
+      screen.orientation.addEventListener("change", handleOrientationChange);
+    } else {
+      // ✅ Fallback for older browsers or Tizen models
+      window.addEventListener("orientationchange", handleOrientationChange);
+      window.addEventListener("resize", handleOrientationChange);
+    }
 
-  // Trigger once on load
-  handleOrientationChange();
+    // Trigger once on load and resolve promise
+    handleOrientationChange();
+
+    // Resolve immediately after first execution
+    setTimeout(() => {
+      console.log("Orientation initialized with:", {
+        width: window.DEVICE_WINDOW_WIDTH,
+        height: window.DEVICE_WINDOW_HEIGHT,
+        orientation: window.DEVICE_WINDOW_ORIENT,
+      });
+      resolve();
+    }, 100);
+  });
 }
 
 function set_focus(containerId, itemId) {
@@ -409,50 +432,59 @@ function showSection(id) {
   $(".section-panel").removeClass("active");
   $("#" + id).addClass("active");
 
-  switch (id) {
-    case "logs":
-      renderLogs();
-      break;
-    case "downloaded":
-      renderDownloadedFiles();
-      break;
-    case "processing":
-      renderProgress();
-      break;
-    case "errors":
-      renderErrors();
-      break;
-
-    case "systemInfo":
-      showSystemInfo();
-      break;
+  // Use enhanced settings if available
+  if (window.enhancedSettings) {
+    switch (id) {
+      case "dataStats":
+        window.enhancedSettings.refreshDataStats();
+        break;
+      case "logs":
+        window.enhancedSettings.renderLogs();
+        break;
+      case "downloaded":
+        window.enhancedSettings.renderDownloadedFiles();
+        break;
+      case "processing":
+        window.enhancedSettings.renderProgress();
+        break;
+      case "errors":
+        window.enhancedSettings.renderErrors();
+        break;
+      case "systemInfo":
+        showSystemInfo();
+        break;
+    }
+  } else {
+    // Fallback to old methods
+    switch (id) {
+      case "logs":
+        renderLogs();
+        break;
+      case "downloaded":
+        renderDownloadedFiles();
+        break;
+      case "processing":
+        renderProgress();
+        break;
+      case "errors":
+        renderErrors();
+        break;
+      case "systemInfo":
+        showSystemInfo();
+        break;
+    }
   }
 
-  // Set focus to first focusable
-
+  // Set focus to first focusable element
   setTimeout(() => {
     const $first = $("#" + id)
       .find(".focusable")
       .first();
-    $first.focus();
-    set_focus(id + "-section", "#" + id + " .focusable");
-  }, 50);
-
-  // if (id == "processing" || id == "errors" || id == "logs") {
-  //   interval = setInterval(() => {
-  //     if ($("#settingsSlider").hasClass("open")) {
-  //       const currentSectionId = $(".section-panel.active").attr("id");
-  //       if (currentSectionId) {
-  //         showSection(currentSectionId); // re-render current section
-  //       }
-  //     } else {
-  //       if (interval) {
-  //         clearInterval(interval);
-  //         interval = null;
-  //       }
-  //     }
-  //   }, 1000); // every 5 seconds
-  // }
+    if ($first.length) {
+      $first.focus();
+      set_focus(id + "-section", "#" + id + " .focusable");
+    }
+  }, 100);
 }
 
 function downloadLogs() {

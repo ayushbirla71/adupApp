@@ -113,8 +113,8 @@ async function registerDevice() {
           );
 
           deviceOriantationChange(
-            DEVICE_WINDOW_ORIENT,
-            DEVICE_WINDOW_WIDTH + "x" + DEVICE_WINDOW_HEIGHT
+            window.DEVICE_WINDOW_ORIENT,
+            window.DEVICE_WINDOW_WIDTH + "x" + window.DEVICE_WINDOW_HEIGHT
           );
         },
 

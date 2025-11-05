@@ -129,66 +129,219 @@
         <ul class="settings-list" id="settings-list">
           <li>
             <button id="systemInfo-btn" class="settings-button focusable">
-              System Info
+              📊 System Info
+            </button>
+          </li>
+          <li>
+            <button id="dataStats-btn" class="settings-button focusable">
+              💾 Data Statistics
             </button>
           </li>
           <li>
             <button id="logs-btn" class="settings-button focusable">
-              Logs
+              📝 Logs
             </button>
           </li>
           <li>
             <button id="downloaded-btn" class="settings-button focusable">
-              Downloaded Files
+              📥 Downloaded Files
             </button>
           </li>
           <li>
             <button id="processing-btn" class="settings-button focusable">
-              Processing Files
+              ⏳ Processing Files
             </button>
           </li>
           <li>
             <button id="errors-btn" class="settings-button focusable">
-              Errors
+              ❌ Errors
             </button>
           </li>
-
-          <!-- <li>
-            <button id="exit-btn" class="settings-button focusable">
-              Exit Group
-            </button>
-          </li> -->
         </ul>
 
         <div class="settings-content" id="settings-content">
           <!-- System Info Panel -->
           <div id="systemInfo" class="section-panel">
-            <h3>Device Info</h3>
+            <h3>📊 Device Info</h3>
             <ul class="list-view" id="systemInfoList">
               <!-- Populated by JavaScript -->
             </ul>
           </div>
 
+          <!-- Data Statistics Panel -->
+          <div id="dataStats" class="section-panel">
+            <h3>💾 Data Statistics</h3>
+            <div class="stats-grid">
+              <div class="stat-card focusable" tabindex="0">
+                <div class="stat-label">Proof of Play</div>
+                <div class="stat-value" id="stat-pop-total">-</div>
+                <div class="stat-sub">
+                  Unsynced: <span id="stat-pop-unsynced">-</span>
+                </div>
+              </div>
+              <div class="stat-card focusable" tabindex="0">
+                <div class="stat-label">Telemetry</div>
+                <div class="stat-value" id="stat-tel-total">-</div>
+                <div class="stat-sub">
+                  Unsynced: <span id="stat-tel-unsynced">-</span>
+                </div>
+              </div>
+              <div class="stat-card focusable" tabindex="0">
+                <div class="stat-label">Events</div>
+                <div class="stat-value" id="stat-evt-total">-</div>
+                <div class="stat-sub">
+                  Unsynced: <span id="stat-evt-unsynced">-</span>
+                </div>
+              </div>
+              <div class="stat-card focusable" tabindex="0">
+                <div class="stat-label">Network Status</div>
+                <div class="stat-value" id="stat-network">-</div>
+                <div class="stat-sub">
+                  Last Sync: <span id="stat-last-sync">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="action-buttons">
+              <button id="refresh-stats-btn" class="action-btn focusable">
+                🔄 Refresh
+              </button>
+              <button id="force-sync-btn" class="action-btn focusable">
+                📤 Force Sync
+              </button>
+              <button id="clear-synced-btn" class="action-btn focusable">
+                🗑️ Clear Synced Data
+              </button>
+            </div>
+          </div>
+
+          <!-- Logs Panel -->
           <div id="logs" class="section-panel active">
-            <h3>Logs</h3>
-            <ul id="logList" class="list-view"></ul>
-            <!-- <button id="download-logs-btn" class="download-btn focusable">
-              Download Logs
-            </button> -->
+            <div class="panel-header">
+              <h3>📝 Logs</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-logs-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-logs-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button
+                  id="auto-refresh-logs-btn"
+                  class="control-btn focusable"
+                  title="Auto Refresh"
+                >
+                  🔄 Auto
+                </button>
+                <button
+                  id="clear-logs-btn"
+                  class="control-btn focusable"
+                  title="Clear Logs"
+                >
+                  🗑️ Clear
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container" id="logs-scroll-container">
+              <ul id="logList" class="list-view scrollable-list"></ul>
+            </div>
           </div>
 
+          <!-- Downloaded Files Panel -->
           <div id="downloaded" class="section-panel">
-            <h3>Downloaded Files</h3>
-            <ul id="downloaded-list" class="list-view"></ul>
+            <div class="panel-header">
+              <h3>📥 Downloaded Files</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-downloads-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-downloads-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button
+                  id="refresh-downloads-btn"
+                  class="control-btn focusable"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container" id="downloads-scroll-container">
+              <ul id="downloaded-list" class="list-view scrollable-list"></ul>
+            </div>
           </div>
 
+          <!-- Processing Files Panel -->
           <div id="processing" class="section-panel">
-            <h3>Processing Files</h3>
+            <div class="panel-header">
+              <h3>⏳ Processing Files</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-progress-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-progress-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button id="refresh-progress-btn" class="control-btn focusable">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container" id="processing-scroll-container">
+              <div id="processing-content"></div>
+            </div>
           </div>
 
+          <!-- Errors Panel -->
           <div id="errors" class="section-panel">
-            <h3>Error Logs</h3>
-            <ul id="error-list" class="error-list"></ul>
+            <div class="panel-header">
+              <h3>❌ Error Logs</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-errors-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-errors-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button id="clear-errors-btn" class="control-btn focusable">
+                  🗑️ Clear
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container" id="errors-scroll-container">
+              <ul id="error-list" class="error-list scrollable-list"></ul>
+            </div>
           </div>
         </div>
       </div>
@@ -213,6 +366,9 @@
     <script src="js/modal.js" type="text/javascript"></script>
     <script src="js/main.js" type="text/javascript"></script>
     <script src="js/utility.js" type="text/javascript"></script>
+
+    <!-- Enhanced Settings Panel -->
+    <script src="js/settings-enhanced.js" type="text/javascript"></script>
 
     <!-- Data Management System Initialization (must be last) -->
     <script src="js/data-management-init.js" type="text/javascript"></script>

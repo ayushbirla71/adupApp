@@ -472,29 +472,48 @@ async function getTizenSignageInfo() {
     info.device_os_version =
       safeCapability("http://tizen.org/feature/platform.version") || "unknown";
 
-    // 5. Orientation - detect based on actual screen dimensions
+    // 5. Orientation - use values from initOrientationListener if available
     let orientation = "landscape";
+    let screenWidth = 0;
+    let screenHeight = 0;
+
     try {
-      // Use actual screen dimensions for accurate orientation detection
-      const screenWidth = screen.width;
-      const screenHeight = screen.height;
-      orientation = screenWidth > screenHeight ? "landscape" : "portrait";
-      console.log(
-        "Detected orientation:",
-        orientation,
-        `(${screenWidth}x${screenHeight})`
-      );
+      // ✅ First priority: Use global variables set by initOrientationListener
+      if (
+        window.DEVICE_WINDOW_ORIENT &&
+        window.DEVICE_WINDOW_WIDTH &&
+        window.DEVICE_WINDOW_HEIGHT
+      ) {
+        orientation = window.DEVICE_WINDOW_ORIENT;
+        screenWidth = window.DEVICE_WINDOW_WIDTH;
+        screenHeight = window.DEVICE_WINDOW_HEIGHT;
+        console.log(
+          "Using orientation from initOrientationListener:",
+          orientation,
+          `(${screenWidth}x${screenHeight})`
+        );
+      } else {
+        // ✅ Fallback: Detect from screen dimensions
+        screenWidth = window.innerWidth || screen.width;
+        screenHeight = window.innerHeight || screen.height;
+        orientation = screenWidth > screenHeight ? "landscape" : "portrait";
+        console.log(
+          "Detected orientation (fallback):",
+          orientation,
+          `(${screenWidth}x${screenHeight})`
+        );
+      }
     } catch (err) {
       console.error("Error detecting orientation:", err);
       // Fallback to landscape for signage devices
       orientation = "landscape";
+      screenWidth = window.innerWidth || screen.width || 1920;
+      screenHeight = window.innerHeight || screen.height || 1080;
     }
     info.device_orientation = orientation;
 
-    // 6. Resolution - use actual screen dimensions
-    const width = screen.width || 0;
-    const height = screen.height || 0;
-    info.device_resolution = `${width}x${height}`;
+    // 6. Resolution - use the same dimensions from orientation detection
+    info.device_resolution = `${screenWidth}x${screenHeight}`;
 
     // 7. Device name
     info.device_name =
