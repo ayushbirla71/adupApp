@@ -5,8 +5,8 @@ class NetworkMonitor {
   constructor() {
     this.isOnline = navigator.onLine;
     this.lastOnlineCheck = Date.now();
-    this.checkInterval = 30000; // 30 seconds
-    this.retryInterval = 5000; // 5 seconds when offline
+    this.checkInterval = 30000; // 30 seconds when online
+    this.retryInterval = 30000; // 30 seconds when offline (was 5s - too aggressive)
     this.maxRetries = 3;
     this.currentRetries = 0;
     this.listeners = [];
@@ -42,12 +42,48 @@ class NetworkMonitor {
       this.handleOfflineEvent();
     });
 
-    // Visibility change - check when app becomes visible
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && Date.now() - this.lastOnlineCheck > 10000) {
-        this.checkConnectivity();
-      }
-    });
+    // // Visibility change - check when app becomes visible
+    // document.addEventListener("visibilitychange", () => {
+    //   if (!document.hidden && Date.now() - this.lastOnlineCheck > 10000) {
+    //     logInfo("App became visible - checking connectivity");
+    //     this.checkConnectivity().then((isConnected) => {
+    //       this.updateConnectionStatus(isConnected);
+    //     });
+    //   }
+    // });
+
+    // // ✅ NEW: Window focus - check when window gains focus
+    // window.addEventListener("focus", () => {
+    //   if (Date.now() - this.lastOnlineCheck > 10000) {
+    //     logInfo("Window focused - checking connectivity");
+    //     this.checkConnectivity().then((isConnected) => {
+    //       this.updateConnectionStatus(isConnected);
+    //     });
+    //   }
+    // });
+
+    // ✅ NEW: User interaction - check on any click/touch (throttled)
+    // let lastInteractionCheck = 0;
+    // const handleUserInteraction = () => {
+    //   const now = Date.now();
+    //   // Only check once per minute on user interaction
+    //   if (
+    //     !this.isOnline &&
+    //     now - lastInteractionCheck > 60000 &&
+    //     now - this.lastOnlineCheck > 10000
+    //   ) {
+    //     lastInteractionCheck = now;
+    //     logInfo(
+    //       "User interaction detected while offline - checking connectivity"
+    //     );
+    //     this.checkConnectivity().then((isConnected) => {
+    //       this.updateConnectionStatus(isConnected);
+    //     });
+    //   }
+    // };
+
+    // document.addEventListener("click", handleUserInteraction);
+    // document.addEventListener("touchstart", handleUserInteraction);
 
     // MQTT connection events (if available)
     if (window.mqttClient) {
@@ -165,7 +201,7 @@ class NetworkMonitor {
       clearTimeout(timeoutId);
       return true; // If we get here, we have connectivity
     } catch (error) {
-      logWarn("API endpoint check failed:", error.message);
+      // logWarn("API endpoint check failed:", error.message);
       return false;
     }
   }
@@ -219,7 +255,7 @@ class NetworkMonitor {
       logInfo("Network quality measured:", this.networkQuality);
       return true; // If we get here, we have connectivity
     } catch (error) {
-      logWarn("Network quality measurement failed:", error.message);
+      // logWarn("Network quality measurement failed:", error.message);
       return false;
     }
   }
@@ -239,10 +275,51 @@ class NetworkMonitor {
         this.currentRetries = 0;
         this.notifyListeners("online");
 
-        // Trigger data sync when coming back online
-        if (window.dataManager) {
-          window.dataManager.triggerSync();
-        }
+        // ✅ Wait 3 seconds for network to stabilize before syncing
+        logInfo("Network came online - waiting 3 seconds for stabilization...");
+        setTimeout(() => {
+          // ✅ Send archived files first (if any)
+          if (window.offlineDataArchiver) {
+            window.offlineDataArchiver
+              .sendArchivesToServer()
+              .then((result) => {
+                if (result.sent > 0) {
+                  logInfo(`Sent ${result.sent} archived file(s) to server`);
+                }
+
+                // ✅ Then trigger normal data sync (with small delay)
+                setTimeout(() => {
+                  if (window.dataManager) {
+                    logInfo(
+                      "Starting normal data sync after network recovery..."
+                    );
+                    window.dataManager.triggerSync();
+                  }
+                }, 2000); // 2 second delay after archives
+              })
+              .catch((error) => {
+                logError("Failed to send archives:", error);
+
+                // Still try normal sync even if archive send fails
+                setTimeout(() => {
+                  if (window.dataManager) {
+                    logInfo(
+                      "Starting normal data sync after archive failure..."
+                    );
+                    window.dataManager.triggerSync();
+                  }
+                }, 2000); // 2 second delay
+              });
+          } else {
+            // No archiver, just do normal sync (with small delay)
+            setTimeout(() => {
+              if (window.dataManager) {
+                logInfo("Starting normal data sync after network recovery...");
+                window.dataManager.triggerSync();
+              }
+            }, 2000); // 2 second delay
+          }
+        }, 3000); // 3 second initial delay for network stabilization
       } else {
         this.notifyListeners("offline");
       }

@@ -32,8 +32,9 @@
     <script src="js/telemetry-collector.js" type="text/javascript"></script>
     <script src="js/event-logger.js" type="text/javascript"></script>
     <script src="js/proof-of-play-tracker.js" type="text/javascript"></script>
-    <script src="js/sync-engine.js" type="text/javascript"></script>
+    <!-- ❌ REMOVED: sync-engine.js - All functionality migrated to DataManager -->
     <script src="js/data-config-monitor.js" type="text/javascript"></script>
+    <script src="js/offline-data-archiver.js" type="text/javascript"></script>
 
     <script src="js/device-storage.js" type="text/javascript"></script>
   </head>
@@ -138,6 +139,11 @@
             </button>
           </li>
           <li>
+            <button id="archives-btn" class="settings-button focusable">
+              📦 Archive Files
+            </button>
+          </li>
+          <li>
             <button id="logs-btn" class="settings-button focusable">
               📝 Logs
             </button>
@@ -157,15 +163,34 @@
               ❌ Errors
             </button>
           </li>
+          <li id="devtools-menu-item" style="display: none">
+            <button id="devtools-btn" class="settings-button focusable">
+              🛠️ Developer Tools
+            </button>
+          </li>
         </ul>
 
         <div class="settings-content" id="settings-content">
           <!-- System Info Panel -->
           <div id="systemInfo" class="section-panel">
-            <h3>📊 Device Info</h3>
-            <ul class="list-view" id="systemInfoList">
-              <!-- Populated by JavaScript -->
-            </ul>
+            <div class="panel-header">
+              <h3>📊 Device Info</h3>
+              <!-- <div class="panel-controls">
+                <button
+                 
+                  id="toggle-dev-mode-btn"
+                  class="action-btn focusable"
+                  title="Toggle Developer Mode"
+                >
+                  🛠️ Dev Mode: <span id="dev-mode-status">OFF</span>
+                </button>
+              </div> -->
+            </div>
+            <div class="scrollable-container">
+              <ul class="list-view" id="systemInfoList">
+                <!-- Populated by JavaScript -->
+              </ul>
+            </div>
           </div>
 
           <!-- Data Statistics Panel -->
@@ -211,6 +236,38 @@
               <button id="clear-synced-btn" class="action-btn focusable">
                 🗑️ Clear Synced Data
               </button>
+            </div>
+          </div>
+
+          <!-- Archive Files Panel -->
+          <div id="archives" class="section-panel">
+            <div class="panel-header">
+              <h3>📦 Archive Files</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-archives-btn"
+                  class="scroll-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-archives-btn"
+                  class="scroll-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button id="refresh-archives-btn" class="action-btn focusable">
+                  🔄 Refresh
+                </button>
+                <button id="send-archives-btn" class="action-btn focusable">
+                  📤 Send All
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container">
+              <ul id="archives-list" class="list-view scrollable-list"></ul>
             </div>
           </div>
 
@@ -341,6 +398,116 @@
             </div>
             <div class="scrollable-container" id="errors-scroll-container">
               <ul id="error-list" class="error-list scrollable-list"></ul>
+            </div>
+          </div>
+
+          <!-- Developer Tools Panel (Only visible in dev mode) -->
+          <div id="devtools" class="section-panel">
+            <div class="panel-header">
+              <h3>🛠️ Developer Tools</h3>
+              <div class="panel-controls">
+                <button
+                  id="scroll-top-devtools-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Top"
+                >
+                  ⬆️ Top
+                </button>
+                <button
+                  id="scroll-bottom-devtools-btn"
+                  class="control-btn focusable"
+                  title="Scroll to Bottom"
+                >
+                  ⬇️ Bottom
+                </button>
+                <button id="refresh-devtools-btn" class="action-btn focusable">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+            <div class="scrollable-container" id="devtools-scroll-container">
+              <div id="devtools-content" style="padding: 20px">
+                <!-- Feature Flags Section -->
+                <div class="devtools-section">
+                  <h4>🎛️ Feature Flags</h4>
+                  <div id="feature-flags-list"></div>
+                </div>
+
+                <!-- Test Features Section -->
+                <div class="devtools-section" style="margin-top: 20px">
+                  <h4>🧪 Test Features</h4>
+                  <div class="test-buttons">
+                    <button
+                      id="test-sync-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      🔄 Test Sync
+                    </button>
+                    <button
+                      id="test-bulk-sync-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      📦 Test Bulk Sync
+                    </button>
+                    <button
+                      id="test-archive-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      📁 Test Archive Creation
+                    </button>
+                    <button
+                      id="test-telemetry-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      📊 Test Telemetry
+                    </button>
+                    <button
+                      id="test-network-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      🌐 Test Network Check
+                    </button>
+                    <button
+                      id="test-cleanup-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      🧹 Test Cleanup
+                    </button>
+                    <button
+                      id="generate-test-data-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px"
+                    >
+                      📝 Generate Test Data
+                    </button>
+                    <button
+                      id="clear-all-data-btn"
+                      class="test-btn focusable"
+                      style="margin: 5px; background: #d32f2f"
+                    >
+                      🗑️ Clear All Data
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Timer Status Section -->
+                <div class="devtools-section" style="margin-top: 20px">
+                  <h4>⏱️ Active Timers</h4>
+                  <div id="timer-status-list"></div>
+                </div>
+
+                <!-- System Status Section -->
+                <div class="devtools-section" style="margin-top: 20px">
+                  <h4>📊 System Status</h4>
+                  <div id="system-status-info"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

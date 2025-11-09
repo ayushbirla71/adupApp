@@ -8,9 +8,10 @@ class DataConfigMonitor {
     // Initialize default config first
     this.defaultConfig = {
       sync: {
-        interval: 5 * 60 * 1000, // 2 minutes
+        interval: 6 * 60 * 1000, // 2 minutes
         batchSize: 50, // Max 50 records per normal sync
-        bulkSyncThreshold: 50000, // Use bulk API if > 500 records
+        bulkSyncThreshold: 5000, // Use bulk API if > 1000 records (was 50000 - too high!)
+        maxBatchesPerSync: 20, // Maximum batches per sync cycle (safety limit to prevent infinite loops)
         maxRetries: 3,
         retryDelay: 5000,
         enabled: true,
@@ -34,7 +35,8 @@ class DataConfigMonitor {
         detailedTracking: true,
       },
       storage: {
-        retentionDays: 30, // Increased to 30 days for offline periods
+        retentionDays: 1, // ✅ CHANGED: Delete synced records after 1 day (was 30)
+        deleteImmediately: false, // ✅ NEW: Set to true to delete synced records immediately after sync
         maxRecordsPerTable: 20000, // Increased to 20,000 records (for proof of play)
         maxEventsRecords: 1000, // Max 1000 event records (less important)
         maxTelemetryRecords: 2000, // Max 2000 telemetry records (less important)

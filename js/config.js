@@ -1,8 +1,8 @@
 window.APP_NAME = "ADUP APP";
-window.APP_VERSION = "1.0.1";
+window.APP_VERSION = 101;
 window.APP_BUILD = "1.0.1";
 
-window.APP_BUILD_DATE = "2025-10-30";
+window.APP_BUILD_DATE = "2025-11-08";
 window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
@@ -35,6 +35,41 @@ window.MAX_CONSOLE_LOGS = window.IS_DEVELOPMENT ? 50000 : 50; // More console lo
 window.MEMORY_CHECK_INTERVAL = 30000; // 30 seconds
 window.LOG_CLEANUP_THRESHOLD = window.IS_DEVELOPMENT ? 90 : 80; // Higher threshold in dev mode
 window.ENABLE_FULL_LOGGING = window.IS_DEVELOPMENT; // Full logging only in dev mode
+
+// Feature Flags Configuration
+window.FEATURE_FLAGS = {
+  // Data Sync Features
+  enableDataSync: true, // Enable/disable periodic data sync
+  enableBulkSync: true, // Enable/disable bulk sync for large datasets
+  enableArchiveSync: true, // Enable/disable offline archive creation
+
+  // Data Collection Features
+  enableTelemetry: true, // Enable/disable telemetry collection
+  enableEventLogging: true, // Enable/disable event logging
+  enableProofOfPlay: true, // Enable/disable proof of play tracking
+
+  // Monitoring Features
+  enableNetworkMonitoring: true, // Enable/disable network monitoring
+  enableMemoryMonitoring: true, // Enable/disable memory monitoring
+  enableResourceCleanup: true, // Enable/disable resource cleanup
+
+  // Developer Tools (only available in dev mode)
+  enableDevTools: window.IS_DEVELOPMENT, // Show developer tools in settings
+  enableTestFeatures: window.IS_DEVELOPMENT, // Enable test features
+  enableDebugLogging: window.IS_DEVELOPMENT, // Enable debug logging
+};
+
+// Sync Configuration
+window.SYNC_CONFIG = {
+  syncInterval: 6 * 60 * 1000, // 15 minutes
+  telemetryInterval: 5 * 60 * 1000, // 5 minutes
+  eventFlushInterval: 30000, // 30 seconds
+  archiveCheckInterval: window.IS_DEVELOPMENT ? 1 * 60 * 1000 : 60 * 60 * 1000, // 1 min (dev) / 1 hour (prod)
+  archiveInterval: 3 * 24 * 60 * 60 * 1000, // 3 days
+  batchSize: 50, // Max records per normal sync
+  bulkThreshold: 5000, // Use bulk sync if > 1000 records (was 50000 - too high!)
+  maxBatchesPerSync: 20, // Maximum batches per sync cycle (safety limit to prevent infinite loops)
+};
 
 // Log Arrays with Memory Management
 window.ERROR_LOGS = [];

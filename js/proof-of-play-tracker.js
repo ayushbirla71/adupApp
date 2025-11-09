@@ -89,7 +89,8 @@ class ProofOfPlayTracker {
     let durationPlayedMs;
     if (reason === "completed" && playback.expectedDurationMs) {
       // For completed playback, use the expected duration from ad data
-      durationPlayedMs = playback.expectedDurationMs;
+      // durationPlayedMs = playback.expectedDurationMs;
+      durationPlayedMs = Date.now() - new Date(playback.startTime).getTime();
     } else {
       // For aborted/error cases, calculate actual elapsed time
       const startTime = new Date(playback.startTime);

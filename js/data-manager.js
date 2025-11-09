@@ -8,8 +8,7 @@ class DataManager {
     this.db = null;
     this.isOnline = navigator.onLine;
     this.syncInProgress = false;
-    this.deviceId =
-      localStorage.getItem("device_id") || this.generateDeviceId();
+    this.deviceId = localStorage.getItem("device_id");
 
     // Store tables configuration
     this.tables = {
@@ -21,10 +20,30 @@ class DataManager {
 
     this.isInitialized = false;
     this.initPromise = null;
+    this.deviceIdWatcherTimer = null; // Timer reference for cleanup
+
+    // ✅ NEW: Retry queue and sync statistics (from SyncEngine)
+    this.retryQueue = [];
+    this.maxRetries = 3;
+    this.retryDelay = 5000; // 5 seconds
+    this.stats = {
+      totalSyncs: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+      lastSyncTime: null,
+      lastSyncDuration: 0,
+      recordsSynced: 0,
+      retryAttempts: 0,
+    };
 
     // Start initialization but don't wait for it in constructor
     this.initPromise = this.init();
-    this.setupNetworkListeners();
+
+    // ✅ Setup network listeners with delay to ensure NetworkMonitor is ready
+    // setTimeout(() => {
+    //   this.setupNetworkListeners();
+    // }, 100);
+
     this.setupDeviceIdWatcher();
   }
 
@@ -35,14 +54,28 @@ class DataManager {
   }
 
   setupDeviceIdWatcher() {
-    // Watch for device ID changes in localStorage
-    setInterval(() => {
+    // Only watch if device ID is not present
+    if (this.deviceId) {
+      logInfo("Device ID already present, skipping watcher setup");
+      return;
+    }
+
+    logInfo("Device ID not found, starting watcher...");
+
+    // Watch for device ID to become available
+    this.deviceIdWatcherTimer = setInterval(() => {
       const currentDeviceId = localStorage.getItem("device_id");
-      if (currentDeviceId && currentDeviceId !== this.deviceId) {
-        logInfo(
-          `Device ID updated from ${this.deviceId} to ${currentDeviceId}`
-        );
+
+      if (currentDeviceId) {
+        logInfo(`Device ID detected: ${currentDeviceId}`);
         this.deviceId = currentDeviceId;
+
+        // Terminate the watcher once device ID is available
+        if (this.deviceIdWatcherTimer) {
+          clearInterval(this.deviceIdWatcherTimer);
+          this.deviceIdWatcherTimer = null;
+          logInfo("Device ID watcher terminated");
+        }
       }
     }, 1000); // Check every second
   }
@@ -65,8 +98,9 @@ class DataManager {
       // Start periodic sync attempts
       this.startPeriodicSync();
 
-      // Start telemetry collection
-      this.startTelemetryCollection();
+      // ❌ DISABLED: Telemetry collection (using TelemetryCollector instead)
+      // TelemetryCollector provides real Tizen API data instead of mock data
+      // this.startTelemetryCollection();
     } catch (error) {
       logError("Failed to initialize DataManager:", error);
       throw error;
@@ -154,16 +188,49 @@ class DataManager {
   }
 
   setupNetworkListeners() {
-    window.addEventListener("online", () => {
-      this.isOnline = true;
-      logInfo("Network connection restored - triggering sync");
-      this.triggerSync();
-    });
+    // ✅ ONLY use NetworkMonitor (no duplicate browser event listeners)
+    if (window.networkMonitor) {
+      // Listen to NetworkMonitor status changes
+      window.networkMonitor.addListener((_event, status) => {
+        const wasOnline = this.isOnline;
+        this.isOnline = status.isOnline;
 
-    window.addEventListener("offline", () => {
-      this.isOnline = false;
-      logInfo("Network connection lost - data will be stored locally");
-    });
+        logInfo(
+          `DataManager: Network status updated: ${
+            wasOnline ? "online" : "offline"
+          } -> ${this.isOnline ? "online" : "offline"}`
+        );
+
+        // ❌ REMOVED: Don't trigger sync here - NetworkMonitor already does it
+        // This was causing duplicate sync triggers!
+        // NetworkMonitor.updateConnectionStatus() handles sync triggering
+      });
+
+      // ✅ Sync initial status from NetworkMonitor
+      const initialStatus = window.networkMonitor.getStatus();
+      this.isOnline = initialStatus.isOnline;
+      logInfo(
+        `DataManager: Initial network status: ${
+          this.isOnline ? "online" : "offline"
+        }`
+      );
+    } else {
+      // ❌ Fallback ONLY if NetworkMonitor is not available
+      logWarn(
+        "NetworkMonitor not available - using basic browser events (not recommended)"
+      );
+
+      window.addEventListener("online", () => {
+        this.isOnline = true;
+        logInfo("Browser event: Network connection restored");
+        this.triggerSync();
+      });
+
+      window.addEventListener("offline", () => {
+        this.isOnline = false;
+        logInfo("Browser event: Network connection lost");
+      });
+    }
   }
 
   // Proof of Play Methods
@@ -185,7 +252,7 @@ class DataManager {
 
       // Trigger immediate sync if online
       if (this.isOnline) {
-        this.triggerSync();
+        // this.triggerSync();
       }
 
       return proofRecord;
@@ -203,7 +270,7 @@ class DataManager {
       ramFreeMb: telemetryData.ramFreeMb || 0,
       storageFreeMb: telemetryData.storageFreeMb || 0,
       networkType: telemetryData.networkType || "UNKNOWN",
-      appVersionCode: telemetryData.appVersionCode || "UNKNOWN",
+      appVersionCode: telemetryData.appVersionCode || 0, // Integer, not string
 
       synced: false,
     };
@@ -402,43 +469,116 @@ class DataManager {
     });
   }
 
-  async getDataStats() {
+  async getAllRecords(tableName) {
     await this.waitForInitialization();
 
     if (!this.db) {
       throw new Error("Database not initialized");
     }
 
-    const stats = {
-      total: {},
-      unsynced: {},
-      lastUpdated: new Date().toISOString(),
-    };
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([tableName], "readonly");
+      const store = transaction.objectStore(tableName);
+      const request = store.getAll();
 
-    const promises = Object.values(this.tables).map((tableName) => {
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([tableName], "readonly");
-        const store = transaction.objectStore(tableName);
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
 
-        // Get all records and count in JavaScript
-        const request = store.getAll();
-        request.onsuccess = () => {
-          const allRecords = request.result;
-          stats.total[tableName] = allRecords.length;
-          stats.unsynced[tableName] = allRecords.filter(
-            (record) => !record.synced
-          ).length;
-          resolve();
-        };
-        request.onerror = () => reject(request.error);
-      });
+      request.onerror = () => {
+        logError(`Failed to get all records from ${tableName}:`, request.error);
+        reject(request.error);
+      };
     });
-
-    await Promise.all(promises);
-    return stats;
   }
 
-  async cleanupOldRecords(retentionDays = 30) {
+  async clearTable(tableName) {
+    await this.waitForInitialization();
+
+    if (!this.db) {
+      throw new Error("Database not initialized");
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([tableName], "readwrite");
+      const store = transaction.objectStore(tableName);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        logInfo(`Table ${tableName} cleared successfully`);
+        resolve();
+      };
+
+      request.onerror = () => {
+        logError(`Failed to clear table ${tableName}:`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  async deleteRecord(tableName, recordId) {
+    await this.waitForInitialization();
+
+    if (!this.db) {
+      throw new Error("Database not initialized");
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([tableName], "readwrite");
+      const store = transaction.objectStore(tableName);
+      const request = store.delete(recordId);
+
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        logError(
+          `Failed to delete record ${recordId} from ${tableName}:`,
+          request.error
+        );
+        reject(request.error);
+      };
+    });
+  }
+
+  // async getDataStats() {
+  //   await this.waitForInitialization();
+
+  //   if (!this.db) {
+  //     throw new Error("Database not initialized");
+  //   }
+
+  //   const stats = {
+  //     total: {},
+  //     unsynced: {},
+  //     lastUpdated: new Date().toISOString(),
+  //   };
+
+  //   const promises = Object.values(this.tables).map((tableName) => {
+  //     return new Promise((resolve, reject) => {
+  //       const transaction = this.db.transaction([tableName], "readonly");
+  //       const store = transaction.objectStore(tableName);
+
+  //       // Get all records and count in JavaScript
+  //       const request = store.getAll();
+  //       request.onsuccess = () => {
+  //         const allRecords = request.result;
+  //         stats.total[tableName] = allRecords.length;
+  //         stats.unsynced[tableName] = allRecords.filter(
+  //           (record) => !record.synced
+  //         ).length;
+  //         resolve();
+  //       };
+  //       request.onerror = () => reject(request.error);
+  //     });
+  //   });
+
+  //   await Promise.all(promises);
+  //   return stats;
+  // }
+
+  async cleanupOldRecords(retentionDays = 7) {
     await this.waitForInitialization();
 
     if (!this.db) {
@@ -500,51 +640,61 @@ class DataManager {
     await Promise.all(promises);
   }
 
-  // Telemetry collection
-  startTelemetryCollection() {
-    // Collect telemetry every 5 minutes
-    setInterval(() => {
-      this.collectSystemTelemetry();
-    }, 5 * 60 * 1000);
+  // ❌ DISABLED: Telemetry collection methods (using TelemetryCollector instead)
+  // These methods are kept for reference but are NOT called anymore
+  // TelemetryCollector (js/telemetry-collector.js) provides real Tizen API data
 
-    // Collect initial telemetry
-    this.collectSystemTelemetry();
-  }
-
-  async collectSystemTelemetry() {
-    try {
-      // Get system information (simplified for Tizen)
-      const telemetryData = {
-        cpuUsage: this.getCPUUsage(),
-        ramFreeMb: this.getAvailableRAM(),
-      };
-
-      await this.recordTelemetry(telemetryData);
-    } catch (error) {
-      logError("Failed to collect telemetry:", error);
-    }
-  }
-
-  getCPUUsage() {
-    // Simplified CPU usage calculation
-    // In a real implementation, you'd use Tizen system APIs
-    return Math.random() * 0.5 + 0.2; // Mock value between 0.2-0.7
-  }
-
-  getAvailableRAM() {
-    // Simplified RAM calculation
-    // In a real implementation, you'd use Tizen system APIs
-    return Math.floor(Math.random() * 500) + 1500; // Mock value between 1500-2000 MB
-  }
+  // startTelemetryCollection() {
+  //   // Collect telemetry every 5 minutes
+  //   setInterval(() => {
+  //     this.collectSystemTelemetry();
+  //   }, 5 * 60 * 1000);
+  //
+  //   // Collect initial telemetry
+  //   this.collectSystemTelemetry();
+  // }
+  //
+  // async collectSystemTelemetry() {
+  //   try {
+  //     // Get system information (simplified for Tizen)
+  //     const telemetryData = {
+  //       cpuUsage: this.getCPUUsage(),
+  //       ramFreeMb: this.getAvailableRAM(),
+  //     };
+  //
+  //     await this.recordTelemetry(telemetryData);
+  //   } catch (error) {
+  //     logError("Failed to collect telemetry:", error);
+  //   }
+  // }
+  //
+  // getCPUUsage() {
+  //   // Simplified CPU usage calculation
+  //   // In a real implementation, you'd use Tizen system APIs
+  //   return Math.random() * 0.5 + 0.2; // Mock value between 0.2-0.7
+  // }
+  //
+  // getAvailableRAM() {
+  //   // Simplified RAM calculation
+  //   // In a real implementation, you'd use Tizen system APIs
+  //   return Math.floor(Math.random() * 500) + 1500; // Mock value between 1500-2000 MB
+  // }
 
   // Periodic sync
   startPeriodicSync() {
-    // Attempt sync every 2 minutes
+    // Get sync interval from config (default: 15 minutes)
+    const syncInterval = window.SYNC_CONFIG?.syncInterval || 15 * 60 * 1000;
+
+    logInfo(
+      `Starting periodic sync with interval: ${syncInterval / 60000} minutes`
+    );
+
+    // Attempt sync at configured interval
     setInterval(() => {
       if (this.isOnline && !this.syncInProgress) {
         this.triggerSync();
       }
-    }, 15 * 60 * 1000); // 4 minutes
+    }, syncInterval);
   }
 
   async triggerSync() {
@@ -553,21 +703,65 @@ class DataManager {
       return;
     }
 
+    let deviceId = this.getCurrentDeviceId();
+
+    if (!deviceId || deviceId === "undefined") {
+      logInfo("Device ID not available, skipping sync...");
+      return;
+    }
+
     // Check network connectivity before attempting sync
-    const isConnected = await this.checkNetworkConnectivity();
+    const isConnected = await window.networkMonitor.checkConnectivity();
     if (!isConnected) {
       logInfo("⚠️ Device is offline - skipping sync (data stored locally)");
       return;
     }
 
     this.syncInProgress = true;
+    const syncStartTime = Date.now();
     logInfo("Starting data synchronization...");
 
     try {
+      // ✅ NEW: Update statistics
+      this.stats.totalSyncs++;
+
+      // ✅ NEW: Process retry queue first (failed syncs from previous attempts)
+      // await this.processRetryQueue();
+
+      // Perform main sync
       await this.syncAllData();
-      logInfo("Data synchronization completed successfully");
+
+      // ✅ NEW: Update success statistics
+      this.stats.successfulSyncs++;
+      this.stats.lastSyncTime = new Date().toISOString();
+      this.stats.lastSyncDuration = Date.now() - syncStartTime;
+
+      // Calculate sync duration
+      const syncDuration = Date.now() - syncStartTime;
+      logInfo(
+        `✅ Data synchronization completed successfully in ${syncDuration}ms`
+      );
+
+      // Log success event
+      if (window.eventLogger) {
+        window.eventLogger.logEvent("SYNC_COMPLETED", {
+          duration: syncDuration,
+          recordsSynced: this.stats.recordsSynced,
+        });
+      }
     } catch (error) {
-      logError("Data synchronization failed:", error);
+      // ✅ NEW: Update failure statistics
+      this.stats.failedSyncs++;
+
+      logError("❌ Data synchronization failed:", error);
+
+      // Log error event
+      if (window.eventLogger) {
+        window.eventLogger.logEvent("SYNC_FAILED", {
+          error: error.message,
+          duration: Date.now() - syncStartTime,
+        });
+      }
     } finally {
       this.syncInProgress = false;
     }
@@ -578,14 +772,14 @@ class DataManager {
       // Get batch size and bulk threshold from config
       const batchSize = window.dataConfigMonitor?.config?.sync?.batchSize || 50;
       const bulkThreshold =
-        window.dataConfigMonitor?.config?.sync?.bulkSyncThreshold || 500;
+        window.dataConfigMonitor?.config?.sync?.bulkSyncThreshold || 5000;
 
       // First, get count of unsynced records
       const stats = await this.getDataStats();
       const totalUnsynced =
-        (stats.proofOfPlay?.unsynced || 0) +
-        (stats.telemetry?.unsynced || 0) +
-        (stats.events?.unsynced || 0);
+        (stats.unsynced?.proofOfPlay || 0) +
+        (stats.unsynced?.telemetry || 0) +
+        (stats.unsynced?.events || 0);
 
       logInfo(`Total unsynced records: ${totalUnsynced}`);
 
@@ -609,85 +803,178 @@ class DataManager {
 
   async syncAllDataNormal(batchSize = 50) {
     try {
-      // Get limited unsynced data (max 50 records per table)
-      const [proofOfPlayData, telemetryData, eventsData] = await Promise.all([
-        this.getUnsyncedRecords(this.tables.proofOfPlay, batchSize),
-        this.getUnsyncedRecords(this.tables.telemetry, batchSize),
-        this.getUnsyncedRecords(this.tables.events, batchSize),
-      ]);
+      let totalSynced = 0;
+      let batchNumber = 0;
+      let hasMoreData = true;
 
-      if (
-        proofOfPlayData.length === 0 &&
-        telemetryData.length === 0 &&
-        eventsData.length === 0
-      ) {
-        logInfo("No data to sync");
-        return;
-      }
+      // ✅ Safety: Maximum number of batches to prevent infinite loop
+      const maxBatches =
+        window.dataConfigMonitor?.config?.sync?.maxBatchesPerSync || 20;
 
-      // Prepare payload in the required format
-      const payload = {
-        deviceId: this.getCurrentDeviceId(),
-        sentAt: new Date().toISOString(),
-        logs: {
-          proofOfPlay: proofOfPlayData.map((record) => ({
-            eventId: record.eventId,
-            adId: record.adId,
-            scheduleId: record.scheduleId,
-            startTime: record.startTime,
-            endTime: record.endTime,
-            durationPlayedMs: record.durationPlayedMs,
-          })),
-          telemetry: telemetryData.map((record) => ({
-            timestamp: record.timestamp,
-            cpuUsage: record.cpuUsage,
-            ramFreeMb: record.ramFreeMb,
-            storageFreeMb: record.storageFreeMb,
-            networkType: record.networkType,
-            appVersionCode: record.appVersionCode,
-          })),
-          events: eventsData.map((record) => ({
-            eventId: record.eventId,
-            timestamp: record.timestamp,
-            eventType: record.eventType,
-            payload: record.payload,
-          })),
-        },
-      };
+      logInfo(
+        `Starting NORMAL SYNC with batch size: ${batchSize} per table (max ${maxBatches} batches)`
+      );
 
-      logInfo("Syncing data (NORMAL):", {
-        proofOfPlay: proofOfPlayData.length,
-        telemetry: telemetryData.length,
-        events: eventsData.length,
-      });
+      // ✅ Loop until all records are synced OR max batches reached
+      while (hasMoreData && batchNumber < maxBatches) {
+        batchNumber++;
 
-      // Send to API
-      const success = await this.sendDataToAPI(payload);
-
-      if (success) {
-        // Mark records as synced
-        await Promise.all([
-          this.markAsSynced(
-            this.tables.proofOfPlay,
-            proofOfPlayData.map((r) => r.eventId)
-          ),
-          this.markAsSynced(
-            this.tables.telemetry,
-            telemetryData.map((r) => r.id)
-          ),
-          this.markAsSynced(
-            this.tables.events,
-            eventsData.map((r) => r.eventId)
-          ),
+        // Get next batch of unsynced data
+        const [proofOfPlayData, telemetryData, eventsData] = await Promise.all([
+          this.getUnsyncedRecords(this.tables.proofOfPlay, batchSize),
+          this.getUnsyncedRecords(this.tables.telemetry, batchSize),
+          this.getUnsyncedRecords(this.tables.events, batchSize),
         ]);
 
-        logInfo("Data marked as synced successfully");
+        // Check if we have any data to sync
+        if (
+          proofOfPlayData.length === 0 &&
+          telemetryData.length === 0 &&
+          eventsData.length === 0
+        ) {
+          if (batchNumber === 1) {
+            logInfo("No data to sync");
+          } else {
+            logInfo(
+              `✅ All batches synced! Total: ${totalSynced} records in ${
+                batchNumber - 1
+              } batches`
+            );
+          }
+          hasMoreData = false;
+          break;
+        }
 
-        // Update last sync time
-        this.setLastSyncTime();
+        const batchRecordCount =
+          proofOfPlayData.length + telemetryData.length + eventsData.length;
 
-        // Clean up old synced records
+        logInfo(
+          `Syncing batch #${batchNumber} (${batchRecordCount} records): PoP=${proofOfPlayData.length}, Tel=${telemetryData.length}, Evt=${eventsData.length}`
+        );
+
+        // Prepare payload in the required format
+        const payload = {
+          deviceId: this.getCurrentDeviceId(),
+          sentAt: new Date().toISOString(),
+          logs: {
+            proofOfPlay: proofOfPlayData.map((record) => ({
+              eventId: record.eventId,
+              adId: record.adId,
+              scheduleId: record.scheduleId,
+              startTime: record.startTime,
+              endTime: record.endTime,
+              durationPlayedMs: record.durationPlayedMs,
+            })),
+            telemetry: telemetryData.map((record) => ({
+              timestamp: record.timestamp,
+              cpuUsage: record.cpuUsage,
+              ramFreeMb: record.ramFreeMb,
+              storageFreeMb: record.storageFreeMb,
+              networkType: record.networkType,
+              appVersionCode: record.appVersionCode,
+            })),
+            events: eventsData.map((record) => ({
+              eventId: record.eventId,
+              timestamp: record.timestamp,
+              eventType: record.eventType,
+              payload: record.payload,
+            })),
+          },
+        };
+
+        // Send batch to API
+        const success = await this.sendDataToAPI(payload);
+
+        if (success == true) {
+          // Mark records as synced
+          await Promise.all([
+            this.markAsSynced(
+              this.tables.proofOfPlay,
+              proofOfPlayData.map((r) => r.eventId)
+            ),
+            this.markAsSynced(
+              this.tables.telemetry,
+              telemetryData.map((r) => r.id)
+            ),
+            this.markAsSynced(
+              this.tables.events,
+              eventsData.map((r) => r.eventId)
+            ),
+          ]);
+
+          // Update counters
+          totalSynced += batchRecordCount;
+          this.stats.recordsSynced += batchRecordCount;
+
+          logInfo(
+            `✅ Batch #${batchNumber} synced successfully (${totalSynced} total synced so far)`
+          );
+
+          // Update last sync time after each successful batch
+          this.setLastSyncTime();
+        } else {
+          // If batch sync fails, add to retry queue and stop
+          logError(
+            `❌ Batch #${batchNumber} sync failed, adding to retry queue and stopping sync ${totalSynced}`
+          );
+
+          if (proofOfPlayData.length > 0) {
+            this.addToRetryQueue("proofOfPlay", proofOfPlayData);
+          }
+          if (telemetryData.length > 0) {
+            this.addToRetryQueue("telemetry", telemetryData);
+          }
+          if (eventsData.length > 0) {
+            this.addToRetryQueue("events", eventsData);
+          }
+
+          // Stop syncing on failure
+          hasMoreData = false;
+          break;
+        }
+
+        // Small delay between batches to avoid overwhelming the server
+        if (hasMoreData) {
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+        }
+      }
+
+      // ✅ Check if we hit the maximum batch limit
+      if (batchNumber >= maxBatches && hasMoreData) {
+        logWarn(
+          `⚠️ Maximum batch limit reached (${maxBatches} batches). Stopping sync.`
+        );
+        logWarn(
+          `Total synced: ${totalSynced} records. Remaining records will sync in next cycle.`
+        );
+
+        // Get remaining unsynced count for logging
+        const stats = await this.getDataStats();
+        const remainingUnsynced =
+          (stats.unsynced?.proofOfPlay || 0) +
+          (stats.unsynced?.telemetry || 0) +
+          (stats.unsynced?.events || 0);
+
+        logWarn(
+          `Remaining unsynced records: ${remainingUnsynced} (will sync in next periodic cycle)`
+        );
+
+        // Log event for monitoring
+        if (window.eventLogger) {
+          window.eventLogger.logEvent("SYNC_MAX_BATCHES_REACHED", {
+            batchesProcessed: batchNumber,
+            recordsSynced: totalSynced,
+            remainingUnsynced: remainingUnsynced,
+          });
+        }
+      }
+
+      // Clean up old synced records after all batches
+      if (totalSynced > 0) {
         await this.cleanupOldRecords();
+        logInfo(
+          `✅ Normal sync completed: ${totalSynced} records synced in ${batchNumber} batches`
+        );
       }
     } catch (error) {
       logError("Normal sync process failed:", error);
@@ -773,6 +1060,10 @@ class DataManager {
           ),
         ]);
 
+        // ✅ NEW: Update records synced count
+        this.stats.recordsSynced +=
+          proofOfPlayData.length + telemetryData.length + eventsData.length;
+
         logInfo("Bulk data marked as synced successfully");
 
         // Update last sync time
@@ -780,6 +1071,18 @@ class DataManager {
 
         // Clean up old synced records
         await this.cleanupOldRecords();
+      } else {
+        // ✅ NEW: Add failed records to retry queue
+        logWarn("Bulk sync failed, adding records to retry queue");
+        if (proofOfPlayData.length > 0) {
+          this.addToRetryQueue("proofOfPlay", proofOfPlayData);
+        }
+        if (telemetryData.length > 0) {
+          this.addToRetryQueue("telemetry", telemetryData);
+        }
+        if (eventsData.length > 0) {
+          this.addToRetryQueue("events", eventsData);
+        }
       }
     } catch (error) {
       logError("Bulk sync process failed:", error);
@@ -796,31 +1099,70 @@ class DataManager {
         return false;
       }
 
-      // Use the enhanced DataAPI class
-      if (window.DataAPI) {
-        const result = await window.DataAPI.sendLogsToAPI(payload);
-        return result.success;
-      }
-
-      // Fallback to direct fetch
-      const response = await fetch(LOGS_API_BASE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Device-ID": this.getCurrentDeviceId(),
-        },
-        body: JSON.stringify(payload),
-        timeout: 30000,
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        logInfo("Data sent to API successfully:", result);
-        return true;
-      } else {
-        logError("API request failed:", response.status, response.statusText);
+      // ✅ Validate device ID before sending
+      const deviceId = this.getCurrentDeviceId();
+      if (!deviceId) {
+        logError("❌ Cannot send data - device ID is missing!");
         return false;
       }
+
+      // Use the enhanced DataAPI class
+      // if () {
+      logInfo(
+        `Sending data to API (deviceId: ${deviceId}, records: ${
+          (payload.logs?.proofOfPlay?.length || 0) +
+          (payload.logs?.telemetry?.length || 0) +
+          (payload.logs?.events?.length || 0)
+        })`
+      );
+
+      const result = await sendLogsToAPI(payload);
+
+      if (!result.success) {
+        logError("❌ API returned failure:", result.error);
+        // Check if retryable
+        if (result.retryable === false) {
+          logWarn(
+            "⚠️ Error is not retryable - marking as success to skip retry"
+          );
+          return true; // Don't retry non-retryable errors
+        }
+      }
+
+      return result.success;
+      // }
+
+      // Fallback to direct fetch
+      // const response = await fetch(LOGS_API_BASE_URL, {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     "X-Device-ID": this.getCurrentDeviceId(),
+      //   },
+      //   body: JSON.stringify(payload),
+      //   timeout: 120000,
+      // });
+
+      // if (response.ok) {
+      //   const result = await response.json();
+      //   logInfo("Data sent to API successfully:", result);
+      //   return true;
+      // } else {
+      //   // ✅ NEW: Check if it's a client error (4xx) - don't retry
+      //   if (response.status >= 400 && response.status < 500) {
+      //     logWarn(
+      //       `⚠️ Client error (${response.status}): ${response.statusText} - marking as permanently failed (won't retry)`
+      //     );
+      //     // Return true to prevent retry (client errors won't be fixed by retrying)
+      //     return true;
+      //   }
+
+      //   // Server error (5xx) or other errors - should retry
+      //   logError(
+      //     `API request failed (${response.status}): ${response.statusText} - will retry`
+      //   );
+      //   return false;
+      // }
     } catch (error) {
       // Check if error is network-related
       if (
@@ -852,33 +1194,58 @@ class DataManager {
       );
 
       // Use the DataAPI class (single source of truth for API calls)
-      if (window.DataAPI) {
-        const result = await window.DataAPI.sendBulkLogsToAPI(bulkPayload);
-        return result.success;
-      }
+      // if (window.DataAPI) {
+      //   const result = await window.DataAPI.sendBulkLogsToAPI(bulkPayload);
+      //   return result.success;
+      // }
 
       // Fallback if DataAPI not available (shouldn't happen)
       logWarn("DataAPI not available, using fallback");
-      const response = await fetch(BULK_LOGS_API_BASE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Device-ID": this.getCurrentDeviceId(),
-          "X-Android-ID": localStorage.getItem("android_id"),
-          "X-Sync-Type": "BULK",
-        },
-        body: JSON.stringify(bulkPayload),
-        timeout: 120000,
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        logInfo("Bulk data sent to API successfully:", result);
-        return true;
-      } else {
-        logError("Bulk API request failed:", response.status);
-        return false;
+      const result = await sendBulkLogsToAPI(bulkPayload);
+      if (!result.success) {
+        logError("❌ API returned failure:", result.error);
+        // Check if retryable
+        if (result.retryable === false) {
+          logWarn(
+            "⚠️ Error is not retryable - marking as success to skip retry"
+          );
+          return true; // Don't retry non-retryable errors
+        }
       }
+
+      return result.success;
+      // const response = await fetch(BULK_LOGS_API_BASE_URL, {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     "X-Device-ID": this.getCurrentDeviceId(),
+      //     "X-Android-ID": localStorage.getItem("android_id"),
+      //     "X-Sync-Type": "BULK",
+      //   },
+      //   body: JSON.stringify(bulkPayload),
+      //   timeout: 120000,
+      // });
+
+      // if (response.ok) {
+      //   const result = await response.json();
+      //   logInfo("Bulk data sent to API successfully:", result);
+      //   return true;
+      // } else {
+      //   // ✅ NEW: Check if it's a client error (4xx) - don't retry
+      //   if (response.status >= 400 && response.status < 500) {
+      //     logWarn(
+      //       `⚠️ Client error in bulk sync (${response.status}): ${response.statusText} - marking as permanently failed (won't retry)`
+      //     );
+      //     // Return true to prevent retry (client errors won't be fixed by retrying)
+      //     return true;
+      //   }
+
+      //   // Server error (5xx) or other errors - should retry
+      //   logError(
+      //     `Bulk API request failed (${response.status}): ${response.statusText} - will retry`
+      //   );
+      //   return false;
+      // }
     } catch (error) {
       // Check if error is network-related
       if (
@@ -899,30 +1266,30 @@ class DataManager {
     }
   }
 
-  async cleanupOldRecords() {
-    try {
-      // Get retention days from config, default to 30 days for offline periods
-      const retentionDays =
-        window.dataConfigMonitor?.config?.storage?.retentionDays || 30;
+  // async cleanupOldRecords() {
+  //   try {
+  //     // Get retention days from config, default to 30 days for offline periods
+  //     const retentionDays =
+  //       window.dataConfigMonitor?.config?.storage?.retentionDays || 30;
 
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  //     const cutoffDate = new Date();
+  //     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-      logInfo(
-        `Cleaning up synced records older than ${retentionDays} days (before ${cutoffDate.toISOString()})`
-      );
+  //     logInfo(
+  //       `Cleaning up synced records older than ${retentionDays} days (before ${cutoffDate.toISOString()})`
+  //     );
 
-      // Only cleanup old synced proof of play records (keep all unsynced)
-      await this.deleteOldSyncedRecords(this.tables.proofOfPlay, cutoffDate);
+  //     // Only cleanup old synced proof of play records (keep all unsynced)
+  //     await this.deleteOldSyncedRecords(this.tables.proofOfPlay, cutoffDate);
 
-      // Aggressively cleanup events and telemetry (they are less important)
-      await this.cleanupEventsAndTelemetry();
+  //     // Aggressively cleanup events and telemetry (they are less important)
+  //     await this.cleanupEventsAndTelemetry();
 
-      logInfo("Old records cleaned up successfully");
-    } catch (error) {
-      logError("Failed to cleanup old records:", error);
-    }
-  }
+  //     logInfo("Old records cleaned up successfully");
+  //   } catch (error) {
+  //     logError("Failed to cleanup old records:", error);
+  //   }
+  // }
 
   async cleanupEventsAndTelemetry() {
     try {
@@ -1142,30 +1509,31 @@ class DataManager {
 
   // Network connectivity check
   async checkNetworkConnectivity() {
-    // Use NetworkMonitor if available (more reliable)
+    // ✅ ALWAYS use NetworkMonitor if available (single source of truth)
     if (window.networkMonitor) {
       const status = window.networkMonitor.getStatus();
-      if (!status.isOnline) {
-        logInfo("NetworkMonitor reports device is offline");
-        return false;
+
+      // If checking is in progress, wait a bit and check again
+      if (status.isChecking) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return window.networkMonitor.getStatus().isOnline;
       }
-      // If NetworkMonitor says online, trust it
-      return true;
+
+      return status.isOnline;
     }
 
-    // Fallback to basic navigator.onLine check
-    if (!navigator.onLine) {
-      logInfo("navigator.onLine reports device is offline");
-      return false;
-    }
-
-    // If navigator says online, assume it's true
-    // (Don't make additional HTTP requests to check connectivity)
-    return true;
+    // ❌ Fallback ONLY if NetworkMonitor is not available (should never happen)
+    logWarn(
+      "NetworkMonitor not available - using navigator.onLine (not recommended)"
+    );
+    return navigator.onLine;
   }
 
   // Get statistics
   async getDataStats() {
+    const isConnected = await this.checkNetworkConnectivity();
+    this.isOnline = isConnected;
+
     try {
       const [proofCount, telemetryCount, eventsCount] = await Promise.all([
         this.getRecordCount(this.tables.proofOfPlay),
@@ -1191,7 +1559,7 @@ class DataManager {
           telemetry: unsyncedTelemetry,
           events: unsyncedEvents,
         },
-        isOnline: this.isOnline,
+        isOnline: isConnected,
         syncInProgress: this.syncInProgress,
       };
     } catch (error) {
@@ -1227,6 +1595,200 @@ class DataManager {
       };
       request.onerror = () => reject(request.error);
     });
+  }
+
+  // ✅ NEW: Retry Queue Methods (from SyncEngine)
+
+  addToRetryQueue(dataType, records) {
+    const retryItem = {
+      id: generateUUID(),
+      dataType: dataType,
+      records: records,
+      attempts: 0,
+      lastAttempt: Date.now(),
+      nextRetry: Date.now() + this.retryDelay,
+    };
+
+    this.retryQueue.push(retryItem);
+    logInfo(
+      `Added ${records.length} ${dataType} records to retry queue (queue size: ${this.retryQueue.length})`
+    );
+  }
+
+  async processRetryQueue() {
+    if (this.retryQueue.length === 0) {
+      return;
+    }
+
+    logInfo(`Processing retry queue (${this.retryQueue.length} items)...`);
+
+    const now = Date.now();
+    const itemsToRetry = this.retryQueue.filter(
+      (item) => item.nextRetry <= now && item.attempts < this.maxRetries
+    );
+
+    if (itemsToRetry.length === 0) {
+      logInfo("No items ready for retry yet");
+      return;
+    }
+
+    for (const item of itemsToRetry) {
+      try {
+        item.attempts++;
+        item.lastAttempt = now;
+        this.stats.retryAttempts++;
+
+        logInfo(
+          `Retrying sync for ${item.dataType}, attempt ${item.attempts}/${this.maxRetries} (${item.records.length} records)`
+        );
+
+        // Prepare payload based on data type
+        const payload = this.prepareRetryPayload(item.dataType, item.records);
+
+        // Send to API
+        const success = await this.sendDataToAPI(payload);
+
+        if (success) {
+          // Mark records as synced
+          const recordIds = item.records.map((r) => r.eventId || r.id);
+          await this.markAsSynced(this.tables[item.dataType], recordIds);
+
+          // Update stats
+          this.stats.recordsSynced += item.records.length;
+
+          // Remove from retry queue
+          this.retryQueue = this.retryQueue.filter((i) => i.id !== item.id);
+          logInfo(
+            `✅ Retry successful for ${item.dataType} (${item.records.length} records synced)`
+          );
+        } else {
+          // Schedule next retry with exponential backoff
+          item.nextRetry = now + this.retryDelay * Math.pow(2, item.attempts);
+          logWarn(
+            `Retry failed for ${item.dataType}, next retry in ${
+              (item.nextRetry - now) / 1000
+            }s`
+          );
+        }
+      } catch (error) {
+        logError(`Retry failed for ${item.dataType}:`, error);
+        // Schedule next retry with exponential backoff
+        item.nextRetry = now + this.retryDelay * Math.pow(2, item.attempts);
+      }
+    }
+
+    // Remove items that have exceeded max retries
+    const failedItems = this.retryQueue.filter(
+      (item) => item.attempts >= this.maxRetries
+    );
+
+    if (failedItems.length > 0) {
+      logWarn(
+        `⚠️ Removing ${failedItems.length} items from retry queue (max retries exceeded)`
+      );
+
+      // Log permanent failures
+      for (const item of failedItems) {
+        logError(
+          `Permanent sync failure for ${item.dataType}: ${item.records.length} records lost after ${this.maxRetries} attempts`
+        );
+
+        // Record permanent failure event
+        if (window.eventLogger) {
+          window.eventLogger.logEvent("SYNC_PERMANENT_FAILURE", {
+            dataType: item.dataType,
+            recordCount: item.records.length,
+            attempts: item.attempts,
+          });
+        }
+      }
+
+      // Remove failed items from queue
+      this.retryQueue = this.retryQueue.filter(
+        (item) => item.attempts < this.maxRetries
+      );
+    }
+
+    logInfo(
+      `Retry queue processing complete (${this.retryQueue.length} items remaining)`
+    );
+  }
+
+  prepareRetryPayload(dataType, records) {
+    const payload = {
+      deviceId: this.getCurrentDeviceId(),
+      sentAt: new Date().toISOString(),
+      syncType: "RETRY",
+      logs: {},
+    };
+
+    switch (dataType) {
+      case "proofOfPlay":
+        payload.logs.proofOfPlay = records.map((record) => ({
+          eventId: record.eventId,
+          adId: record.adId,
+          scheduleId: record.scheduleId,
+          startTime: record.startTime,
+          endTime: record.endTime,
+          durationPlayedMs: record.durationPlayedMs,
+        }));
+        break;
+
+      case "telemetry":
+        payload.logs.telemetry = records.map((record) => ({
+          timestamp: record.timestamp,
+          cpuUsage: record.cpuUsage,
+          ramFreeMb: record.ramFreeMb,
+          storageFreeMb: record.storageFreeMb,
+          networkType: record.networkType,
+          appVersionCode: record.appVersionCode,
+        }));
+        break;
+
+      case "events":
+        payload.logs.events = records.map((record) => ({
+          eventId: record.eventId,
+          timestamp: record.timestamp,
+          eventType: record.eventType,
+          payload: record.payload,
+        }));
+        break;
+    }
+
+    return payload;
+  }
+
+  // Get retry queue status
+  getRetryQueueStatus() {
+    return this.retryQueue.map((item) => ({
+      id: item.id,
+      dataType: item.dataType,
+      recordCount: item.records.length,
+      attempts: item.attempts,
+      nextRetry: new Date(item.nextRetry).toISOString(),
+    }));
+  }
+
+  // Get sync statistics
+  getSyncStats() {
+    return {
+      ...this.stats,
+      syncInProgress: this.syncInProgress,
+      retryQueueSize: this.retryQueue.length,
+      maxRetries: this.maxRetries,
+      retryDelay: this.retryDelay,
+    };
+  }
+
+  // Configuration methods
+  setMaxRetries(retries) {
+    this.maxRetries = retries;
+    logInfo(`Max retries updated to: ${retries}`);
+  }
+
+  setRetryDelay(delay) {
+    this.retryDelay = delay;
+    logInfo(`Retry delay updated to: ${delay}ms`);
   }
 }
 

@@ -172,82 +172,80 @@ async function completeRegisterNewDevice(device_id) {
 }
 
 // Enhanced API functions for data management system
-class DataAPI {
-  static async sendLogsToAPI(payload) {
-    try {
-      const response = await fetch(LOGS_API_BASE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Device-ID": localStorage.getItem("device_id"),
-          "X-Android-ID": localStorage.getItem("android_id"),
-        },
-        body: JSON.stringify(payload),
-        timeout: 30000,
-      });
+async function sendLogsToAPI(payload) {
+  try {
+    const response = await fetch(LOGS_API_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Device-ID": localStorage.getItem("device_id"),
+        "X-Android-ID": localStorage.getItem("android_id"),
+      },
+      body: JSON.stringify(payload),
+      timeout: 30000,
+    });
 
-      if (response.ok) {
-        const result = await response.json();
-        logInfo("Logs sent to API successfully:", result);
-        return { success: true, data: result };
-      } else {
-        const errorText = await response.text();
-        logError("API logs request failed:", response.status, errorText);
-        return {
-          success: false,
-          error: `HTTP ${response.status}: ${errorText}`,
-          retryable: response.status >= 500, // Retry server errors
-        };
-      }
-    } catch (error) {
-      logError("Failed to send logs to API:", error);
+    if (response.ok) {
+      const result = await response.json();
+      logInfo("Logs sent to API successfully:", result);
+      return { success: true, data: result };
+    } else {
+      const errorText = await response.text();
+      logError("API logs request failed:", response.status, errorText);
       return {
         success: false,
-        error: error.message,
-        retryable: true, // Network errors are retryable
+        error: `HTTP ${response.status}: ${errorText}`,
+        retryable: response.status >= 500, // Retry server errors
       };
     }
+  } catch (error) {
+    logError("Failed to send logs to API:", error);
+    return {
+      success: false,
+      error: error.message,
+      retryable: true, // Network errors are retryable
+    };
   }
+}
 
-  static async sendBulkLogsToAPI(bulkPayload) {
-    try {
-      logInfo(
-        `Sending BULK logs to API: ${bulkPayload.totalRecords} total records`
-      );
+async function sendBulkLogsToAPI(bulkPayload) {
+  try {
+    logInfo(
+      `Sending BULK logs to API: ${bulkPayload.totalRecords} total records`
+    );
 
-      const response = await fetch(BULK_LOGS_API_BASE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Device-ID": localStorage.getItem("device_id"),
-          "X-Android-ID": localStorage.getItem("android_id"),
-          "X-Sync-Type": "BULK",
-        },
-        body: JSON.stringify(bulkPayload),
-        timeout: 120000, // 2 minutes timeout for bulk uploads
-      });
+    const response = await fetch(BULK_LOGS_API_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Device-ID": localStorage.getItem("device_id"),
+        "X-Android-ID": localStorage.getItem("android_id"),
+        "X-Sync-Type": "BULK",
+      },
+      body: JSON.stringify(bulkPayload),
+      timeout: 120000, // 2 minutes timeout for bulk uploads
+    });
 
-      if (response.ok) {
-        const result = await response.json();
-        logInfo("Bulk logs sent to API successfully:", result);
-        return { success: true, data: result };
-      } else {
-        const errorText = await response.text();
-        logError("Bulk API logs request failed:", response.status, errorText);
-        return {
-          success: false,
-          error: `HTTP ${response.status}: ${errorText}`,
-          retryable: response.status >= 500, // Retry server errors
-        };
-      }
-    } catch (error) {
-      logError("Failed to send bulk logs to API:", error);
+    if (response.ok) {
+      const result = await response.json();
+      logInfo("Bulk logs sent to API successfully:", result);
+      return { success: true, data: result };
+    } else {
+      const errorText = await response.text();
+      logError("Bulk API logs request failed:", response.status, errorText);
       return {
         success: false,
-        error: error.message,
-        retryable: true, // Network errors are retryable
+        error: `HTTP ${response.status}: ${errorText}`,
+        retryable: response.status >= 500, // Retry server errors
       };
     }
+  } catch (error) {
+    logError("Failed to send bulk logs to API:", error);
+    return {
+      success: false,
+      error: error.message,
+      retryable: true, // Network errors are retryable
+    };
   }
 }
 

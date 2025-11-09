@@ -207,8 +207,13 @@ class TelemetryCollector {
 
   async getNetworkInfo() {
     try {
+      // ✅ Use NetworkMonitor as single source of truth
+      const isOnline = window.networkMonitor
+        ? window.networkMonitor.isOnline
+        : navigator.onLine;
+
       const networkInfo = {
-        isOnline: navigator.onLine,
+        isOnline: isOnline,
       };
 
       // Get real network info from Tizen
@@ -280,7 +285,11 @@ class TelemetryCollector {
       return networkInfo;
     } catch (error) {
       logWarn("Failed to get network info:", error);
-      return { isOnline: navigator.onLine, error: error.message };
+      // ✅ Use NetworkMonitor even in error case
+      const isOnline = window.networkMonitor
+        ? window.networkMonitor.isOnline
+        : navigator.onLine;
+      return { isOnline: isOnline, error: error.message };
     }
   }
 

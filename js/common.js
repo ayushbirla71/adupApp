@@ -461,7 +461,7 @@ async function getTizenSignageInfo() {
 
     // 2. Device type
     const isTV = safeCapability("http://tizen.org/feature/tv") === true;
-    info.device_type = isTV ? "tv" : "tv";
+    info.device_type = isTV ? "tv" : "signage";
 
     // 3. Model name
     info.device_model =

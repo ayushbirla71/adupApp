@@ -54,9 +54,8 @@ async function handleMQTTAds(payload) {
   const placeholder_enabled = payload.placeholder_enabled;
   const rcs_enabled = payload.rcs_enabled;
 
-  let old_placeholder_enabled =
-    localStorage.getItem("placeholder_enabled") || true;
-  let old_rcs_enabled = localStorage.getItem("rcs_enabled") || true;
+  let old_placeholder_enabled = localStorage.getItem("placeholder_enabled");
+  let old_rcs_enabled = localStorage.getItem("rcs_enabled");
   console.log("📥 Received ads:", ads);
 
   if (placeholder_enabled !== old_placeholder_enabled) {

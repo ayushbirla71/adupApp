@@ -450,6 +450,12 @@ function showSection(id) {
       case "errors":
         window.enhancedSettings.renderErrors();
         break;
+      case "archives":
+        window.enhancedSettings.refreshArchives();
+        break;
+      case "devtools":
+        window.enhancedSettings.refreshDevTools();
+        break;
       case "systemInfo":
         showSystemInfo();
         break;

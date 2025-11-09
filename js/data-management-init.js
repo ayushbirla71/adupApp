@@ -9,7 +9,7 @@ class DataManagementSystem {
       telemetryCollector: null,
       eventLogger: null,
       proofOfPlayTracker: null,
-      syncEngine: null,
+      // syncEngine: null, // ❌ DISABLED - Using DataManager sync only to avoid conflicts
       configMonitor: null,
     };
 
@@ -20,6 +20,7 @@ class DataManagementSystem {
       "telemetryCollector",
       "proofOfPlayTracker",
       "configMonitor",
+      // "syncEngine", // ❌ DISABLED - Using DataManager sync only
     ];
 
     this.isInitialized = false;
@@ -150,14 +151,9 @@ class DataManagementSystem {
 
   setupIntegrations() {
     try {
-      // Integrate network monitor with data manager
-      if (this.components.networkMonitor && this.components.dataManager) {
-        this.components.networkMonitor.addListener((event) => {
-          if (event === "online" && this.components.dataManager) {
-            this.components.dataManager.triggerSync();
-          }
-        });
-      }
+      // ❌ REMOVED: Network monitor integration - NetworkMonitor already triggers sync
+      // This was causing duplicate sync triggers when device comes online!
+      // NetworkMonitor.updateConnectionStatus() handles sync triggering directly
 
       // Integrate event logger with all components
       if (this.components.eventLogger) {
@@ -168,18 +164,24 @@ class DataManagementSystem {
         this.integrateErrorLogging();
       }
 
-      // Setup sync engine if not already done
-      if (
-        this.components.dataManager &&
-        !this.components.dataManager.syncEngine
-      ) {
-        this.components.dataManager.syncEngine = new SyncEngine(
-          this.components.dataManager
-        );
-        this.components.syncEngine = this.components.dataManager.syncEngine;
-      }
+      // ❌ DISABLED: SyncEngine to avoid conflicts with DataManager periodic sync
+      // Using DataManager's built-in sync mechanism (15-minute interval)
+      // If you need retry logic, consider adding it to DataManager instead
 
-      logInfo("Component integrations setup successfully");
+      // // Setup sync engine if not already done
+      // if (
+      //   this.components.dataManager &&
+      //   !this.components.dataManager.syncEngine
+      // ) {
+      //   this.components.dataManager.syncEngine = new SyncEngine(
+      //     this.components.dataManager
+      //   );
+      //   this.components.syncEngine = this.components.dataManager.syncEngine;
+      // }
+
+      logInfo(
+        "Component integrations setup successfully (SyncEngine disabled)"
+      );
     } catch (error) {
       logError("Failed to setup integrations:", error);
     }
@@ -303,9 +305,10 @@ class DataManagementSystem {
       stats.dataManager = await this.components.dataManager.getDataStats();
     }
 
-    if (this.components.syncEngine) {
-      stats.syncEngine = this.components.syncEngine.getStats();
-    }
+    // SyncEngine disabled - using DataManager sync only
+    // if (this.components.syncEngine) {
+    //   stats.syncEngine = this.components.syncEngine.getStats();
+    // }
 
     if (this.components.networkMonitor) {
       stats.networkMonitor = this.components.networkMonitor.getStatus();

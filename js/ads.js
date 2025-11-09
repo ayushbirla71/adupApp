@@ -6,6 +6,7 @@ var currentGroupTopic = null;
 function connectMQTT(options) {
   var device_id = options.device_id || localStorage.getItem("device_id");
   var group_id = options.group_id || localStorage.getItem("group_id");
+  let android_id = localStorage.getItem("android_id");
 
   var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
   // var url = "ws://console.adup.live:9001/mqtt";
