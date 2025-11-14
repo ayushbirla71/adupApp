@@ -44,9 +44,12 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
         $(".joinGroup-container").removeClass("active");
 
         let timestamps = new Date().getTime();
-        localStorage.setItem("placeholder", data.placeholder || null);
-        localStorage.setItem("timestamp", timestamps),
-          localStorage.getItem("timestamp", new Date().getTime());
+        localStorage.setItem("placeholder", data.placeholder || "");
+        localStorage.setItem("timestamp", timestamps);
+
+        localStorage.setItem("placeholder_enabled", data.placeholder_enabled);
+        localStorage.setItem("rcs_enabled", data.rcs_enabled);
+
         localStorage.setItem(
           "group_id",
           data && data.group_id ? data.group_id : ""

@@ -65,7 +65,10 @@ function connectMQTT(options) {
   client.on("message", function (topic, message) {
     try {
       var data = JSON.parse(message.toString());
-      console.log("📥 MQTT message on topic '" + topic + "':", data);
+      console.log(
+        "📥 MQTT message on topic '" + "date_time" + Date.now() + topic + "':",
+        data
+      );
 
       if (topic.indexOf("ads/") === 0) {
         let ads = data.ads || [];
@@ -171,7 +174,7 @@ function connectMQTT(options) {
   });
 
   client.on("error", function (error) {
-    console.error("🚨 MQTT Error:", error);
+    console.error("🚨 MQTT Error:", JSON.stringify(error));
     showToast("error", "MQTT Connection Error – loading from local ads");
 
     try {

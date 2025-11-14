@@ -155,8 +155,8 @@ window.onload = async function () {
     let placeholder = localStorage.getItem("placeholder");
     let timestamps = localStorage.getItem("timestamp");
     let placeholder_enabled =
-      JSON.parse(localStorage.getItem("placeholder_enabled")) || true;
-    let rcs_enabled = JSON.parse(localStorage.getItem("rcs_enabled")) || true;
+      localStorage.getItem("placeholder_enabled") || false;
+    let rcs_enabled = localStorage.getItem("rcs_enabled") || false;
     if (placeholder && placeholder_enabled == true) {
       ads.push({ url: placeholder, timestamp: timestamps });
     }
@@ -194,9 +194,9 @@ window.onload = async function () {
   } else {
     manage_spatial_navigation("joinGroup-container");
     await registerDevice();
-    // setTimeout(function () {
-    //   $(".login_loader").hide();
-    // }, 1000);
+    setTimeout(function () {
+      $(".login_loader").hide();
+    }, 1000);
 
     // $(".pairing-container").addClass("active");
     // SN.focus("#pairingBox");

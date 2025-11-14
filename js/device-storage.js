@@ -307,6 +307,7 @@ function showImage(file, resolve) {
     imgElement.src = image_url; // ✅ use updated URL
   } catch (err) {
     addErrorLog(" Error preparing or Image file:", err.message || err);
+    resolve();
   }
 }
 

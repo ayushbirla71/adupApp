@@ -185,79 +185,69 @@ class NetworkMonitor {
   }
 
   async checkAPIEndpoint() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      // Try to reach a simple connectivity test instead of logs endpoint
-      // Since logs endpoint may not support HEAD requests
-      await fetch("https://www.google.com/favicon.ico", {
+    return new Promise((resolve) => {
+      $.ajax({
+        url: "https://www.google.com/favicon.ico",
         method: "HEAD",
-        signal: controller.signal,
-        cache: "no-cache",
-        mode: "no-cors",
+        timeout: 10000, // 10 second timeout
+        cache: false,
+        success: function () {
+          resolve(true); // If we get here, we have connectivity
+        },
+        error: function () {
+          // logWarn("API endpoint check failed");
+          resolve(false);
+        },
       });
-
-      clearTimeout(timeoutId);
-      return true; // If we get here, we have connectivity
-    } catch (error) {
-      // logWarn("API endpoint check failed:", error.message);
-      return false;
-    }
+    });
   }
 
   async checkInternetConnectivity() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-
-      // Use a reliable external service
-      await fetch("https://www.google.com/favicon.ico", {
+    return new Promise((resolve) => {
+      $.ajax({
+        url: "https://www.google.com/favicon.ico",
         method: "HEAD",
-        signal: controller.signal,
-        cache: "no-cache",
-        mode: "no-cors",
+        timeout: 8000, // 8 second timeout
+        cache: false,
+        success: function () {
+          resolve(true); // If we get here, we have internet
+        },
+        error: function (_xhr, status, error) {
+          logWarn("Internet connectivity check failed:", status || error);
+          resolve(false);
+        },
       });
-
-      clearTimeout(timeoutId);
-      return true; // If we get here, we have internet
-    } catch (error) {
-      logWarn("Internet connectivity check failed:", error.message);
-      return false;
-    }
+    });
   }
 
   async measureNetworkQuality() {
-    try {
+    return new Promise((resolve) => {
       const startTime = performance.now();
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      // Use a simple connectivity test instead of ping endpoint
-      await fetch("https://www.google.com/favicon.ico", {
+      $.ajax({
+        url: "https://www.google.com/favicon.ico",
         method: "HEAD",
-        signal: controller.signal,
-        cache: "no-cache",
-        mode: "no-cors",
+        timeout: 5000, // 5 second timeout
+        cache: false,
+        success: () => {
+          const endTime = performance.now();
+          const latency = endTime - startTime;
+
+          this.networkQuality = {
+            latency: latency,
+            bandwidth: null, // Could be measured with larger requests
+            lastMeasured: new Date().toISOString(),
+          };
+
+          logInfo("Network quality measured:", this.networkQuality);
+          resolve(true);
+        },
+        error: () => {
+          // logWarn("Network quality measurement failed");
+          resolve(false);
+        },
       });
-
-      clearTimeout(timeoutId);
-      const endTime = performance.now();
-      const latency = endTime - startTime;
-
-      this.networkQuality = {
-        latency: latency,
-        bandwidth: null, // Could be measured with larger requests
-        lastMeasured: new Date().toISOString(),
-      };
-
-      logInfo("Network quality measured:", this.networkQuality);
-      return true; // If we get here, we have connectivity
-    } catch (error) {
-      // logWarn("Network quality measurement failed:", error.message);
-      return false;
-    }
+    });
   }
 
   updateConnectionStatus(isConnected) {

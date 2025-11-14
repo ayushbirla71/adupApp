@@ -531,8 +531,19 @@ async function getTizenSignageInfo() {
 
     // 9. Location via IP (optional)
     try {
-      const res = await fetch("https://ipapi.co/json/");
-      const loc = await res.json();
+      const loc = await new Promise((resolve, reject) => {
+        $.ajax({
+          url: "https://ipapi.co/json/",
+          method: "GET",
+          timeout: 5000,
+          success: function (data) {
+            resolve(data);
+          },
+          error: function () {
+            reject(new Error("Failed to get location"));
+          },
+        });
+      });
       info.location = loc.city || "unknown";
     } catch {
       info.location = "unknown";

@@ -141,116 +141,156 @@ async function completeRegisterNewDevice(device_id) {
     return;
   }
   $(".login_loader").show();
-  getTVDeviceInfo().then(function (deviceInfo) {
-    if (!deviceInfo) {
-      alert("Failed to retrieve device information.");
-      return;
-    }
-    console.log("Device Info:", deviceInfo);
+  getTVDeviceInfo()
+    .then(function (deviceInfo) {
+      if (!deviceInfo) {
+        alert("Failed to retrieve device information.");
+        return;
+      }
+      console.log("Device Info:", deviceInfo);
+      $.ajax({
+        url: API_BASE_URL + "device/complete-registration",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        data: JSON.stringify({
+          device_id: device_id,
+        }),
+        success: function (response) {
+          console.log("Device registration completed successfully:", response);
+          showToast("success", "Device registration completed successfully");
+        },
+        error: function (error) {
+          console.error("Error completing device registration:", error);
+          alert("Failed to complete device registration.");
+        },
+        complete: function () {
+          $(".login_loader").hide();
+        },
+      });
+    })
+    .catch(function (error) {
+      console.error("Error getting device info:", error);
+      $(".login_loader").hide();
+    });
+}
+
+// Enhanced API functions for data management system
+async function sendLogsToAPI(payload) {
+  return new Promise((resolve) => {
     $.ajax({
-      url: API_BASE_URL + "device/complete-registration",
+      url: LOGS_API_BASE_URL,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Device-ID": localStorage.getItem("device_id") || "",
+        "X-Android-ID": localStorage.getItem("android_id") || "",
       },
-      data: JSON.stringify({
-        device_id: device_id,
-      }),
-      success: function (response) {
-        console.log("Device registration completed successfully:", response);
-        showToast("success", "Device registration completed successfully");
+      data: JSON.stringify(payload),
+      timeout: 30000, // 30 seconds
+      success: function (result) {
+        logInfo("Logs sent to API successfully:", result);
+        resolve({ success: true, data: result });
       },
-      error: function (error) {
-        console.error("Error completing device registration:", error);
-        alert("Failed to complete device registration.");
-      },
-      complete: function () {
-        $(".login_loader").hide();
+      error: function (xhr, status, error) {
+        const statusCode = xhr.status || 0;
+        const errorText = xhr.responseText || error || status;
+
+        logError("API logs request failed:", statusCode, errorText);
+
+        // Determine if error is retryable
+        const retryable = statusCode === 0 || statusCode >= 500; // Network errors (0) or server errors (5xx)
+
+        resolve({
+          success: false,
+          error: `HTTP ${statusCode}: ${errorText}`,
+          retryable: retryable,
+        });
       },
     });
   });
 }
 
-// Enhanced API functions for data management system
-async function sendLogsToAPI(payload) {
-  try {
-    const response = await fetch(LOGS_API_BASE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Device-ID": localStorage.getItem("device_id"),
-        "X-Android-ID": localStorage.getItem("android_id"),
-      },
-      body: JSON.stringify(payload),
-      timeout: 30000,
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      logInfo("Logs sent to API successfully:", result);
-      return { success: true, data: result };
-    } else {
-      const errorText = await response.text();
-      logError("API logs request failed:", response.status, errorText);
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${errorText}`,
-        retryable: response.status >= 500, // Retry server errors
-      };
-    }
-  } catch (error) {
-    logError("Failed to send logs to API:", error);
-    return {
-      success: false,
-      error: error.message,
-      retryable: true, // Network errors are retryable
-    };
-  }
-}
-
 async function sendBulkLogsToAPI(bulkPayload) {
-  try {
-    logInfo(
-      `Sending BULK logs to API: ${bulkPayload.totalRecords} total records`
-    );
+  return new Promise((resolve) => {
+    try {
+      logInfo(
+        `Sending BULK logs to API: ${bulkPayload.totalRecords} total records`
+      );
 
-    const response = await fetch(BULK_LOGS_API_BASE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Device-ID": localStorage.getItem("device_id"),
-        "X-Android-ID": localStorage.getItem("android_id"),
-        "X-Sync-Type": "BULK",
-      },
-      body: JSON.stringify(bulkPayload),
-      timeout: 120000, // 2 minutes timeout for bulk uploads
-    });
+      // ✅ Create JSON file from payload
+      const jsonString = JSON.stringify(bulkPayload);
+      const jsonBlob = new Blob([jsonString], { type: "application/json" });
 
-    if (response.ok) {
-      const result = await response.json();
-      logInfo("Bulk logs sent to API successfully:", result);
-      return { success: true, data: result };
-    } else {
-      const errorText = await response.text();
-      logError("Bulk API logs request failed:", response.status, errorText);
-      return {
+      // ✅ Create filename with timestamp and device ID
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const deviceId = localStorage.getItem("device_id") || "unknown";
+      const filename = `bulk_logs_${deviceId}_${timestamp}.json`;
+
+      // ✅ Create FormData and append JSON file
+      const formData = new FormData();
+      formData.append("file", jsonBlob, filename);
+      formData.append("deviceId", deviceId);
+      formData.append("androidId", localStorage.getItem("android_id") || "");
+      formData.append("syncType", "BULK");
+      formData.append("totalRecords", bulkPayload.totalRecords.toString());
+      formData.append("sentAt", bulkPayload.sentAt);
+
+      logInfo(`Sending bulk data as JSON file: ${filename}`);
+
+      $.ajax({
+        url: BULK_LOGS_API_BASE_URL,
+        method: "POST",
+        headers: {
+          // ❌ DON'T set Content-Type - jQuery will set it automatically with boundary
+          "X-Device-ID": deviceId,
+          "X-Android-ID": localStorage.getItem("android_id") || "",
+          "X-Sync-Type": "BULK",
+        },
+        data: formData,
+        processData: false, // ✅ IMPORTANT: Don't process FormData
+        contentType: false, // ✅ IMPORTANT: Let browser set Content-Type with boundary
+        timeout: 120000, // 2 minutes timeout for bulk uploads
+        success: function (result) {
+          logInfo("Bulk logs sent to API successfully:", result);
+          resolve({ success: true, data: result });
+        },
+        error: function (xhr, status, error) {
+          const statusCode = xhr.status || 0;
+          const errorText = xhr.responseText || error || status;
+
+          logError("Bulk API logs request failed:", statusCode, errorText);
+
+          // Determine if error is retryable
+          const retryable = statusCode === 0 || statusCode >= 500; // Network errors (0) or server errors (5xx)
+
+          resolve({
+            success: false,
+            error: `HTTP ${statusCode}: ${errorText}`,
+            retryable: retryable,
+          });
+        },
+      });
+    } catch (error) {
+      logError("Failed to send bulk logs to API:", error);
+      resolve({
         success: false,
-        error: `HTTP ${response.status}: ${errorText}`,
-        retryable: response.status >= 500, // Retry server errors
-      };
+        error: error.message,
+        retryable: true, // Network errors are retryable
+      });
     }
-  } catch (error) {
-    logError("Failed to send bulk logs to API:", error);
-    return {
-      success: false,
-      error: error.message,
-      retryable: true, // Network errors are retryable
-    };
-  }
+  });
 }
 
 async function deviceOriantationChange(orientationType, resolution) {
   if (!localStorage.getItem("device_id")) {
+    return;
+  }
+
+  let isConnected = await window.networkMonitor.checkConnectivity();
+  if (!isConnected) {
+    logWarn("Device is offline - skipping orientation change");
     return;
   }
   $.ajax({

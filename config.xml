@@ -1,49 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets"
-        xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://yourdomain/BasicProject"
-        version="1.0.0"
-        viewmodes="fullscreen">
-
-    <name>Ad96</name>
-    <content src="index.html"/>
-    <icon src="icon.png"/>
-    <description>Your Ad Display App</description>
-    <author email="you@example.com" href="http://yourdomain.com">Your Name</author>
-
-    <access origin="https://console.adup.live"/>
-    <access origin="http://localhost:8000"/>
-    <access origin="*"/>
-   
-
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://yourdomain/BasicProject" version="1.0.3" viewmodes="fullscreen">
+    <access origin="https://console.adup.live"></access>
+    <access origin="http://localhost:8000"></access>
+    <access origin="*"></access>
     <tizen:application id="0lKtwciFfw.ad96" package="0lKtwciFfw" required_version="2.3"/>
-
+    <author href="http://yourdomain.com" email="you@example.com">Your Name</author>
+    <content src="index.html"/>
+    <description>Your Ad Display App</description>
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+    <icon src="icon.png"/>
+    <tizen:metadata key="http://tizen.org/metadata/app_ui_type/base_screen_resolution" value="1080x1920"/>
+    <tizen:metadata key="http://tizen.org/metadata/prelaunch.support" value="enable"/>
+    <name>Ad96Player</name>
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
     <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
     <tizen:privilege name="http://tizen.org/privilege/download"/>
-       <tizen:privilege name="http://tizen.org/privilege/systeminfo"/>
     <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
     <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
-     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
-     <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
-     <tizen:metadata key="http://samsung.com/tv/metadata/screen/orientation" value="all"/>
-     <tizen:privilege name="http://tizen.org/privilege/system"/>
-     
-
-<tizen:setting 
-    screen-orientation="auto-rotation"
-    context-menu="enable"
-    background-support="disable"
-    encryption="disable"
-    install-location="auto"
-    hwkey-event="enable"
-/>
-
-
-    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
     <tizen:profile name="tv-samsung"/>
-
-    <tizen:metadata key="http://tizen.org/metadata/app_ui_type/base_screen_resolution" value="1080x1920"/>
-    <tizen:metadata key="http://tizen.org/metadata/prelaunch.support" value="enable"/>
+    <tizen:setting screen-orientation="auto-rotation" context-menu="enable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>

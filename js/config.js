@@ -1,8 +1,8 @@
-window.APP_NAME = "ADUP APP";
-window.APP_VERSION = 101;
-window.APP_BUILD = "1.0.1";
+window.APP_NAME = "AD96 Player";
+window.APP_VERSION = 103;
+window.APP_BUILD = "1.0.3";
 
-window.APP_BUILD_DATE = "2025-11-08";
+window.APP_BUILD_DATE = "2025-11-11";
 window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
