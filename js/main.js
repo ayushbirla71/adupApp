@@ -156,7 +156,7 @@ window.onload = async function () {
     let timestamps = localStorage.getItem("timestamp");
     let placeholder_enabled =
       localStorage.getItem("placeholder_enabled") || false;
-    let rcs_enabled = localStorage.getItem("rcs_enabled") || false;
+    let rcs_enabled = localStorage.getItem("rcs_enabled");
     if (placeholder && placeholder_enabled == true) {
       ads.push({ url: placeholder, timestamp: timestamps });
     }

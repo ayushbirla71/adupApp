@@ -105,7 +105,7 @@ function connectMQTT(options) {
                     ads,
                     data.rcs,
                     false,
-                    data.rcs_enabled,
+                    data.placeholder_enabled,
                     data.rcs_enabled
                   );
                 });

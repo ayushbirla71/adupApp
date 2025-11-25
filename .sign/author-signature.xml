@@ -7,11 +7,6 @@
 <DigestValue>thcMaqun/0g+wx7S1b1b21Y2Wz3zapn9tBoGSgPoAeRn1/aK+N+UU0Co6LNBxlADCEydIkJiWtzI
 blFdjZJykw==</DigestValue>
 </Reference>
-<Reference URI="FETCH_TO_JQUERY_AJAX_CONVERSION.md">
-<DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>xU9JQE2QWy2s6pC3B3on/Yj4vSYxsYTwFomdkX2SdkPRTzERlqVvdbZVcjB9eLyLd1t2GuG/Hq52
-Vr+S5DUSwQ==</DigestValue>
-</Reference>
 <Reference URI="FINAL_SYNC_SYSTEM_SUMMARY.md">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
 <DigestValue>bnl2z+ZFtmhV6Yd3uiz6ylrHsLwgIc6+m+7MktPSy4633bj6HfKp1TJH+dRoKVlAg7TTYWTsrYsr
@@ -252,11 +247,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-WslK3IAp9qrOfToZ2h0mN/LL+rkv2qBDhp1pJwpp20NoM5vfmyCll2Ht3/yARPhnClgK3yRFtzs1
-o7p50xxzpomLxLkm101cmn60GVaHPcOsjC99+Z2CukFvmsrvbh6nYvneO/EdNwE+4hG72GDe32Vz
-ymo5UrZNFzAv7oSHLTCDAnENaBH8x/FLO3os+uockYX8X4jfw9bGudQjO19aFKsDi8N3aEX4POfr
-usxCUCGIaudjkV16ZMG3+MNMR+tzpiYwfejTM70BDsJP2TYPLpbORvItH4efYvy5hRJU5Hhokif1
-JaiWs1IEsyrNVr8GbRMz5StY2pYf5I19/WqmJw==
+a9yWZc1iBz6ITKo0UVf5NSgrWuBVQ9lRVANX6t68wN4zv69q2RhsRheceCkxUTK6S35PaRAl1S7n
+o4p7jfbNHlt6W1E6h29MuZ/3l7DpzsG9FzNRTRpQHOXd1rjN3bwKDWAETa0Ak3eeL2gJd/0KIW9b
+3G57VziKoIK5rV66t78FYcSf2VIHDiHh4uKA/mFqyCgmowaQvpfc9Y3MMluLgZZbwKHPJhQoJyYw
+nsKlEpPgJG8dcbpjY+a2bxv+OLgwAqIhj+FEeeNWqd8PXDxCZFo/ABKCv4qalJizuWxYODrmK2KH
+j0LO8+kIXJED8JVvfRAPU+YBbOF6NV9Rdd9qLw==
 </SignatureValue>
 <KeyInfo>
 <X509Data>
