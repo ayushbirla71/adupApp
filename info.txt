@@ -181,7 +181,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
       video.muted = false;
       video.volume = 1.0;
       video.controls = false;
-      video.style.cssText = "width:100vw;height:95vh;object-fit:fill;";
+      video.style.cssText = "width:100vw;height:94vh;object-fit:fill;";
       wrapper.appendChild(video);
       container.appendChild(wrapper);
 

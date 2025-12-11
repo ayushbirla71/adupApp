@@ -53,9 +53,11 @@ async function handleMQTTAds(payload) {
   const rcs = payload.rcs;
   const placeholder_enabled = payload.placeholder_enabled;
   const rcs_enabled = payload.rcs_enabled;
+  const logo_enabled = payload.logo_enabled;
 
   let old_placeholder_enabled = localStorage.getItem("placeholder_enabled");
   let old_rcs_enabled = localStorage.getItem("rcs_enabled");
+  let old_logo_enabled = localStorage.getItem("logo_enabled");
   console.log("📥 Received ads:", ads);
 
   if (placeholder_enabled !== old_placeholder_enabled) {
@@ -64,13 +66,17 @@ async function handleMQTTAds(payload) {
   if (rcs_enabled !== old_rcs_enabled) {
     localStorage.setItem("rcs_enabled", rcs_enabled);
   }
+  if (logo_enabled !== old_logo_enabled) {
+    localStorage.setItem("logo_enabled", logo_enabled);
+  }
 
   const filenames = ads.map((ad) => getFileName(ad));
   const newSignature = filenames.join(",");
 
   console.log("rcs_enabled", rcs_enabled);
+  console.log("logo_enabled", logo_enabled);
   console.log("placeholder_enabled", placeholder_enabled);
-  startAdSlide("ad_snippet", rcs, 4, rcs_enabled);
+  startAdSlide("ad_snippet", rcs, 1, rcs_enabled, logo_enabled);
 
   console.log("placeholderUpdate:", payload.placeholderUpdate);
 
@@ -269,7 +275,7 @@ function isVideo(fileName) {
 // 🖼️ Show image
 function showImage(file, resolve) {
   try {
-    $(".login_loader").hide();
+    // $(".login_loader").hide();
     const imageElement1 = document.getElementById("image-player1");
     const imageElement2 = document.getElementById("image-player2");
 
@@ -294,7 +300,7 @@ function showImage(file, resolve) {
 
     imgElement.onerror = function () {
       imgElement.style.display = "none";
-      $(".login_loader").show();
+      // $(".login_loader").show();
       resolve();
       console.error("❌ Error loading image:", file);
     };
@@ -375,7 +381,7 @@ async function playAllContentInLoop(filenames, ads, rcs) {
     //console.log("▶️ Now playing: " + currentFile);
     //console.log("playing index...." + iterator);
     //console.log("Playing Index is " + (iterator % filenames.length));
-    $(".login_loader").hide();
+    // $(".login_loader").hide();
 
     const imageElement1 = document.getElementById("image-player1");
     const imageElement2 = document.getElementById("image-player2");
@@ -688,7 +694,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
       console.log("rcs_enabled", localStorage.getItem("rcs_enabled"));
       let height =
         localStorage.getItem("rcs_enabled") == "true"
-          ? window.innerHeight - 50
+          ? window.innerHeight - 40
           : window.innerHeight;
       player.setDisplayRect(0, 0, window.innerWidth, height);
       // player.prepare();

@@ -49,6 +49,7 @@ function waitingForMqttReplyForDeviceConfirmation(android_id, deviceId) {
 
         localStorage.setItem("placeholder_enabled", data.placeholder_enabled);
         localStorage.setItem("rcs_enabled", data.rcs_enabled);
+        localStorage.setItem("logo_enabled", data.logo_enabled);
 
         localStorage.setItem(
           "group_id",

@@ -140,7 +140,7 @@ async function completeRegisterNewDevice(device_id) {
     alert("Android ID not found. Please join a group first.");
     return;
   }
-  $(".login_loader").show();
+  // $(".login_loader").show();
   getTVDeviceInfo()
     .then(function (deviceInfo) {
       if (!deviceInfo) {

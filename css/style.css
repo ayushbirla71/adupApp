@@ -59,7 +59,7 @@ body {
 .ad-player {
   width: 100%;
   /* height: auto; */
-  height: 95vh;
+  height: 96vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,7 +68,7 @@ body {
 .ad-player-image {
   height: auto;
   width: 100vw;
-  height: 95vh;
+  height: 96vh;
   object-fit: "fill";
 }
 .joinGroup h1 {
@@ -132,14 +132,14 @@ button:focus {
 .ad_image {
   height: auto;
   width: 100vw;
-  height: 95vh;
+  height: 96vh;
   object-fit: "fill";
 }
 .ad_video {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: 95vh;
+  max-height: 96vh;
 }
 
 @media (max-width: 480px) {
@@ -157,7 +157,7 @@ button:focus {
   z-index: 3;
   width: 100%;
   bottom: 0px;
-  height: 5vh;
+  height: 4vh;
   overflow: hidden;
   position: relative;
   background-color: #050b12b5;
@@ -166,6 +166,23 @@ button:focus {
 #sliding_text {
   /* Base styles are now defined in .sliding-text class below */
   /* This selector is kept for specificity but styles moved to class */
+}
+
+/* Logo in bottom right corner - positioned independently from RCS container */
+.rcs-logo {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  height: 4vh;
+  width: 4vh;
+  object-fit: cover;
+  background-color: transparent;
+  z-index: 1000;
+  padding: 5px;
+  pointer-events: none;
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+  display: none; /* Hidden by default, controlled by JavaScript */
 }
 
 /* =================================log in loader CSS ============================= */
@@ -262,9 +279,6 @@ button:focus {
   white-space: nowrap;
   font-weight: bold;
   font-size: 36px;
-  transform: translateY(-50%);
-  /* Initial position off-screen to the right */
-  left: 100%;
   /* Optimize for animations on Tizen TV */
   will-change: transform;
   backface-visibility: hidden;
@@ -280,6 +294,7 @@ button:focus {
 /* Animation class to trigger the sliding */
 .sliding-text.animate {
   animation: slide-left linear infinite;
+  animation-timing-function: linear;
 }
 
 /* Speed variations for different animation speeds */
@@ -304,9 +319,10 @@ button:focus {
 }
 
 /* Keyframe animation for sliding from right to left with hardware acceleration */
+/* Text slides from right edge of screen to completely off the left edge */
 @keyframes slide-left {
   0% {
-    transform: translateZ(0) translateY(-50%) translateX(0%);
+    transform: translateZ(0) translateY(-50%) translateX(100vw);
   }
   100% {
     transform: translateZ(0) translateY(-50%) translateX(-100%);
@@ -716,7 +732,7 @@ progress {
 #av-player,
 #av-player2 {
   display: none;
-  height: 95vh;
+  height: 96vh;
   width: 100%;
 }
 
@@ -730,5 +746,5 @@ progress {
 }
 
 .defult-height {
-  height: 95vh;
+  height: 96vh;
 }

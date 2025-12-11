@@ -17,6 +17,7 @@ function connectMQTT(options) {
     placeholderUpdate: true,
     placeholder_enabled: options.placeholder_enabled,
     rcs_enabled: options.rcs_enabled,
+    logo_enabled: options.logo_enabled,
   });
 
   var client = mqtt.connect(url, {
@@ -74,6 +75,12 @@ function connectMQTT(options) {
         let ads = data.ads || [];
         localStorage.setItem("ads", JSON.stringify(ads));
         localStorage.setItem("rcs", data.rcs || "");
+
+        // Store logo_enabled flag from payload
+        if (data.logo_enabled !== null && data.logo_enabled !== undefined) {
+          localStorage.setItem("logo_enabled", data.logo_enabled);
+        }
+
         if (
           data.placeholder_enabled !== null &&
           data.placeholder_enabled !== undefined &&
@@ -95,7 +102,8 @@ function connectMQTT(options) {
                     data.rcs,
                     true,
                     data.placeholder_enabled,
-                    data.rcs_enabled
+                    data.rcs_enabled,
+                    data.logo_enabled
                   );
                 })
                 .catch(function (error) {
@@ -106,7 +114,8 @@ function connectMQTT(options) {
                     data.rcs,
                     false,
                     data.placeholder_enabled,
-                    data.rcs_enabled
+                    data.rcs_enabled,
+                    data.logo_enabled
                   );
                 });
           } else {
@@ -120,7 +129,8 @@ function connectMQTT(options) {
               data.rcs,
               false,
               data.placeholder_enabled,
-              data.rcs_enabled
+              data.rcs_enabled,
+              data.logo_enabled
             );
           }
         } else {
@@ -130,7 +140,8 @@ function connectMQTT(options) {
             data.rcs,
             false,
             data.placeholder_enabled,
-            data.rcs_enabled
+            data.rcs_enabled,
+            data.logo_enabled
           );
         }
       } else if (topic.indexOf("device/") === 0) {
@@ -242,7 +253,8 @@ function processAds(
   rcs,
   placeholderUpdate,
   placeholder_enabled,
-  rcs_enabled
+  rcs_enabled,
+  logo_enabled
 ) {
   ads = ads.filter(function (ad) {
     return ad.url && ad.url !== "null" && ad.url !== "undefined";
@@ -261,6 +273,7 @@ function processAds(
     placeholderUpdate: placeholderUpdate,
     placeholder_enabled: placeholder_enabled,
     rcs_enabled: rcs_enabled,
+    logo_enabled: logo_enabled,
   });
 }
 

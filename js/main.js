@@ -157,6 +157,7 @@ window.onload = async function () {
     let placeholder_enabled =
       localStorage.getItem("placeholder_enabled") || false;
     let rcs_enabled = localStorage.getItem("rcs_enabled");
+    let logo_enabled = localStorage.getItem("logo_enabled");
     if (placeholder && placeholder_enabled == true) {
       ads.push({ url: placeholder, timestamp: timestamps });
     }
@@ -190,6 +191,7 @@ window.onload = async function () {
       group_id: group_id,
       placeholder_enabled: placeholder_enabled,
       rcs_enabled: rcs_enabled,
+      logo_enabled: logo_enabled,
     });
   } else {
     manage_spatial_navigation("joinGroup-container");

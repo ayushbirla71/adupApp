@@ -122,22 +122,43 @@ function escapeHtml(unsafe) {
     .replace(/'/g, "&#039;");
 }
 
-function startAdSlide(containerId, textData, speed, rcs_enabled) {
-  console.log("Ad Slide Start", containerId, textData, speed);
+function startAdSlide(containerId, textData, speed, rcs_enabled, logo_enabled) {
+  console.log(
+    "Ad Slide Start",
+    containerId,
+    textData,
+    speed,
+    "rcs_enabled:",
+    rcs_enabled,
+    "logo_enabled:",
+    logo_enabled
+  );
 
   if (!containerId) return;
 
   if (!speed) speed = 1;
 
   var container = document.getElementById(containerId);
-  updateUiHeight(rcs_enabled);
-  if (rcs_enabled == false) {
-    container.style.display = "none";
 
+  updateUiHeight(rcs_enabled);
+
+  // Update logo visibility independently (logo is now outside RCS container)
+  updateLogoVisibility(rcs_enabled, logo_enabled);
+
+  if (
+    rcs_enabled == false ||
+    rcs_enabled == "false" ||
+    rcs_enabled == null ||
+    rcs_enabled == undefined
+  ) {
+    // Hide RCS container when disabled
+    container.style.display = "none";
     return;
   } else {
+    // Show RCS container when enabled
     container.style.display = "block";
   }
+
   var text = document.getElementById("sliding_text");
   if (!container || !text) return;
 
@@ -155,6 +176,10 @@ function startAdSlide(containerId, textData, speed, rcs_enabled) {
 
   // Clear any inline styles from previous JS animation
   text.style.left = "";
+  text.style.transform = "";
+
+  // Force reflow to restart animation smoothly
+  void text.offsetWidth;
 
   // Add CSS animation classes based on speed
   var speedClass = "speed-" + Math.min(Math.max(Math.round(speed), 1), 5);
@@ -578,4 +603,33 @@ function updateUiHeight(rcs_enabled) {
       el.style.height = "100vh !important"; // default inline height
     }
   });
+}
+
+function updateLogoVisibility(rcs_enabled, logo_enabled) {
+  console.log(
+    "updateLogoVisibility - rcs_enabled:",
+    rcs_enabled,
+    "logo_enabled:",
+    logo_enabled
+  );
+
+  var logo = document.getElementById("rcs_logo");
+
+  if (!logo) {
+    console.warn("Logo element not found");
+    return;
+  }
+
+  // Logo visibility logic (logo is now independent from RCS container):
+  // 1. If logo_enabled is true, show logo
+  // 2. If logo_enabled is false, hide logo
+  // 3. Logo is positioned fixed in bottom right corner, independent of RCS
+
+  if (logo_enabled == true || logo_enabled == "true") {
+    logo.style.display = "block";
+    console.log("✅ Logo visible (independent from RCS)");
+  } else {
+    logo.style.display = "none";
+    console.log("❌ Logo hidden");
+  }
 }
