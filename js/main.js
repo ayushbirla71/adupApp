@@ -140,8 +140,8 @@ window.onload = async function () {
   console.log("Orientation listener initialized successfully");
 
   // const newToken = "your_token_here"; // Set this appropriately
-  // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
-  // localStorage.setItem("device_id", "83de41b0-4cac-480e-a8f9-3278d8fb7e69");
+  localStorage.setItem("group_id", "13a3aeb6-5952-43c2-9d0b-25777fdf4e9d");
+  localStorage.setItem("device_id", "83de41b0-4cac-480e-a8f9-3278d8fb7e69");
 
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {

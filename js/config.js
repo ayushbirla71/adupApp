@@ -26,7 +26,7 @@ window.FILE_DIRECTORY = "";
 window.DOWNLOAD_PROGRESS = [];
 
 // Environment Configuration
-window.ENVIRONMENT = "prod"; // "dev" or "prod"
+window.ENVIRONMENT = "dev"; // "dev" or "prod"
 window.IS_DEVELOPMENT = window.ENVIRONMENT === "dev";
 
 // Memory Management Configuration

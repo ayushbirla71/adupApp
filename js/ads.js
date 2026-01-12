@@ -8,17 +8,18 @@ function connectMQTT(options) {
   var group_id = options.group_id || localStorage.getItem("group_id");
   let android_id = localStorage.getItem("android_id");
 
-  var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
+  // var url = "ws://cms.ad96.in:9001/mqtt"; // Use wss:// if SSL is supported
   // var url = "ws://console.adup.live:9001/mqtt";
+   var url = "ws://dev.ad96.in:9001/mqtt";
 
-  handleMQTTAds({
-    ads: options.ads,
-    rcs: options.rcs,
-    placeholderUpdate: true,
-    placeholder_enabled: options.placeholder_enabled,
-    rcs_enabled: options.rcs_enabled,
-    logo_enabled: options.logo_enabled,
-  });
+  // handleMQTTAds({
+  //   ads: options.ads,
+  //   rcs: options.rcs,
+  //   placeholderUpdate: true,
+  //   placeholder_enabled: options.placeholder_enabled,
+  //   rcs_enabled: options.rcs_enabled,
+  //   logo_enabled: options.logo_enabled,
+  // });
 
   var client = mqtt.connect(url, {
     clientId: "signage-" + Math.random().toString(36).substr(2, 8),
@@ -72,8 +73,12 @@ function connectMQTT(options) {
       );
 
       if (topic.indexOf("ads/") === 0) {
+        // const content = data.content || [];
         let ads = data.ads || [];
-        localStorage.setItem("ads", JSON.stringify(ads));
+        let content = data.content || [];
+
+        // localStorage.setItem("ads", JSON.stringify(ads));
+        localStorage.setItem("content", JSON.stringify(content));
         localStorage.setItem("rcs", data.rcs || "");
 
         // Store logo_enabled flag from payload
@@ -92,13 +97,18 @@ function connectMQTT(options) {
             localStorage.setItem("timestamp", timestamps),
               deletePlaceHolderFile("placeholder")
                 .then(function () {
-                  ads.push({
+                  // ads.push({
+                  //   url: data.placeholder,
+                  //   timestamp: timestamps,
+                  // });
+                  content.push({
+                    type: "placeholder",
                     url: data.placeholder,
                     timestamp: timestamps,
                   });
                   processAds(
                     client,
-                    ads,
+                    content,
                     data.rcs,
                     true,
                     data.placeholder_enabled,
@@ -110,7 +120,7 @@ function connectMQTT(options) {
                   console.error("❌ Error deleting placeholder file:", error);
                   processAds(
                     client,
-                    ads,
+                    content,
                     data.rcs,
                     false,
                     data.placeholder_enabled,
@@ -119,13 +129,18 @@ function connectMQTT(options) {
                   );
                 });
           } else {
-            ads.push({
+            // ads.push({
+            //   url: localStorage.getItem("placeholder"),
+            //   timestamp: localStorage.getItem("timestamp"),
+            // });
+            content.push({
+              type: "placeholder",
               url: localStorage.getItem("placeholder"),
               timestamp: localStorage.getItem("timestamp"),
             });
             processAds(
               client,
-              ads,
+              content,
               data.rcs,
               false,
               data.placeholder_enabled,
@@ -136,7 +151,7 @@ function connectMQTT(options) {
         } else {
           processAds(
             client,
-            ads,
+            content,
             data.rcs,
             false,
             data.placeholder_enabled,
@@ -247,20 +262,117 @@ function subscribeNewGroupTopic(topic, newGroupId) {
   });
 }
 
+
+/**
+ * Process MQTT payload with backward compatibility
+ * @param {Object} data - MQTT payload
+ */
+function processMQTTPayload(data) {
+  // New structure: data.content exists
+  if (data.content) {
+    console.log("📦 New content structure detected");
+    return {
+      ads: data.content.ads || [],
+      carousels: data.content.carousels || [],
+      liveContents: data.content.live_contents || []
+      
+    };
+  }
+
+  // Old structure: data.ads exists
+  if (data.ads) {
+    console.log("📦 Old ads structure detected (backward compatible)");
+    return {
+      ads: data.ads,
+      carousels: [],
+      liveContents: []
+    };
+  }
+
+  // No content
+  return {
+    ads: [],
+    carousels: [],
+    liveContents: []
+  };
+}
+
 function processAds(
   client,
-  ads,
+  content,
   rcs,
   placeholderUpdate,
   placeholder_enabled,
   rcs_enabled,
   logo_enabled
 ) {
-  ads = ads.filter(function (ad) {
-    return ad.url && ad.url !== "null" && ad.url !== "undefined";
+  // ads = ads.filter(function (ad) {
+  //   return ad.url && ad.url !== "null" && ad.url !== "undefined";
+  // });
+// content = content.filter((item) => {
+//   // For normal ads
+//   if (item.type === "ad") {
+//     return item.url && item.url !== "null" && item.url !== "undefined";
+//   }
+
+//   // For live content
+//   if (item.type === "live_content") {
+//     return item.url && item.url !== "null" && item.url !== "undefined";
+//   }
+//   if (item.type === "placeholder") {
+//     return item.url && item.url !== "null" && item.url !== "undefined";
+//   }
+
+//   // For carousel: at least one valid item URL
+//   if (item.type === "carousel") {
+//     return (
+//       Array.isArray(item.items) &&
+//       item.items.some(
+//         (carouselItem) =>
+//           carouselItem.url &&
+//           carouselItem.url !== "null" &&
+//           carouselItem.url !== "undefined"
+//       )
+//     );
+//   }
+
+//   // Unknown types → discard
+//   return false;
+// });
+
+ const buckets = {
+    ads: [],
+    carousels: [],
+    liveContents: [],
+  };
+
+  // Normalize mixed content
+  (content || []).forEach((item) => {
+    if (!item || !item.type){
+       buckets.ads.push(item);
+       return;
+    };
+
+    if (item.type === "ad") {
+      buckets.ads.push(item);
+    } else if (item.type === "carousel") {
+      buckets.carousels.push(item);
+    } else if (item.type === "live_content") {
+      buckets.liveContents.push(item);
+    }
+    else if (item.type === "placeholder") {
+      buckets.ads.push(item);
+    }
+    else {
+      buckets.ads.push(item);
+    }
   });
 
-  console.log("Ads:", ads);
+
+  console.log("Ads:", buckets.ads.length);
+  console.log("Carousels:", buckets.carousels.length);
+  console.log("Live contents:", buckets.liveContents.length);
+
   console.log(
     placeholderUpdate ? "Placeholder updated" : "No placeholder update"
   );
@@ -268,12 +380,14 @@ function processAds(
   publishAcknowledgment(client);
 
   handleMQTTAds({
-    ads: ads,
+    ads: buckets.ads,
+    carousels: buckets.carousels,
+    liveContents: buckets.liveContents,
     rcs: rcs || "",
-    placeholderUpdate: placeholderUpdate,
-    placeholder_enabled: placeholder_enabled,
-    rcs_enabled: rcs_enabled,
-    logo_enabled: logo_enabled,
+    placeholderUpdate,
+    placeholder_enabled,
+    rcs_enabled,
+    logo_enabled,
   });
 }
 

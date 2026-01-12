@@ -15,38 +15,38 @@ function register_number_keys() {
   tizen.tvinputdevice.registerKey("ColorF1Green");
 }
 
-// Key event handler for YouTube testing
-document.addEventListener("keydown", function (event) {
-  console.log("Key pressed:", event.keyCode);
+// // Key event handler for YouTube testing
+// document.addEventListener("keydown", function (event) {
+//   console.log("Key pressed:", event.keyCode);
 
-  switch (event.keyCode) {
-    case 403: // Red button - Test YouTube Live Player
-      event.preventDefault();
-      logInfo("🔴 Red button pressed - Testing YouTube Live Player");
-      if (window.testYouTubePlayback) {
-        window.testYouTubePlayback();
-      } else {
-        logError("YouTube test function not available");
-      }
-      break;
+//   switch (event.keyCode) {
+//     case 403: // Red button - Test YouTube Live Player
+//       event.preventDefault();
+//       logInfo("🔴 Red button pressed - Testing YouTube Live Player");
+//       if (window.testYouTubePlayback) {
+//         window.testYouTubePlayback();
+//       } else {
+//         logError("YouTube test function not available");
+//       }
+//       break;
 
-    case 404: // Green button - Stop YouTube and return to regular player
-      event.preventDefault();
-      logInfo("🟢 Green button pressed - Stopping YouTube Player");
-      if (window.stopYouTubeLive) {
-        window.stopYouTubeLive();
-      }
-      if (window.initializeRegularPlayers) {
-        window.initializeRegularPlayers();
-      }
-      break;
+//     case 404: // Green button - Stop YouTube and return to regular player
+//       event.preventDefault();
+//       logInfo("🟢 Green button pressed - Stopping YouTube Player");
+//       if (window.stopYouTubeLive) {
+//         window.stopYouTubeLive();
+//       }
+//       if (window.initializeRegularPlayers) {
+//         window.initializeRegularPlayers();
+//       }
+//       break;
 
-    case 48: // Number 0 - Quick YouTube test
-      event.preventDefault();
-      logInfo("🔴 Number 0 pressed - Quick YouTube test");
-      if (window.testYouTubePlayback) {
-        window.testYouTubePlayback();
-      }
-      break;
-  }
-});
+//     case 48: // Number 0 - Quick YouTube test
+//       event.preventDefault();
+//       logInfo("🔴 Number 0 pressed - Quick YouTube test");
+//       if (window.testYouTubePlayback) {
+//         window.testYouTubePlayback();
+//       }
+//       break;
+//   }
+// });

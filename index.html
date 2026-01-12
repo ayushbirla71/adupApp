@@ -1,47 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ad96 Player</title>
 
-    <!-- Stylesheets -->
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/modal.css" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ad96 Player</title>
 
-    <!-- Libraries -->
-    <script src="lib/navigation/jquery.min.js"></script>
-    <script src="lib/navigation/lodash.min.js"></script>
-    <script type="text/javascript" src="$WEBAPIS/webapis/webapis.js"></script>
-    <script src="lib/navigation/spatial_navigation.js"></script>
-    <script src="lib/common/date.js"></script>
-    <script src="lib/common/moment.js"></script>
-    <script src="lib/common/jsrsasign-all-min.js"></script>
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/modal.css" />
 
-    <!-- App Scripts -->
-    <script src="js/common.js" type="text/javascript"></script>
-    <script src="js/ads.js" type="text/javascript"></script>
-    <script src="js/deviceMqtt.js" type="text/javascript"></script>
-    <script src="js/api.js" type="text/javascript"></script>
-    <script src="js/mqtt.min.js" type="text/javascript"></script>
+  <!-- Libraries -->
+  <script src="lib/navigation/jquery.min.js"></script>
+  <script src="lib/navigation/lodash.min.js"></script>
+  <script type="text/javascript" src="$WEBAPIS/webapis/webapis.js"></script>
+  <script src="lib/navigation/spatial_navigation.js"></script>
+  <script src="lib/common/date.js"></script>
+  <script src="lib/common/moment.js"></script>
+  <script src="lib/common/jsrsasign-all-min.js"></script>
 
-    <!-- Data Management System Scripts -->
-    <script src="js/logger.js" type="text/javascript"></script>
-    <script src="js/data-manager.js" type="text/javascript"></script>
-    <script src="js/network-monitor.js" type="text/javascript"></script>
-    <script src="js/telemetry-collector.js" type="text/javascript"></script>
-    <script src="js/event-logger.js" type="text/javascript"></script>
-    <script src="js/proof-of-play-tracker.js" type="text/javascript"></script>
-    <!-- ❌ REMOVED: sync-engine.js - All functionality migrated to DataManager -->
-    <script src="js/data-config-monitor.js" type="text/javascript"></script>
-    <script src="js/offline-data-archiver.js" type="text/javascript"></script>
 
-    <script src="js/device-storage.js" type="text/javascript"></script>
-    <script src="js/youtube-live-player.js" type="text/javascript"></script>
-  </head>
-  <body>
-    <div class="main-container">
-      <!-- <div class="joinGroup-container active" id="joinGroupContainer">
+    <!-- NEW: Add HLS.js for M3U8 streaming -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <!-- App Scripts -->
+  <script src="js/common.js" type="text/javascript"></script>
+  <script src="js/ads.js" type="text/javascript"></script>
+  <script src="js/deviceMqtt.js" type="text/javascript"></script>
+  <script src="js/api.js" type="text/javascript"></script>
+  <script src="js/mqtt.min.js" type="text/javascript"></script>
+
+  <!-- Data Management System Scripts -->
+  <script src="js/logger.js" type="text/javascript"></script>
+  <script src="js/data-manager.js" type="text/javascript"></script>
+  <script src="js/network-monitor.js" type="text/javascript"></script>
+  <script src="js/telemetry-collector.js" type="text/javascript"></script>
+  <script src="js/event-logger.js" type="text/javascript"></script>
+  <script src="js/proof-of-play-tracker.js" type="text/javascript"></script>
+  <!-- ❌ REMOVED: sync-engine.js - All functionality migrated to DataManager -->
+  <script src="js/data-config-monitor.js" type="text/javascript"></script>
+  <script src="js/offline-data-archiver.js" type="text/javascript"></script>
+
+  <script src="js/device-storage.js" type="text/javascript"></script>
+  <script src="js/youtube-live-player.js" type="text/javascript"></script>
+</head>
+
+<body>
+  <div class="main-container">
+    <!-- <div class="joinGroup-container active" id="joinGroupContainer">
         <div class="joinGroup">
           <h1>Join Group</h1>
           <label for="groupId">Group license key:</label>
@@ -73,121 +79,142 @@
          
         </div> -->
 
-      <!-- <div class="pairing-container" id="pairingContainer">
+    <!-- <div class="pairing-container" id="pairingContainer">
         <div class="pairing-box" id="pairingBox">
           <span class="pairing-pairing-code" id="pairing_code">12345</span>
         </div>
       </div> -->
 
-      <div class="pairing-container" id="pairingContainer">
-        <div class="welcome-section">
-          <img src="./icon.png" alt="AD96 Logo" class="logo" />
-          <h1 class="welcome-text">
-            Welcome to the <span class="highlight">AD96</span>
-          </h1>
-        </div>
-        <div class="pairing-box focusable" id="pairingBox">
-          <div class="pairing-title">Pairing Code</div>
-          <div class="pairing-code-display" id="pairing_code">
-            <div class="pairing-digit" id="digit-0"></div>
-            <div class="pairing-digit" id="digit-1"></div>
-            <div class="pairing-digit" id="digit-2"></div>
-            <div class="pairing-digit" id="digit-3"></div>
-            <div class="pairing-digit" id="digit-4"></div>
-            <div class="pairing-digit" id="digit-5"></div>
-          </div>
+    <div class="pairing-container" id="pairingContainer">
+      <div class="welcome-section">
+        <img src="./icon.png" alt="AD96 Logo" class="logo" />
+        <h1 class="welcome-text">
+          Welcome to the <span class="highlight">AD96</span>
+        </h1>
+      </div>
+      <div class="pairing-box focusable" id="pairingBox">
+        <div class="pairing-title">Pairing Code</div>
+        <div class="pairing-code-display" id="pairing_code">
+          <div class="pairing-digit" id="digit-0"></div>
+          <div class="pairing-digit" id="digit-1"></div>
+          <div class="pairing-digit" id="digit-2"></div>
+          <div class="pairing-digit" id="digit-3"></div>
+          <div class="pairing-digit" id="digit-4"></div>
+          <div class="pairing-digit" id="digit-5"></div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Ad Player Section -->
-    <div class="ad-player-container">
-      <div class="ad-player-container-box">
-        <div class="ad-player" id="ad_player">
-          <object id="av-player" type="application/avplayer" class=""></object>
-          <object id="av-player2" type="application/avplayer" class=""></object>
-          <!-- YouTube Live Player -->
-          <iframe
-            id="youtube-player"
-            style="display: none; width: 100%; height: 100%; border: none"
-            allow="autoplay; encrypted-media"
-            allowfullscreen
-          >
-          </iframe>
-          <img
-            id="image-player1"
-            style="display: none; width: 100%; height: 100%; object-fit: fill"
-          />
-          <img
-            id="image-player2"
-            style="display: none; width: 100%; height: 100%; object-fit: fill"
-          />
-        </div>
+  <!-- Ad Player Section -->
+  <div class="ad-player-container">
+    <div class="ad-player-container-box">
+      <div class="ad-player" id="ad_player">
+        <object id="av-player" type="application/avplayer" class=""></object>
+        <object id="av-player2" type="application/avplayer" class=""></object>
+        <!-- NEW: HLS/M3U8 Player -->
+        <video id="hls-player" style="
+              display: none;
+              width: 100vw;
+              height: 95vh;
+              object-fit: fill;
+              position: absolute;
+              top: 0;
+              left: 0;
+              z-index: 100;
+            " autoplay></video>
 
-        <div id="ad_snippet" class="ad-snippet">
-          <div id="sliding_text" class="sliding-text"></div>
-        </div>
+        <!-- NEW: YouTube Player -->
+        <iframe id="youtube-player" style="
+              display: none;
+              width: 100vw;
+              height: 95vh;
+              position: absolute;
+              top: 0;
+              left: 0;
+              z-index: 100;
+              border: none;
+            " allow="autoplay; encrypted-media"></iframe>
 
-        <!-- Logo positioned independently outside RCS container -->
-        <img src="./icon.png" alt="Logo" class="rcs-logo" id="rcs_logo" />
+        <!-- NEW: Website Player -->
+        <iframe id="website-player" style="
+              display: none;
+              width: 100vw;
+              height: 95vh;
+              position: absolute;
+              top: 0;
+              left: 0;
+              z-index: 100;
+              border: none;
+            " allow="autoplay; encrypted-media; fullscreen"></iframe>
+        <img id="image-player1" style="display: none; width: 100%; height: 100%; object-fit: fill" />
+        <img id="image-player2" style="display: none; width: 100%; height: 100%; object-fit: fill" />
       </div>
+
+      <div id="ad_snippet" class="ad-snippet">
+        <div id="sliding_text" class="sliding-text"></div>
+      </div>
+
+      <!-- Logo positioned independently outside RCS container -->
+      <img src="./icon.png" alt="Logo" class="rcs-logo" id="rcs_logo" />
     </div>
-    <div class="settings-container" id="settings-container">
-      <div class="settings-slider" id="settingsSlider">
-        <div class="settings-header" id="settings-header">
-          <h2 id="settings-title">Settings</h2>
-          <button id="closeSlider" class="close-btn focusable">&times;</button>
-        </div>
+  </div>
+  <div class="settings-container" id="settings-container">
+    <div class="settings-slider" id="settingsSlider">
+      <div class="settings-header" id="settings-header">
+        <h2 id="settings-title">Settings</h2>
+        <button id="closeSlider" class="close-btn focusable">&times;</button>
+      </div>
 
-        <ul class="settings-list" id="settings-list">
-          <li>
-            <button id="systemInfo-btn" class="settings-button focusable">
-              📊 System Info
-            </button>
-          </li>
-          <li>
-            <button id="dataStats-btn" class="settings-button focusable">
-              💾 Data Statistics
-            </button>
-          </li>
-          <li>
-            <button id="archives-btn" class="settings-button focusable">
-              📦 Archive Files
-            </button>
-          </li>
-          <li>
-            <button id="logs-btn" class="settings-button focusable">
-              📝 Logs
-            </button>
-          </li>
-          <li>
-            <button id="downloaded-btn" class="settings-button focusable">
-              📥 Downloaded Files
-            </button>
-          </li>
-          <li>
-            <button id="processing-btn" class="settings-button focusable">
-              ⏳ Processing Files
-            </button>
-          </li>
-          <li>
-            <button id="errors-btn" class="settings-button focusable">
-              ❌ Errors
-            </button>
-          </li>
-          <li id="devtools-menu-item" style="display: none">
-            <button id="devtools-btn" class="settings-button focusable">
-              🛠️ Developer Tools
-            </button>
-          </li>
-        </ul>
+      <ul class="settings-list" id="settings-list">
+        <li>
+          <button id="systemInfo-btn" class="settings-button focusable">
+            📊 System Info
+          </button>
+        </li>
+        <li>
+          <button id="dataStats-btn" class="settings-button focusable">
+            💾 Data Statistics
+          </button>
+        </li>
+        <li>
+          <button id="archives-btn" class="settings-button focusable">
+            📦 Archive Files
+          </button>
+        </li>
+        <li>
+          <button id="logs-btn" class="settings-button focusable">
+            📝 Logs
+          </button>
+        </li>
+        <li>
+          <button id="downloaded-btn" class="settings-button focusable">
+            📥 Downloaded Files
+          </button>
+        </li>
+        <li>
+          <button id="processing-btn" class="settings-button focusable">
+            ⏳ Processing Files
+          </button>
+        </li>
+        <li>
+          <button id="errors-btn" class="settings-button focusable">
+            ❌ Errors
+          </button>
+        </li>
+        <li id="devtools-menu-item" style="display: none">
+          <button id="devtools-btn" class="settings-button focusable">
+            🛠️ Developer Tools
+          </button>
+        </li>
+      </ul>
 
-        <div class="settings-content" id="settings-content">
-          <!-- System Info Panel -->
-          <div id="systemInfo" class="section-panel">
-            <div class="panel-header">
-              <h3>📊 Device Info</h3>
-              <!-- <div class="panel-controls">
+      <div class="settings-content" id="settings-content">
+        <!-- System Info Panel -->
+        <div id="systemInfo" class="section-panel">
+          <div class="panel-header">
+            <h3>📊 Device Info</h3>
+            <!-- <div class="panel-controls">
                 <button
                  
                   id="toggle-dev-mode-btn"
@@ -197,361 +224,271 @@
                   🛠️ Dev Mode: <span id="dev-mode-status">OFF</span>
                 </button>
               </div> -->
+          </div>
+          <div class="scrollable-container">
+            <ul class="list-view" id="systemInfoList">
+              <!-- Populated by JavaScript -->
+            </ul>
+          </div>
+        </div>
+
+        <!-- Data Statistics Panel -->
+        <div id="dataStats" class="section-panel">
+          <h3>💾 Data Statistics</h3>
+          <div class="stats-grid">
+            <div class="stat-card focusable" tabindex="0">
+              <div class="stat-label">Proof of Play</div>
+              <div class="stat-value" id="stat-pop-total">-</div>
+              <div class="stat-sub">
+                Unsynced: <span id="stat-pop-unsynced">-</span>
+              </div>
             </div>
-            <div class="scrollable-container">
-              <ul class="list-view" id="systemInfoList">
-                <!-- Populated by JavaScript -->
-              </ul>
+            <div class="stat-card focusable" tabindex="0">
+              <div class="stat-label">Telemetry</div>
+              <div class="stat-value" id="stat-tel-total">-</div>
+              <div class="stat-sub">
+                Unsynced: <span id="stat-tel-unsynced">-</span>
+              </div>
+            </div>
+            <div class="stat-card focusable" tabindex="0">
+              <div class="stat-label">Events</div>
+              <div class="stat-value" id="stat-evt-total">-</div>
+              <div class="stat-sub">
+                Unsynced: <span id="stat-evt-unsynced">-</span>
+              </div>
+            </div>
+            <div class="stat-card focusable" tabindex="0">
+              <div class="stat-label">Network Status</div>
+              <div class="stat-value" id="stat-network">-</div>
+              <div class="stat-sub">
+                Last Sync: <span id="stat-last-sync">-</span>
+              </div>
             </div>
           </div>
+          <div class="action-buttons">
+            <button id="refresh-stats-btn" class="action-btn focusable">
+              🔄 Refresh
+            </button>
+            <button id="force-sync-btn" class="action-btn focusable">
+              📤 Force Sync
+            </button>
+            <button id="clear-synced-btn" class="action-btn focusable">
+              🗑️ Clear Synced Data
+            </button>
+          </div>
+        </div>
 
-          <!-- Data Statistics Panel -->
-          <div id="dataStats" class="section-panel">
-            <h3>💾 Data Statistics</h3>
-            <div class="stats-grid">
-              <div class="stat-card focusable" tabindex="0">
-                <div class="stat-label">Proof of Play</div>
-                <div class="stat-value" id="stat-pop-total">-</div>
-                <div class="stat-sub">
-                  Unsynced: <span id="stat-pop-unsynced">-</span>
-                </div>
-              </div>
-              <div class="stat-card focusable" tabindex="0">
-                <div class="stat-label">Telemetry</div>
-                <div class="stat-value" id="stat-tel-total">-</div>
-                <div class="stat-sub">
-                  Unsynced: <span id="stat-tel-unsynced">-</span>
-                </div>
-              </div>
-              <div class="stat-card focusable" tabindex="0">
-                <div class="stat-label">Events</div>
-                <div class="stat-value" id="stat-evt-total">-</div>
-                <div class="stat-sub">
-                  Unsynced: <span id="stat-evt-unsynced">-</span>
-                </div>
-              </div>
-              <div class="stat-card focusable" tabindex="0">
-                <div class="stat-label">Network Status</div>
-                <div class="stat-value" id="stat-network">-</div>
-                <div class="stat-sub">
-                  Last Sync: <span id="stat-last-sync">-</span>
-                </div>
-              </div>
-            </div>
-            <div class="action-buttons">
-              <button id="refresh-stats-btn" class="action-btn focusable">
+        <!-- Archive Files Panel -->
+        <div id="archives" class="section-panel">
+          <div class="panel-header">
+            <h3>📦 Archive Files</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-archives-btn" class="scroll-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-archives-btn" class="scroll-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="refresh-archives-btn" class="action-btn focusable">
                 🔄 Refresh
               </button>
-              <button id="force-sync-btn" class="action-btn focusable">
-                📤 Force Sync
-              </button>
-              <button id="clear-synced-btn" class="action-btn focusable">
-                🗑️ Clear Synced Data
+              <button id="send-archives-btn" class="action-btn focusable">
+                📤 Send All
               </button>
             </div>
           </div>
+          <div class="scrollable-container">
+            <ul id="archives-list" class="list-view scrollable-list"></ul>
+          </div>
+        </div>
 
-          <!-- Archive Files Panel -->
-          <div id="archives" class="section-panel">
-            <div class="panel-header">
-              <h3>📦 Archive Files</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-archives-btn"
-                  class="scroll-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-archives-btn"
-                  class="scroll-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button id="refresh-archives-btn" class="action-btn focusable">
-                  🔄 Refresh
-                </button>
-                <button id="send-archives-btn" class="action-btn focusable">
-                  📤 Send All
-                </button>
-              </div>
-            </div>
-            <div class="scrollable-container">
-              <ul id="archives-list" class="list-view scrollable-list"></ul>
+        <!-- Logs Panel -->
+        <div id="logs" class="section-panel active">
+          <div class="panel-header">
+            <h3>📝 Logs</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-logs-btn" class="control-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-logs-btn" class="control-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="auto-refresh-logs-btn" class="control-btn focusable" title="Auto Refresh">
+                🔄 Auto
+              </button>
+              <button id="clear-logs-btn" class="control-btn focusable" title="Clear Logs">
+                🗑️ Clear
+              </button>
             </div>
           </div>
+          <div class="scrollable-container" id="logs-scroll-container">
+            <ul id="logList" class="list-view scrollable-list"></ul>
+          </div>
+        </div>
 
-          <!-- Logs Panel -->
-          <div id="logs" class="section-panel active">
-            <div class="panel-header">
-              <h3>📝 Logs</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-logs-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-logs-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button
-                  id="auto-refresh-logs-btn"
-                  class="control-btn focusable"
-                  title="Auto Refresh"
-                >
-                  🔄 Auto
-                </button>
-                <button
-                  id="clear-logs-btn"
-                  class="control-btn focusable"
-                  title="Clear Logs"
-                >
-                  🗑️ Clear
-                </button>
-              </div>
-            </div>
-            <div class="scrollable-container" id="logs-scroll-container">
-              <ul id="logList" class="list-view scrollable-list"></ul>
+        <!-- Downloaded Files Panel -->
+        <div id="downloaded" class="section-panel">
+          <div class="panel-header">
+            <h3>📥 Downloaded Files</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-downloads-btn" class="control-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-downloads-btn" class="control-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="refresh-downloads-btn" class="control-btn focusable">
+                🔄 Refresh
+              </button>
             </div>
           </div>
+          <div class="scrollable-container" id="downloads-scroll-container">
+            <ul id="downloaded-list" class="list-view scrollable-list"></ul>
+          </div>
+        </div>
 
-          <!-- Downloaded Files Panel -->
-          <div id="downloaded" class="section-panel">
-            <div class="panel-header">
-              <h3>📥 Downloaded Files</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-downloads-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-downloads-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button
-                  id="refresh-downloads-btn"
-                  class="control-btn focusable"
-                >
-                  🔄 Refresh
-                </button>
-              </div>
-            </div>
-            <div class="scrollable-container" id="downloads-scroll-container">
-              <ul id="downloaded-list" class="list-view scrollable-list"></ul>
+        <!-- Processing Files Panel -->
+        <div id="processing" class="section-panel">
+          <div class="panel-header">
+            <h3>⏳ Processing Files</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-progress-btn" class="control-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-progress-btn" class="control-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="refresh-progress-btn" class="control-btn focusable">
+                🔄 Refresh
+              </button>
             </div>
           </div>
+          <div class="scrollable-container" id="processing-scroll-container">
+            <div id="processing-content"></div>
+          </div>
+        </div>
 
-          <!-- Processing Files Panel -->
-          <div id="processing" class="section-panel">
-            <div class="panel-header">
-              <h3>⏳ Processing Files</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-progress-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-progress-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button id="refresh-progress-btn" class="control-btn focusable">
-                  🔄 Refresh
-                </button>
-              </div>
-            </div>
-            <div class="scrollable-container" id="processing-scroll-container">
-              <div id="processing-content"></div>
+        <!-- Errors Panel -->
+        <div id="errors" class="section-panel">
+          <div class="panel-header">
+            <h3>❌ Error Logs</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-errors-btn" class="control-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-errors-btn" class="control-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="clear-errors-btn" class="control-btn focusable">
+                🗑️ Clear
+              </button>
             </div>
           </div>
+          <div class="scrollable-container" id="errors-scroll-container">
+            <ul id="error-list" class="error-list scrollable-list"></ul>
+          </div>
+        </div>
 
-          <!-- Errors Panel -->
-          <div id="errors" class="section-panel">
-            <div class="panel-header">
-              <h3>❌ Error Logs</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-errors-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-errors-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button id="clear-errors-btn" class="control-btn focusable">
-                  🗑️ Clear
-                </button>
-              </div>
-            </div>
-            <div class="scrollable-container" id="errors-scroll-container">
-              <ul id="error-list" class="error-list scrollable-list"></ul>
+        <!-- Developer Tools Panel (Only visible in dev mode) -->
+        <div id="devtools" class="section-panel">
+          <div class="panel-header">
+            <h3>🛠️ Developer Tools</h3>
+            <div class="panel-controls">
+              <button id="scroll-top-devtools-btn" class="control-btn focusable" title="Scroll to Top">
+                ⬆️ Top
+              </button>
+              <button id="scroll-bottom-devtools-btn" class="control-btn focusable" title="Scroll to Bottom">
+                ⬇️ Bottom
+              </button>
+              <button id="refresh-devtools-btn" class="action-btn focusable">
+                🔄 Refresh
+              </button>
             </div>
           </div>
-
-          <!-- Developer Tools Panel (Only visible in dev mode) -->
-          <div id="devtools" class="section-panel">
-            <div class="panel-header">
-              <h3>🛠️ Developer Tools</h3>
-              <div class="panel-controls">
-                <button
-                  id="scroll-top-devtools-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Top"
-                >
-                  ⬆️ Top
-                </button>
-                <button
-                  id="scroll-bottom-devtools-btn"
-                  class="control-btn focusable"
-                  title="Scroll to Bottom"
-                >
-                  ⬇️ Bottom
-                </button>
-                <button id="refresh-devtools-btn" class="action-btn focusable">
-                  🔄 Refresh
-                </button>
+          <div class="scrollable-container" id="devtools-scroll-container">
+            <div id="devtools-content" style="padding: 20px">
+              <!-- Feature Flags Section -->
+              <div class="devtools-section">
+                <h4>🎛️ Feature Flags</h4>
+                <div id="feature-flags-list"></div>
               </div>
-            </div>
-            <div class="scrollable-container" id="devtools-scroll-container">
-              <div id="devtools-content" style="padding: 20px">
-                <!-- Feature Flags Section -->
-                <div class="devtools-section">
-                  <h4>🎛️ Feature Flags</h4>
-                  <div id="feature-flags-list"></div>
+
+              <!-- Test Features Section -->
+              <div class="devtools-section" style="margin-top: 20px">
+                <h4>🧪 Test Features</h4>
+                <div class="test-buttons">
+                  <button id="test-sync-btn" class="test-btn focusable" style="margin: 5px">
+                    🔄 Test Sync
+                  </button>
+                  <button id="test-bulk-sync-btn" class="test-btn focusable" style="margin: 5px">
+                    📦 Test Bulk Sync
+                  </button>
+                  <button id="test-archive-btn" class="test-btn focusable" style="margin: 5px">
+                    📁 Test Archive Creation
+                  </button>
+                  <button id="test-telemetry-btn" class="test-btn focusable" style="margin: 5px">
+                    📊 Test Telemetry
+                  </button>
+                  <button id="test-network-btn" class="test-btn focusable" style="margin: 5px">
+                    🌐 Test Network Check
+                  </button>
+                  <button id="test-cleanup-btn" class="test-btn focusable" style="margin: 5px">
+                    🧹 Test Cleanup
+                  </button>
+                  <button id="generate-test-data-btn" class="test-btn focusable" style="margin: 5px">
+                    📝 Generate Test Data
+                  </button>
+                  <button id="clear-all-data-btn" class="test-btn focusable" style="margin: 5px; background: #d32f2f">
+                    🗑️ Clear All Data
+                  </button>
                 </div>
+              </div>
 
-                <!-- Test Features Section -->
-                <div class="devtools-section" style="margin-top: 20px">
-                  <h4>🧪 Test Features</h4>
-                  <div class="test-buttons">
-                    <button
-                      id="test-sync-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      🔄 Test Sync
-                    </button>
-                    <button
-                      id="test-bulk-sync-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      📦 Test Bulk Sync
-                    </button>
-                    <button
-                      id="test-archive-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      📁 Test Archive Creation
-                    </button>
-                    <button
-                      id="test-telemetry-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      📊 Test Telemetry
-                    </button>
-                    <button
-                      id="test-network-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      🌐 Test Network Check
-                    </button>
-                    <button
-                      id="test-cleanup-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      🧹 Test Cleanup
-                    </button>
-                    <button
-                      id="generate-test-data-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px"
-                    >
-                      📝 Generate Test Data
-                    </button>
-                    <button
-                      id="clear-all-data-btn"
-                      class="test-btn focusable"
-                      style="margin: 5px; background: #d32f2f"
-                    >
-                      🗑️ Clear All Data
-                    </button>
-                  </div>
-                </div>
+              <!-- Timer Status Section -->
+              <div class="devtools-section" style="margin-top: 20px">
+                <h4>⏱️ Active Timers</h4>
+                <div id="timer-status-list"></div>
+              </div>
 
-                <!-- Timer Status Section -->
-                <div class="devtools-section" style="margin-top: 20px">
-                  <h4>⏱️ Active Timers</h4>
-                  <div id="timer-status-list"></div>
-                </div>
-
-                <!-- System Status Section -->
-                <div class="devtools-section" style="margin-top: 20px">
-                  <h4>📊 System Status</h4>
-                  <div id="system-status-info"></div>
-                </div>
+              <!-- System Status Section -->
+              <div class="devtools-section" style="margin-top: 20px">
+                <h4>📊 System Status</h4>
+                <div id="system-status-info"></div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <!-- Loader -->
-    <div class="login_loader" id="login_loader">
-      <div class="login_circle_loader"></div>
-    </div>
+  </div>
+  <!-- Loader -->
+  <div class="login_loader" id="login_loader">
+    <div class="login_circle_loader"></div>
+  </div>
 
-    <!-- Toast Notification -->
-    <div id="toast">This is a toast notification!</div>
+  <!-- Toast Notification -->
+  <div id="toast">This is a toast notification!</div>
 
-    <!-- Modal Container -->
-    <span id="modal_container" class="modal_container">
-      <!-- Modal content will be injected here -->
-    </span>
+  <!-- Modal Container -->
+  <span id="modal_container" class="modal_container">
+    <!-- Modal content will be injected here -->
+  </span>
 
-    <!-- Additional Scripts -->
-    <script src="js/config.js" type="text/javascript"></script>
-    <script src="js/simple-memory-manager.js" type="text/javascript"></script>
-    <script src="js/add-numbers-key.js" type="text/javascript"></script>
-    <script src="js/modal.js" type="text/javascript"></script>
-    <script src="js/main.js" type="text/javascript"></script>
-    <script src="js/utility.js" type="text/javascript"></script>
+  <!-- Additional Scripts -->
+  <script src="js/config.js" type="text/javascript"></script>
+  <script src="js/simple-memory-manager.js" type="text/javascript"></script>
+  <script src="js/add-numbers-key.js" type="text/javascript"></script>
+  <script src="js/modal.js" type="text/javascript"></script>
+  <script src="js/main.js" type="text/javascript"></script>
+  <script src="js/utility.js" type="text/javascript"></script>
 
-    <!-- Enhanced Settings Panel -->
-    <script src="js/settings-enhanced.js" type="text/javascript"></script>
+  <!-- Enhanced Settings Panel -->
+  <script src="js/settings-enhanced.js" type="text/javascript"></script>
 
-    <!-- Data Management System Initialization (must be last) -->
-    <script src="js/data-management-init.js" type="text/javascript"></script>
+  <!-- Data Management System Initialization (must be last) -->
+  <script src="js/data-management-init.js" type="text/javascript"></script>
 
-    <!-- Web APIs (ensure correct path) -->
-  </body>
+  <!-- Web APIs (ensure correct path) -->
+</body>
+
 </html>
