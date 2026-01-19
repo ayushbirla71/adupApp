@@ -14,8 +14,8 @@ NZaMRfeBJw==</DigestValue>
 </Reference>
 <Reference URI="IMPLEMENTATION_FLOW.md">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>5D40mYv51sqMT+K+QUWxOw/mlLwSL2Olme001lR8bea6VxfYNCpJ0OZPGYmcWCCJZeRdt6PdV6wU
-pRs7j78/pg==</DigestValue>
+<DigestValue>QhMFOxIYc69eZhnG24hvmgljD95u89AbpFBVPmVlN99B0GELt7tUTDrwjd4hzUH4fhua+P4gksZH
+21L74RmDdw==</DigestValue>
 </Reference>
 <Reference URI="MEMORY_MANAGEMENT_GUIDE.md">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -44,8 +44,8 @@ DgQjT1dZig==</DigestValue>
 </Reference>
 <Reference URI="author-signature.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>9UQwyU4VAvCfUR6mc5r1A9x5zB7CvlZjCZo6/hCqrQbGoUAdQwlpYGvNbG9DwLS5ESN0mVnvq6eS
-G9qprEBgLQ==</DigestValue>
+<DigestValue>YWGpMxe53ZNkh2QU/5owuoOSy+c4JsII5npcRoAY0DGpmcsFkrfAc40DaHJHbXOM0i8iDHTZqkEP
+1GaRCL57+Q==</DigestValue>
 </Reference>
 <Reference URI="config.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -84,8 +84,8 @@ FD4iefxLsg==</DigestValue>
 </Reference>
 <Reference URI="index.html">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>CqZO29K/CxsgsqNZlj0iEJBg2/05nmtM5KFczcJpekIulW6ItPxpcUBdSvN+/9INncal5HmXxTE/
-y2z80UP3+Q==</DigestValue>
+<DigestValue>GqFP1MoVkpan9ubB1/0UodDC7iQzRBQApEPC9oDOGTOD9CkplmbuDYimKJ8n8+K6WRE2Lv+K7msl
+ZFS05NmVLA==</DigestValue>
 </Reference>
 <Reference URI="info.txt">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -267,11 +267,11 @@ GyvKX9Snig==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-LvxkLmejohv1i7LWXwPYPZoH5Ea0fiDzmLgXvV/6Kf3LaH/6TpvRq5q4rvWgb+E4xkRZvGbRZkU4
-b7rwwWccdEmP3JIVI6hMKQP2wJ2n50zZZHaSa5/0IEU3nxxQBWmeVoX6X7D93TQan+c+cSVnNqUk
-k4UZ0cmPvSEodfNd2NEDH1p0YXoMOCoPYx1zZTXyPb7uG+F4U4Di0RK5R0+u0FCS2Nw7VheeRSV3
-o++5K5qfM3bZw6LgTc3uLC/asdfR/Zli1gAue6rggUFPnRHYsN/44lcCYWiTKzIdrCrM7sljWBQi
-EYzewmv+gKFPalxYPjfzcjsAE7cdSEcfhwuevA==
+JnoAB4ezTz8cDYjOqXn6dr5Gqy2yZHYLfIG07JncPHVXZGCipjvKCfqiezG9wEHlu7pE0w6OHucG
+NFeIkOnSns8wWbn5O6Grp8kWJNTEuUIuArQsDpyF55y+FeoAlaKyqWCHWR5tP7ct3S2HWP+EyaQp
+WpxBAb8dauVqd10d+DrU5Sfz+aup3HITvNS6SoTc910KxJGlhb0wgMb/64JN5Mdols4Udji20Clx
+ECtMhqXNFgrtkhIJEdhQYUvjT57Ex+/nEtk0PHWchSdSs6DX3sV78ToaFOhxvENP1U9FAWPhY/C3
+elhZmdm5IWntM3FR6zuzohdS1K6WsPIZaKKmHQ==
 </SignatureValue>
 <KeyInfo>
 <X509Data>
