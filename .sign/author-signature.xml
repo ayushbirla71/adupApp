@@ -44,8 +44,8 @@ DgQjT1dZig==</DigestValue>
 </Reference>
 <Reference URI="config.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>EIGvnYI7978crq9RVgyFg+kt7BilU9EFy+3bvGeF8AIgDpmJgZwgSf7K/O2aNRmBQnn8aHKtu1H9
-yj69gyUQtA==</DigestValue>
+<DigestValue>BTXcK2ox5xE+ptds614mG/EDCmhYQmPgmkMdSKj99OCZ117bZ23HRY/oAlTgcThf7m2SYyYbMgrw
+TQhU5xDoqg==</DigestValue>
 </Reference>
 <Reference URI="css%2Fmodal.css">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -79,8 +79,8 @@ FD4iefxLsg==</DigestValue>
 </Reference>
 <Reference URI="index.html">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>GqFP1MoVkpan9ubB1/0UodDC7iQzRBQApEPC9oDOGTOD9CkplmbuDYimKJ8n8+K6WRE2Lv+K7msl
-ZFS05NmVLA==</DigestValue>
+<DigestValue>FkjHJIFwySjVRNjn3c9/a5q20mrj5B4SA/uKN6CnpyVyNKfhT0o2hR4aILKBOqUPXQx0K29e04tx
+DsIBfdPRtg==</DigestValue>
 </Reference>
 <Reference URI="info.txt">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -109,8 +109,8 @@ P74MlBmkpA==</DigestValue>
 </Reference>
 <Reference URI="js%2Fconfig.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>bEjQ2f7muQxl3pehmePDLqsvdKcSnfDZylWNvdkK5kDzAvGEVrlSkgoSWGkO0RiYplxE1gqEnETY
-9iW5D0kOIQ==</DigestValue>
+<DigestValue>qfH5HBw8PtYCbZL6W0YH7c/yokRYTFqRNIHNr7zkiJZbwXeyggr2IQXtF/ufrIrRlFN34xlYbXPt
+nl6h0HREHw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdata-config-monitor.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -129,13 +129,13 @@ JYyT7oCgnQ==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdevice-storage.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>vNFDXbnB2jmS5gIgy6PXME5IXf0SSXL8tKBD59yxh1VkBjhgEsC2c/cn58q/Ij6UdJ6r6gEIE5hT
-UuqhflC1cQ==</DigestValue>
+<DigestValue>ElDzVg7Cu1UmaeRolJTrwQssfdenO/qhltDpGVfvkowbvCUgqYZNmvu+Oo83ig1TJCzxJnEkgl6L
+PO04hWzH5w==</DigestValue>
 </Reference>
 <Reference URI="js%2FdeviceMqtt.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>drdwnLQaVtjUsncFXxMrIf2E22Q9sFk+FkVLsQ2ZDGGex4ZsYKGixbwkpkMxzrYDjwaMkbeOYlA7
-MstKmPqoNw==</DigestValue>
+<DigestValue>VF3Lz/bDAxM/5RPooVaKkeZ9dE/f/9+JBd95PKX6QgdcDJ/KhEXvH9NcSrSfgox8+/CuE4b76clN
+eTsnGQGuaw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fevent-logger.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -149,8 +149,8 @@ V6FU3lJWgQ==</DigestValue>
 </Reference>
 <Reference URI="js%2Fmain.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>2NVDZnMcUFeE8bOgvIKBWazaDL6p1GKKE0xxIf9T7j0NTlQ3SUZQzEKqcqugujHOVZ6TuWwebJsD
-MWD40x4jbA==</DigestValue>
+<DigestValue>wScLc2q3IMpfbm+ay8spPj/vT9qL47MKfMeE9rzO/R6RDppNtcaiwm97jjzme2qzoRf69knT/QP6
+aQrLRlnDVg==</DigestValue>
 </Reference>
 <Reference URI="js%2Fmemory-manager.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -262,11 +262,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-y7KMTEIOpfU+d6mNJm6SDsg53N+r6iGgrpg79dCeE3pjbQxMGC2ztIWaFrmxar3NSiR0kXviNFuR
-BaHzTbl4qdlJUU8tNBeYnX65x9uevY4TjNUZqN3EY9X8ITXnaR5bzp0rhlGIrbUNbWk2wBR2uDy6
-BQc0mLH+VTJkUTQUu1MFuOf+1KH7JtJA2+zl8hyenXaiVauOKnXHwI905KTubXgZLKzssol1iIQO
-7ewN5/jNqbCMPk3BEnn0dG/XUoUDK3rlKKhzCOd7J7tRF7fNTm8ScnYJOWJ55NRyynG0AK/ka4q8
-1qqkf161RGJNxS1XYlAy1/Ld3JizPGOuB9JCEQ==
+tkgE3pD77Yo4AKZ4eAw50hadQhikqgMGjcVluVrM6iba4aFoJ1/7Vi51yiu4S3WSHrTGofYEc3+s
+BHaL7lmiGhuwEhALj+N5Els+ZtYyyOcYzS5Fgu7+Gxx8rudM4xn4qgkhcMlEBhTffSFU9NK22bFV
+uqAdosx4KhRrjvYc6sLtwwTvO2Y4Uyj3Y/yhWXdn0fUYmUS7uCZNFzJFhpXPDVnYfAg2wQ8migAI
+NIUYMf+6QS8JBZHmBtxuQ8gBZVIeXaACg7JIYwW3banBSQGzp3yl0zcJvsqDwy7O/DvmZLLp+ixG
++j1d5j8RY2P4H5UMCLWJ38VC2pie5Nqfysh/GQ==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

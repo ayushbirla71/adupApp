@@ -3,6 +3,9 @@
     <access origin="https://console.adup.live"></access>
     <access origin="http://localhost:8000"></access>
     <access origin="*"></access>
+
+<access origin="https://www.youtube.com" subdomains="true"/>
+
     <tizen:application id="0lKtwciFfw.ad96" package="0lKtwciFfw" required_version="2.3"/>
     <author href="http://yourdomain.com" email="you@example.com">Your Name</author>
     <content src="index.html"/>

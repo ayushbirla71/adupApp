@@ -44,13 +44,13 @@ DgQjT1dZig==</DigestValue>
 </Reference>
 <Reference URI="author-signature.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>YWGpMxe53ZNkh2QU/5owuoOSy+c4JsII5npcRoAY0DGpmcsFkrfAc40DaHJHbXOM0i8iDHTZqkEP
-1GaRCL57+Q==</DigestValue>
+<DigestValue>sPnx+esOkD2Dyhhgj2w2toqGBqbsqt/ooT/r8ZVcT/zbCMH3R843XYL9OrxzF4h8DL+6RHMtvwJo
+O9GKY1YN5Q==</DigestValue>
 </Reference>
 <Reference URI="config.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>EIGvnYI7978crq9RVgyFg+kt7BilU9EFy+3bvGeF8AIgDpmJgZwgSf7K/O2aNRmBQnn8aHKtu1H9
-yj69gyUQtA==</DigestValue>
+<DigestValue>BTXcK2ox5xE+ptds614mG/EDCmhYQmPgmkMdSKj99OCZ117bZ23HRY/oAlTgcThf7m2SYyYbMgrw
+TQhU5xDoqg==</DigestValue>
 </Reference>
 <Reference URI="css%2Fmodal.css">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -84,8 +84,8 @@ FD4iefxLsg==</DigestValue>
 </Reference>
 <Reference URI="index.html">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>GqFP1MoVkpan9ubB1/0UodDC7iQzRBQApEPC9oDOGTOD9CkplmbuDYimKJ8n8+K6WRE2Lv+K7msl
-ZFS05NmVLA==</DigestValue>
+<DigestValue>FkjHJIFwySjVRNjn3c9/a5q20mrj5B4SA/uKN6CnpyVyNKfhT0o2hR4aILKBOqUPXQx0K29e04tx
+DsIBfdPRtg==</DigestValue>
 </Reference>
 <Reference URI="info.txt">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -114,8 +114,8 @@ P74MlBmkpA==</DigestValue>
 </Reference>
 <Reference URI="js%2Fconfig.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>bEjQ2f7muQxl3pehmePDLqsvdKcSnfDZylWNvdkK5kDzAvGEVrlSkgoSWGkO0RiYplxE1gqEnETY
-9iW5D0kOIQ==</DigestValue>
+<DigestValue>qfH5HBw8PtYCbZL6W0YH7c/yokRYTFqRNIHNr7zkiJZbwXeyggr2IQXtF/ufrIrRlFN34xlYbXPt
+nl6h0HREHw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdata-config-monitor.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -134,13 +134,13 @@ JYyT7oCgnQ==</DigestValue>
 </Reference>
 <Reference URI="js%2Fdevice-storage.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>vNFDXbnB2jmS5gIgy6PXME5IXf0SSXL8tKBD59yxh1VkBjhgEsC2c/cn58q/Ij6UdJ6r6gEIE5hT
-UuqhflC1cQ==</DigestValue>
+<DigestValue>ElDzVg7Cu1UmaeRolJTrwQssfdenO/qhltDpGVfvkowbvCUgqYZNmvu+Oo83ig1TJCzxJnEkgl6L
+PO04hWzH5w==</DigestValue>
 </Reference>
 <Reference URI="js%2FdeviceMqtt.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>drdwnLQaVtjUsncFXxMrIf2E22Q9sFk+FkVLsQ2ZDGGex4ZsYKGixbwkpkMxzrYDjwaMkbeOYlA7
-MstKmPqoNw==</DigestValue>
+<DigestValue>VF3Lz/bDAxM/5RPooVaKkeZ9dE/f/9+JBd95PKX6QgdcDJ/KhEXvH9NcSrSfgox8+/CuE4b76clN
+eTsnGQGuaw==</DigestValue>
 </Reference>
 <Reference URI="js%2Fevent-logger.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -154,8 +154,8 @@ V6FU3lJWgQ==</DigestValue>
 </Reference>
 <Reference URI="js%2Fmain.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>2NVDZnMcUFeE8bOgvIKBWazaDL6p1GKKE0xxIf9T7j0NTlQ3SUZQzEKqcqugujHOVZ6TuWwebJsD
-MWD40x4jbA==</DigestValue>
+<DigestValue>wScLc2q3IMpfbm+ay8spPj/vT9qL47MKfMeE9rzO/R6RDppNtcaiwm97jjzme2qzoRf69knT/QP6
+aQrLRlnDVg==</DigestValue>
 </Reference>
 <Reference URI="js%2Fmemory-manager.js">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -267,11 +267,11 @@ GyvKX9Snig==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-JnoAB4ezTz8cDYjOqXn6dr5Gqy2yZHYLfIG07JncPHVXZGCipjvKCfqiezG9wEHlu7pE0w6OHucG
-NFeIkOnSns8wWbn5O6Grp8kWJNTEuUIuArQsDpyF55y+FeoAlaKyqWCHWR5tP7ct3S2HWP+EyaQp
-WpxBAb8dauVqd10d+DrU5Sfz+aup3HITvNS6SoTc910KxJGlhb0wgMb/64JN5Mdols4Udji20Clx
-ECtMhqXNFgrtkhIJEdhQYUvjT57Ex+/nEtk0PHWchSdSs6DX3sV78ToaFOhxvENP1U9FAWPhY/C3
-elhZmdm5IWntM3FR6zuzohdS1K6WsPIZaKKmHQ==
+E3H5SXCtlLprwrlab3X41StfE77zD5zYXd+hNIRJj7uKcGFtFG0H4kDmUbIBsv8oG5NdmT5iW3Z3
+mv5j0BVu5gu26ZNNSEsKo73KpPuSRAAILMNjMKHdKUfyoXiHwm5ERhBxv+w/bW4c6PV2h/thQrn6
+B6Z+Lmh98Jhdl2Xnrz/KuBN0068U6+pKt6kPNan94wN6xYuvbK3DWKKkDBlkKHy0yb7DODOCly3h
+P/63Q1trUdoa3+FcjCNnhWlxlkxpjAqgvnf736mBYg42l/SYD2tE/hx21DmP0fBPr/w9awsqL4+0
+NAtRUqpuroR5vAfQ36+8nx3xAB66YqdXZmr1ww==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

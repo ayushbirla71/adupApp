@@ -26,7 +26,7 @@ var iterator = 0;
 const YOUTUBE_CONFIG = {
   // Test YouTube live stream URL - your testing link
   testLiveUrl: "https://www.youtube.com/live/1wECsnGZcfc?si=3V_BjgrcYGzIbEzK",
-  embedBaseUrl: "https://www.youtube.com/live/",
+  embedBaseUrl: "https://www.youtube.com/embed/",
   autoplay: 1,
   mute: 0,
   controls: 0,
@@ -142,7 +142,8 @@ function isWithinTimeSlot(timeSlots) {
     const startMinutes = startHour * 60 + startMin;
     const endMinutes = endHour * 60 + endMin;
     
-    return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
+    // return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
+    return currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
   });
 }
 
@@ -372,6 +373,12 @@ async function handleLiveContentMode(liveItems, allLiveContents) {
   console.log('🔴 Entering LIVE CONTENT MODE');
   currentPlaybackMode = "live";
 
+   // 🛑 STOP ADS LOOP
+  if (currentAbortController) {
+    console.log("🛑 Aborting ad playback loop");
+    currentAbortController.abort();
+  }
+
   // ⚠️ DO NOT DOWNLOAD - Live content is streamed directly
   console.log('📡 Live content will be streamed (not downloaded)');
 
@@ -381,6 +388,7 @@ async function handleLiveContentMode(liveItems, allLiveContents) {
   // Play live content directly from URL
   console.log('▶️ Starting live content streaming');
   playLiveContentStream(liveItems[0]); // Play first active live content
+  activeLiveContent = liveItems[0];
 
   // Start monitoring for when live content ends
   startLiveContentMonitor(allLiveContents);
@@ -444,7 +452,7 @@ function playM3U8Stream(liveItem) {
       console.log('✅ HLS stream started');
     });
     hls.on(Hls.Events.ERROR, function(event, data) {
-      console.error('❌ HLS error:', data);
+      console.error("❌ HLS error:", JSON.stringify(data, null, 2));
     });
 
     // Store HLS instance for cleanup
@@ -511,6 +519,7 @@ function playYouTubeStream(liveItem) {
       "width:100vw;height:95vh;position:absolute;top:0;left:0;z-index:100;border:none;";
     iframe.allow = "autoplay; encrypted-media";
     iframe.allowFullscreen = true;
+    iframe.referrerpolicy = "strict-origin-when-cross-origin";
     document.getElementById("ad_player").appendChild(iframe);
   }
 
@@ -522,6 +531,8 @@ function playYouTubeStream(liveItem) {
 
 
       iframe.src = embedUrl;
+      iframe.sandbox = "allow-scripts allow-same-origin allow-presentation";  // Add this
+
       console.log("embedUrl:", embedUrl);
       iframe.style.display = "block";
 
@@ -537,12 +548,13 @@ function buildYouTubeEmbedUrl(videoId) {
     autoplay: YOUTUBE_CONFIG.autoplay,
     mute: YOUTUBE_CONFIG.mute,
     controls: YOUTUBE_CONFIG.controls,
-    showinfo: YOUTUBE_CONFIG.showinfo,
-    rel: YOUTUBE_CONFIG.rel,
+    // showinfo: YOUTUBE_CONFIG.showinfo,
+    // rel: YOUTUBE_CONFIG.rel,
     modestbranding: YOUTUBE_CONFIG.modestbranding,
     iv_load_policy: YOUTUBE_CONFIG.iv_load_policy,
     enablejsapi: 1,
-    origin: window.location.origin,
+    playlist: videoId,
+    // origin: window.location.origin,
   });
 
   return `${YOUTUBE_CONFIG.embedBaseUrl}${videoId}?${params.toString()}`;
@@ -690,6 +702,23 @@ function showNormalPlayers() {
   // Normal players will be shown by playVideo/playImage functions
 }
 
+function restartNormalPlayback(queue) {
+  console.log("🔄 Restarting normal ad playback...");
+
+  if (!queue || queue.length === 0) {
+    console.error("❌ No content queue available.");
+    return;
+  }
+
+  iterator = 0;
+  currentPlaybackMode = "normal";
+  currentContentQueue = queue;
+
+  const filenames = queue.map(getFileName);
+
+  playAllContentInLoop(filenames, queue);
+}
+
 
 
 /**
@@ -698,8 +727,38 @@ function showNormalPlayers() {
  * @param {Array} ads - All ads for resuming normal mode
  * @param {Array} carousels - All carousels for resuming normal mode
  */
+// function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
+//   // Clear existing monitor
+//   if (liveMonitorInterval) {
+//     clearInterval(liveMonitorInterval);
+//   }
+
+//   console.log('👁️ Starting live content monitor');
+
+//   liveMonitorInterval = setInterval(() => {
+//     const activeLive = checkActiveLiveContent(liveContents);
+
+//     if (currentPlaybackMode === "live" && !activeLive) {
+//       // Live content ended, switch back to normal
+//       console.log('✅ Live content ended - Resuming normal playback');
+//       currentPlaybackMode = "normal";
+
+//       // Rebuild queue and restart normal playback
+//       const queue = buildPlaybackQueue(ads, carousels);
+//       if (queue.length > 0) {
+//         restartNormalPlayback(queue);
+//       }
+
+//     } else if (currentPlaybackMode === "normal" && activeLive) {
+//       // New live content started, interrupt normal playback
+//       console.log('🔴 Live content started - Interrupting normal playback');
+//       handleLiveContentMode([activeLive], liveContents);
+//     }
+//   }, 10000); // Check every 10 seconds
+// }
+
 function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
-  // Clear existing monitor
+
   if (liveMonitorInterval) {
     clearInterval(liveMonitorInterval);
   }
@@ -707,25 +766,53 @@ function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
   console.log('👁️ Starting live content monitor');
 
   liveMonitorInterval = setInterval(() => {
+
     const activeLive = checkActiveLiveContent(liveContents);
 
+    // LIVE → NORMAL
     if (currentPlaybackMode === "live" && !activeLive) {
-      // Live content ended, switch back to normal
-      console.log('✅ Live content ended - Resuming normal playback');
-      currentPlaybackMode = "normal";
 
-      // Rebuild queue and restart normal playback
+      console.log('✅ Live content ended - Resuming normal playback');
+
+      currentPlaybackMode = "normal";
+      activeLiveContent = null;
+
       const queue = buildPlaybackQueue(ads, carousels);
       if (queue.length > 0) {
         restartNormalPlayback(queue);
       }
 
-    } else if (currentPlaybackMode === "normal" && activeLive) {
-      // New live content started, interrupt normal playback
-      console.log('🔴 Live content started - Interrupting normal playback');
-      handleLiveContentMode([activeLive], liveContents);
     }
-  }, 10000); // Check every 10 seconds
+
+    // NORMAL → LIVE
+    else if (currentPlaybackMode === "normal" && activeLive) {
+
+      console.log('🔴 Live content started - Interrupting normal playback');
+
+      activeLiveContent = activeLive;
+
+      handleLiveContentMode([activeLive], liveContents);
+
+    }
+
+    // LIVE → DIFFERENT LIVE
+    else if (
+      currentPlaybackMode === "live" &&
+      activeLive &&
+      activeLiveContent &&
+      activeLive.ad_id !== activeLiveContent.ad_id
+    ) {
+
+      console.log('🔄 Switching live content');
+
+      activeLiveContent = activeLive;
+
+      playLiveContentStream(activeLive);
+
+    }
+
+  }, 10000);
+
 }
 
 /**
@@ -908,6 +995,8 @@ async function handleMQTTAds(payload) {
   const placeholder_enabled = payload.placeholder_enabled;
   const rcs_enabled = payload.rcs_enabled;
   const logo_enabled = payload.logo_enabled;
+  window.LAST_ADS = ads;
+  window.LAST_CAROUSELS = carousels;
 
   // Update localStorage
   let old_placeholder_enabled = localStorage.getItem("placeholder_enabled");
@@ -946,7 +1035,7 @@ async function handleMQTTAds(payload) {
 
   if (playbackQueue.length === 0) {
     console.log("📭 No content to play");
-    return;
+    // return;
   }
 
   // STEP 4: Start playback (no download needed - already done!)
@@ -955,6 +1044,8 @@ async function handleMQTTAds(payload) {
   localAds = filenames;
   stopCurrentPlayback();
   adsFromServer = playbackQueue;
+
+
 
 
   playAllContentInLoop(filenames, playbackQueue, rcs);
@@ -966,6 +1057,9 @@ async function handleMQTTAds(payload) {
 function getFileName(adsData) {
   let url = adsData.url;
   let ad_id = adsData.ad_id;
+
+  console.log("adsData", adsData);
+  console.log("url ......>>>>>>>>>>>>", url);
 
   const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
   const dotIndex = originalName.lastIndexOf(".");
@@ -1293,8 +1387,12 @@ async function playAllContentInLoop(filenames, contentItems, rcs) {
     await new Promise((res) => managedSetTimeout(res, 50));
   }
 
+  
+
   currentAbortController = new AbortController();
   const signal = currentAbortController.signal;
+
+  showNormalPlayers()
 
   if (!filenames || filenames.length === 0) {
     console.error("❌ No content to play.");
@@ -1303,15 +1401,48 @@ async function playAllContentInLoop(filenames, contentItems, rcs) {
 
   // Playback loop - NEVER BREAKS for downloading
   while (!signal.aborted) {
-    const currentFile = filenames[iterator % filenames.length];
-    const currentItem = contentItems[iterator % contentItems.length];
+
+ // 🔁 LOOP COMPLETED → refresh carousel
+ console.log("iterator", iterator);
+ console.log("contentItems.length", contentItems.length);
+ console.log("index", iterator % contentItems.length);
+    if (iterator == 0 && iterator % contentItems.length === 0) {
+      console.log("🔄 Loop completed — refreshing carousel items");
+      console.log("window.LAST_ADS", window.LAST_ADS);
+      console.log("window.LAST_CAROUSELS", window.LAST_CAROUSELS);
+
+      // Rebuild playback queue (this moves carousel forward)
+      const newQueue = buildPlaybackQueue(
+        window.LAST_ADS,
+        window.LAST_CAROUSELS
+      );
+
+      filenames = newQueue.map(getFileName);
+      contentItems = newQueue;
+      // iterator = 0;
+      // continue;
+    }
+
+    const index = iterator % contentItems.length;
+    const item = contentItems[index];
+
+    // ⏱️ Schedule validation
+    if (!shouldPlayContent(item)) {
+      iterator++;
+      continue;
+    }
+
+    const file = filenames[index];
+
+    console.log("▶️ Now playing:", file);
+    console.log("playing index....", iterator);
 
     try {
       // Play downloaded content (video or image)
-      if (isVideo(currentFile)) {
-        await playVideoWithTracking(currentFile, signal, currentItem, filenames);
+      if (isVideo(file)) {
+        await playVideoWithTracking(file, signal, item, filenames);
       } else {
-        await playImageWithTracking(currentFile, signal, currentItem, filenames);
+        await playImageWithTracking(file, signal, item, filenames);
       }
     } catch (err) {
       console.error("❌ Error during media playback:", err.message || err);

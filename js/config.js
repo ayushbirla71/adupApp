@@ -3,12 +3,13 @@ window.APP_VERSION = 105;
 window.APP_BUILD = "1.0.5";
 
 window.APP_BUILD_DATE = "2025-12-06";
-window.API_BASE_URL = "https://cms.ad96.in/api/";
+// window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
 window.BULK_LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
 // window.API_BASE_URL = "http://3.110.179.237:8081/api/";
+window.API_BASE_URL = "http://13.232.17.134:8080/api/";
 window.SECRETKEY =
   "2182zy64mc64nswkemzmcbvjlaie44bd8cdkhsg312c81187ab82bbe053df6b7aa55";
 
@@ -58,6 +59,10 @@ window.FEATURE_FLAGS = {
   enableTestFeatures: window.IS_DEVELOPMENT, // Enable test features
   enableDebugLogging: window.IS_DEVELOPMENT, // Enable debug logging
 };
+
+// Ads and Carousel Configuration
+window.LAST_ADS = [];
+window.LAST_CAROUSELS = [];
 
 // Sync Configuration
 window.SYNC_CONFIG = {
