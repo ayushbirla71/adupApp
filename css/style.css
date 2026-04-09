@@ -730,14 +730,16 @@ progress {
 }
 
 #av-player,
-#av-player2 {
+#av-player2,
+#hls-player {
   display: none;
   height: 96vh;
   width: 100%;
 }
 
 #av-player.vid,
-#av-player2.vid {
+#av-player2.vid,
+#hls-player.vid {
   display: block;
 }
 

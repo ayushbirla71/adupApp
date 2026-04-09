@@ -586,6 +586,7 @@ function updateUiHeight(rcs_enabled) {
   const elements = [
     document.getElementById("av-player"),
     document.getElementById("av-player2"),
+    document.getElementById("hls-player"),
     ...document.querySelectorAll(
       ".ad-player-image, .ad-player, .ad_image, .ad_video"
     ),

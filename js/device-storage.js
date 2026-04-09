@@ -15,7 +15,7 @@ let carouselState = {};
 
 // Current playback queue
 let currentContentQueue = [];
-var p1, p2;
+var p1, p2, stg;
 var iterator = 0;
 // Remove global element references - get them when needed instead
 // var imageElement1 = document.getElementById("image-player1");
@@ -36,7 +36,6 @@ const YOUTUBE_CONFIG = {
   iv_load_policy: 3,
 };
 
-
 let useImage1 = true;
 let useP1Next = true; // Global or scoped toggle
 
@@ -44,7 +43,7 @@ let useP1Next = true; // Global or scoped toggle
 tizen.filesystem.createDirectory(
   fileDir,
   (dir) => console.log("📁 Directory created:", dir),
-  (err) => console.error("❌ Directory creation error:", err.message)
+  (err) => console.error("❌ Directory creation error:", err.message),
 );
 
 var sources = "";
@@ -58,7 +57,7 @@ tizen.filesystem.resolve(
   (err) => {
     console.warn("❌ Failed to resolve file:", fileDir);
   },
-  "r"
+  "r",
 );
 
 // Comment out regular players for YouTube live testing
@@ -70,10 +69,11 @@ function initializeRegularPlayers() {
   if (!window.isYoutubeLiveMode) {
     p1 = webapis.avplaystore.getPlayer();
     p2 = webapis.avplaystore.getPlayer();
+    stg = webapis.avplaystore.getPlayer();
+
     logInfo("🎥 Regular video players initialized");
   }
 }
-
 
 /**
  * Initialize all state on app start
@@ -128,22 +128,54 @@ function increaseIterator(x) {
  * @param {Array} timeSlots - Array of {start: "HH:MM", end: "HH:MM"}
  * @returns {boolean}
  */
+// function isWithinTimeSlot(timeSlots) {
+//   if (!timeSlots || timeSlots.length === 0) return true;
+
+//   const now = new Date();
+//   const currentHour = now.getHours();
+//   const currentMinute = now.getMinutes();
+//   const currentTimeMinutes = currentHour * 60 + currentMinute;
+
+//   return timeSlots.some((slot) => {
+//     const [startHour, startMin] = slot.start.split(":").map(Number);
+//     const [endHour, endMin] = slot.end.split(":").map(Number);
+//     const startMinutes = startHour * 60 + startMin;
+//     const endMinutes = endHour * 60 + endMin;
+
+//     // return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
+//     return (
+//       currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes
+//     );
+//   });
+// }
+
+
 function isWithinTimeSlot(timeSlots) {
   if (!timeSlots || timeSlots.length === 0) return true;
-  
+
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const currentTimeMinutes = currentHour * 60 + currentMinute;
-  
-  return timeSlots.some(slot => {
-    const [startHour, startMin] = slot.start.split(':').map(Number);
-    const [endHour, endMin] = slot.end.split(':').map(Number);
+  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+
+  return timeSlots.some((slot) => {
+    const [startHour, startMin] = slot.start.split(":").map(Number);
+    const [endHour, endMin] = slot.end.split(":").map(Number);
+
     const startMinutes = startHour * 60 + startMin;
     const endMinutes = endHour * 60 + endMin;
-    
-    // return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
-    return currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes;
+
+    // ✅ NORMAL CASE (same day)
+    if (startMinutes < endMinutes) {
+      return (
+        currentTimeMinutes >= startMinutes &&
+        currentTimeMinutes < endMinutes
+      );
+    }
+
+    // ✅ OVERNIGHT CASE (cross midnight)
+    return (
+      currentTimeMinutes >= startMinutes || 
+      currentTimeMinutes < endMinutes
+    );
   });
 }
 
@@ -154,11 +186,10 @@ function isWithinTimeSlot(timeSlots) {
  */
 function isValidWeekday(weekdays) {
   if (!weekdays || weekdays.length === 0) return true;
-  
+
   const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
   return weekdays.includes(today);
 }
-
 
 /**
  * Check if content should play based on schedule
@@ -168,17 +199,17 @@ function isValidWeekday(weekdays) {
 function shouldPlayContent(item) {
   if (!item) return false;
   console.log("Checking if content should play:", item);
-  
+
   // Check time slots
   if (item.time_slots && !isWithinTimeSlot(item.time_slots)) {
     return false;
   }
-  
+
   // Check weekdays
   if (item.weekdays && !isValidWeekday(item.weekdays)) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -189,21 +220,21 @@ function shouldPlayContent(item) {
  */
 function filterScheduledContent(contentArray) {
   if (!contentArray || contentArray.length === 0) return [];
-  
-  return contentArray.filter(item => shouldPlayContent(item));
+
+  return contentArray.filter((item) => shouldPlayContent(item));
 }
 
 /**
  * Initialize carousel state from localStorage
  */
 function initCarouselState() {
-  const saved = localStorage.getItem('carousel_state');
+  const saved = localStorage.getItem("carousel_state");
   if (saved) {
     try {
       carouselState = JSON.parse(saved);
-      console.log('📊 Loaded carousel state:', carouselState);
+      console.log("📊 Loaded carousel state:", carouselState);
     } catch (e) {
-      console.error('Failed to parse carousel state:', e);
+      console.error("Failed to parse carousel state:", e);
       carouselState = {};
     }
   }
@@ -213,9 +244,8 @@ function initCarouselState() {
  * Save carousel state to localStorage
  */
 function saveCarouselState() {
-  localStorage.setItem('carousel_state', JSON.stringify(carouselState));
+  localStorage.setItem("carousel_state", JSON.stringify(carouselState));
 }
-
 
 /**
  * Get next item from carousel using round-robin selection
@@ -240,14 +270,16 @@ function getNextCarouselItem(carousel) {
     lastPlayedIndex: nextIndex,
     totalItems: carousel.items.length,
     carouselName: carousel.name,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
   };
 
   // Save to localStorage
   saveCarouselState();
 
   const selectedItem = carousel.items[nextIndex];
-  console.log(`🎠 Carousel "${carousel.name}": Selected item ${nextIndex + 1}/${carousel.items.length} - ${selectedItem.name}`);
+  console.log(
+    `🎠 Carousel "${carousel.name}": Selected item ${nextIndex + 1}/${carousel.items.length} - ${selectedItem.name}`,
+  );
 
   return selectedItem;
 }
@@ -259,18 +291,20 @@ function getNextCarouselItem(carousel) {
  */
 function processCarousels(carousels) {
   if (!carousels || carousels.length === 0) {
-    console.log('📭 No carousels to process');
+    console.log("📭 No carousels to process");
     return [];
   }
 
   // Filter carousels by schedule
   const validCarousels = filterScheduledContent(carousels);
-  console.log(`🎠 Valid carousels: ${validCarousels.length}/${carousels.length}`);
+  console.log(
+    `🎠 Valid carousels: ${validCarousels.length}/${carousels.length}`,
+  );
 
   // Pick one item from each valid carousel
   const selectedItems = validCarousels
-    .map(carousel => getNextCarouselItem(carousel))
-    .filter(item => item !== null);
+    .map((carousel) => getNextCarouselItem(carousel))
+    .filter((item) => item !== null);
 
   console.log(`✅ Selected ${selectedItems.length} carousel items`);
   return selectedItems;
@@ -322,7 +356,6 @@ function detectContentType(url) {
   return "unknown";
 }
 
-
 /**
  * Check if content is downloadable
  * @param {Object} item - Content item
@@ -330,7 +363,7 @@ function detectContentType(url) {
  */
 function isDownloadableContent(item) {
   const type = detectContentType(item.url);
-  return type === 'video' || type === 'image';
+  return type === "video" || type === "image";
 }
 
 /**
@@ -340,7 +373,7 @@ function isDownloadableContent(item) {
  */
 function isStreamingContent(item) {
   const type = detectContentType(item.url);
-  return type === 'm3u8' || type === 'youtube' || type === 'website';
+  return type === "m3u8" || type === "youtube" || type === "website";
 }
 
 /**
@@ -356,7 +389,7 @@ function checkActiveLiveContent(liveContents) {
   // Find first active live content
   for (const liveItem of liveContents) {
     if (shouldPlayContent(liveItem)) {
-      console.log('🔴 LIVE CONTENT ACTIVE:', liveItem.name || liveItem.ad_id);
+      console.log("🔴 LIVE CONTENT ACTIVE:", liveItem.name || liveItem.ad_id);
       return liveItem;
     }
   }
@@ -370,23 +403,23 @@ function checkActiveLiveContent(liveContents) {
  * @param {Array} allLiveContents - All live content for monitoring
  */
 async function handleLiveContentMode(liveItems, allLiveContents) {
-  console.log('🔴 Entering LIVE CONTENT MODE');
+  console.log("🔴 Entering LIVE CONTENT MODE");
   currentPlaybackMode = "live";
 
-   // 🛑 STOP ADS LOOP
+  // 🛑 STOP ADS LOOP
   if (currentAbortController) {
     console.log("🛑 Aborting ad playback loop");
     currentAbortController.abort();
   }
 
   // ⚠️ DO NOT DOWNLOAD - Live content is streamed directly
-  console.log('📡 Live content will be streamed (not downloaded)');
+  console.log("📡 Live content will be streamed (not downloaded)");
 
   // Stop current playback
   stopCurrentPlayback();
 
   // Play live content directly from URL
-  console.log('▶️ Starting live content streaming');
+  console.log("▶️ Starting live content streaming");
   playLiveContentStream(liveItems[0]); // Play first active live content
   activeLiveContent = liveItems[0];
 
@@ -407,67 +440,120 @@ function playLiveContentStream(liveItem) {
   hideAllPlayers();
 
   switch (contentType) {
-    case 'm3u8':
+    case "m3u8":
       playM3U8Stream(liveItem);
       break;
-    case 'youtube':
+    case "youtube":
       playYouTubeStream(liveItem);
       break;
-    case 'website':
+    case "website":
       playWebsiteStream(liveItem);
       break;
     default:
-      console.error('❌ Unsupported live content type:', contentType);
+      console.error("❌ Unsupported live content type:", contentType);
   }
 }
 
+function scheduleStreamRetry(liveItem, retryCount) {
+  const RETRY_DELAY = 5000;
+
+  const retryTimeout = setTimeout(() => {
+    playM3U8Stream(liveItem, retryCount + 1);
+  }, RETRY_DELAY);
+
+  adLoopTimeouts.push(retryTimeout);
+}
 
 /**
  * Play M3U8/HLS stream using HTML5 video + HLS.js
  * @param {Object} liveItem - Live content item
  */
-function playM3U8Stream(liveItem) {
-  console.log('📡 Playing M3U8 stream:', liveItem.url);
+function playM3U8Stream(liveItem, retryCount = 0) {
+  console.log("📡 Playing M3U8 stream:", liveItem.url);
 
-  // Get or create HLS video player
-  let videoPlayer = document.getElementById('hls-player');
-  if (!videoPlayer) {
-    videoPlayer = document.createElement('video');
-    videoPlayer.id = 'hls-player';
-    videoPlayer.style.cssText = 'width: 100vw; height: 95vh; object-fit: fill; position: absolute; top: 0; left: 0; z-index: 100;';
-    videoPlayer.controls = false;
-    videoPlayer.autoplay = true;
-    document.getElementById('ad_player').appendChild(videoPlayer);
+  const player = stg;
+  const MAX_RETRY = 999; // or any large number
+  const RETRY_DELAY = 5000; // 5 seconds
+
+  try {
+    player.stop();
+  } catch (e) {
+    console.log("Player not running");
   }
 
-  videoPlayer.style.display = 'block';
+  const dynamicListener = {
+    onbufferingstart: function () {
+      console.log("⏳ Buffering start");
+    },
 
-  // Use HLS.js for M3U8 playback
-  if (Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(liveItem.url);
-    hls.attachMedia(videoPlayer);
-    hls.on(Hls.Events.MANIFEST_PARSED, function() {
-      videoPlayer.play();
-      console.log('✅ HLS stream started');
-    });
-    hls.on(Hls.Events.ERROR, function(event, data) {
-      console.error("❌ HLS error:", JSON.stringify(data, null, 2));
-    });
+    onbufferingprogress: function (percent) {
+      console.log("Buffering progress:", percent);
+    },
 
-    // Store HLS instance for cleanup
-    window.currentHlsPlayer = hls;
-  } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-    // Native HLS support (Safari, some smart TVs)
-    videoPlayer.src = liveItem.url;
-    videoPlayer.play();
-    console.log('✅ Native HLS playback started');
-  } else {
-    console.error('❌ HLS not supported on this device');
+    onbufferingcomplete: function () {
+      console.log("✅ Buffering complete");
+    },
+
+    onstreamcompleted: function () {
+      console.log("📺 Stream completed");
+    },
+
+    onerror: function (errType) {
+      console.error("❌ AVPlay error:", errType);
+
+      if (retryCount < MAX_RETRY) {
+        console.log("🔄 Retrying stream in 5 seconds...");
+               scheduleStreamRetry(liveItem, retryCount);
+      }
+    },
+  };
+
+  player.setListener(dynamicListener);
+
+  try {
+    player.open(liveItem.url);
+  } catch (e) {
+    console.error("❌ Open failed:", e);
   }
+
+  const rotation = getRotationValue();
+
+  try {
+    player.setDisplayRotation(rotation);
+  } catch (e) {
+    console.log("Rotation not supported");
+  }
+
+  player.prepareAsync(
+    function () {
+      console.log("✅ Player prepared");
+
+      const playerContainer = document.getElementById("ad_player");
+      document.getElementById("hls-player").classList.add("vid");
+      const rect = playerContainer.getBoundingClientRect();
+      player.setDisplayMethod("PLAYER_DISPLAY_MODE_FULL_SCREEN");
+
+      // player.setDisplayRect(rect.left, rect.top, rect.width, rect.height);
+      let height =
+        localStorage.getItem("rcs_enabled") == "true"
+          ? window.innerHeight - 40
+          : window.innerHeight;
+      player.setDisplayRect(0, 0, window.innerWidth, height);
+      // player.setDisplayRect(0, 0, 1920, 1080);
+
+      player.play();
+      console.log("▶️ Stream started");
+    },
+    function (error) {
+      console.error("❌ Prepare failed:", error);
+
+      if (retryCount < MAX_RETRY) {
+        console.log("🔄 Retrying stream in 5 seconds...");
+       scheduleStreamRetry(liveItem, retryCount);
+      }
+    }
+  );
 }
-
-
 
 /**
  * Play YouTube video using iFrame API
@@ -526,19 +612,17 @@ function playYouTubeStream(liveItem) {
   // const autoplay = liveItem.config?.autoplay ? 1 : 0;
   // const mute = liveItem.config?.mute ? 1 : 0;
 
-   // Build embed URL
-      const embedUrl = buildYouTubeEmbedUrl(videoId);
+  // Build embed URL
+  const embedUrl = buildYouTubeEmbedUrl(videoId);
 
+  iframe.src = embedUrl;
+  iframe.sandbox = "allow-scripts allow-same-origin allow-presentation"; // Add this
 
-      iframe.src = embedUrl;
-      iframe.sandbox = "allow-scripts allow-same-origin allow-presentation";  // Add this
-
-      console.log("embedUrl:", embedUrl);
-      iframe.style.display = "block";
+  console.log("embedUrl:", embedUrl);
+  iframe.style.display = "block";
 
   console.log("✅ YouTube LIVE player loaded");
 }
-
 
 /**
  * Build YouTube embed URL with parameters
@@ -634,30 +718,28 @@ function extractYouTubeVideoId(url) {
   return videoId;
 }
 
-
-
-
 /**
  * Play website content using iFrame
  * @param {Object} liveItem - Live content item
  */
 function playWebsiteStream(liveItem) {
-  console.log('🌐 Playing website:', liveItem.url);
+  console.log("🌐 Playing website:", liveItem.url);
 
   // Get or create website iframe
-  let iframe = document.getElementById('website-player');
+  let iframe = document.getElementById("website-player");
   if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'website-player';
-    iframe.style.cssText = 'width: 100vw; height: 95vh; position: absolute; top: 0; left: 0; z-index: 100; border: none;';
-    iframe.allow = 'autoplay; encrypted-media; fullscreen';
-    document.getElementById('ad_player').appendChild(iframe);
+    iframe = document.createElement("iframe");
+    iframe.id = "website-player";
+    iframe.style.cssText =
+      "width: 100vw; height: 95vh; position: absolute; top: 0; left: 0; z-index: 100; border: none;";
+    iframe.allow = "autoplay; encrypted-media; fullscreen";
+    document.getElementById("ad_player").appendChild(iframe);
   }
 
-  iframe.style.display = 'block';
+  iframe.style.display = "block";
   iframe.src = liveItem.url;
 
-  console.log('✅ Website loaded in iframe');
+  console.log("✅ Website loaded in iframe");
 }
 
 /**
@@ -665,25 +747,27 @@ function playWebsiteStream(liveItem) {
  */
 function hideAllPlayers() {
   // Hide AVPlayers
-  const avPlayer1 = document.getElementById('av-player');
-  const avPlayer2 = document.getElementById('av-player2');
-  if (avPlayer1) avPlayer1.classList.remove('vid');
-  if (avPlayer2) avPlayer2.classList.remove('vid');
+
+  const avPlayer1 = document.getElementById("av-player");
+  const avPlayer2 = document.getElementById("av-player2");
+  if (avPlayer1) avPlayer1.classList.remove("vid");
+  if (avPlayer2) avPlayer2.classList.remove("vid");
 
   // Hide image players
-  const imgPlayer1 = document.getElementById('image-player1');
-  const imgPlayer2 = document.getElementById('image-player2');
-  if (imgPlayer1) imgPlayer1.style.display = 'none';
-  if (imgPlayer2) imgPlayer2.style.display = 'none';
+  const imgPlayer1 = document.getElementById("image-player1");
+  const imgPlayer2 = document.getElementById("image-player2");
+  if (imgPlayer1) imgPlayer1.style.display = "none";
+  if (imgPlayer2) imgPlayer2.style.display = "none";
 
   // Hide streaming players
-  const hlsPlayer = document.getElementById('hls-player');
-  const youtubePlayer = document.getElementById('youtube-player');
-  const websitePlayer = document.getElementById('website-player');
+  const hlsPlayer = document.getElementById("hls-player");
+  if (hlsPlayer) hlsPlayer.classList.remove("vid");
+  const youtubePlayer = document.getElementById("youtube-player");
+  const websitePlayer = document.getElementById("website-player");
 
-  if (hlsPlayer) hlsPlayer.style.display = 'none';
-  if (youtubePlayer) youtubePlayer.style.display = 'none';
-  if (websitePlayer) websitePlayer.style.display = 'none';
+  // if (hlsPlayer) hlsPlayer.style.display = "none";
+  if (youtubePlayer) youtubePlayer.style.display = "none";
+  if (websitePlayer) websitePlayer.style.display = "none";
 
   // Cleanup HLS instance
   if (window.currentHlsPlayer) {
@@ -691,8 +775,6 @@ function hideAllPlayers() {
     window.currentHlsPlayer = null;
   }
 }
-
-
 
 /**
  * Show normal players (AVPlayer/Image)
@@ -718,8 +800,6 @@ function restartNormalPlayback(queue) {
 
   playAllContentInLoop(filenames, queue);
 }
-
-
 
 /**
  * Monitor live content and switch modes as needed
@@ -758,21 +838,18 @@ function restartNormalPlayback(queue) {
 // }
 
 function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
-
   if (liveMonitorInterval) {
     clearInterval(liveMonitorInterval);
   }
 
-  console.log('👁️ Starting live content monitor');
+  console.log("👁️ Starting live content monitor");
 
   liveMonitorInterval = setInterval(() => {
-
     const activeLive = checkActiveLiveContent(liveContents);
 
     // LIVE → NORMAL
     if (currentPlaybackMode === "live" && !activeLive) {
-
-      console.log('✅ Live content ended - Resuming normal playback');
+      console.log("✅ Live content ended - Resuming normal playback");
 
       currentPlaybackMode = "normal";
       activeLiveContent = null;
@@ -781,18 +858,15 @@ function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
       if (queue.length > 0) {
         restartNormalPlayback(queue);
       }
-
     }
 
     // NORMAL → LIVE
     else if (currentPlaybackMode === "normal" && activeLive) {
-
-      console.log('🔴 Live content started - Interrupting normal playback');
+      console.log("🔴 Live content started - Interrupting normal playback");
 
       activeLiveContent = activeLive;
 
       handleLiveContentMode([activeLive], liveContents);
-
     }
 
     // LIVE → DIFFERENT LIVE
@@ -802,17 +876,13 @@ function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
       activeLiveContent &&
       activeLive.ad_id !== activeLiveContent.ad_id
     ) {
-
-      console.log('🔄 Switching live content');
+      console.log("🔄 Switching live content");
 
       activeLiveContent = activeLive;
 
       playLiveContentStream(activeLive);
-
     }
-
   }, 10000);
-
 }
 
 /**
@@ -822,11 +892,9 @@ function stopLiveContentMonitor() {
   if (liveMonitorInterval) {
     clearInterval(liveMonitorInterval);
     liveMonitorInterval = null;
-    console.log('🛑 Live content monitor stopped');
+    console.log("🛑 Live content monitor stopped");
   }
 }
-
-
 
 /**
  * Extract ALL downloadable content from ads and carousels
@@ -838,16 +906,16 @@ function extractAllDownloadableContent(ads, carousels) {
   const downloadableItems = [];
 
   // Add all ads
-  ads.forEach(ad => {
+  ads.forEach((ad) => {
     if (isDownloadableContent(ad)) {
       downloadableItems.push(ad);
     }
   });
 
   // Add ALL items from ALL carousels
-  carousels.forEach(carousel => {
+  carousels.forEach((carousel) => {
     if (carousel.items && carousel.items.length > 0) {
-      carousel.items.forEach(item => {
+      carousel.items.forEach((item) => {
         if (isDownloadableContent(item)) {
           downloadableItems.push(item);
         }
@@ -859,29 +927,28 @@ function extractAllDownloadableContent(ads, carousels) {
   return downloadableItems;
 }
 
-
 /**
  * Download all content upfront (called when MQTT message arrives)
  * @param {Array} ads - All ads
  * @param {Array} carousels - All carousels
  */
 async function downloadAllContentUpfront(ads, carousels) {
-  console.log('📥 Starting upfront download of ALL content...');
+  console.log("📥 Starting upfront download of ALL content...");
 
   const allDownloadable = extractAllDownloadableContent(ads, carousels);
-  console.log('ALL DOWNLOADABLE: ', allDownloadable);
+  console.log("ALL DOWNLOADABLE: ", allDownloadable);
 
   if (allDownloadable.length === 0) {
-    console.log('📭 No downloadable content found');
+    console.log("📭 No downloadable content found");
     return [];
   }
 
-  const filenames = allDownloadable.map(item => getFileName(item));
+  const filenames = allDownloadable.map((item) => getFileName(item));
 
-    await cleanUpOldAds(filenames);
-    logCleanup("Cleanup done!");
-    console.log("Filenames: Cleaned up old ads");
-    console.log("Filenames: ", filenames);
+  await cleanUpOldAds(filenames);
+  logCleanup("Cleanup done!");
+  console.log("Filenames: Cleaned up old ads");
+  console.log("Filenames: ", filenames);
 
   // Download all files
   for (let i = 0; i < filenames.length; i++) {
@@ -897,7 +964,6 @@ async function downloadAllContentUpfront(ads, carousels) {
   return filenames;
 }
 
-
 /**
  * Build unified playback queue from ads and carousels
  * @param {Array} ads - Array of ad items
@@ -905,7 +971,7 @@ async function downloadAllContentUpfront(ads, carousels) {
  * @returns {Array} Unified playback queue
  */
 function buildPlaybackQueue(ads, carousels) {
-  console.log('🔨 Building playback queue...');
+  console.log("🔨 Building playback queue...");
 
   // Step 1: Filter ads by schedule
   const validAds = filterScheduledContent(ads);
@@ -917,7 +983,9 @@ function buildPlaybackQueue(ads, carousels) {
   // Step 3: Combine ads + carousel items
   const queue = [...validAds, ...carouselItems];
 
-  console.log(`📋 Playback Queue: ${validAds.length} ads + ${carouselItems.length} carousel items = ${queue.length} total`);
+  console.log(
+    `📋 Playback Queue: ${validAds.length} ads + ${carouselItems.length} carousel items = ${queue.length} total`,
+  );
 
   return queue;
 }
@@ -981,8 +1049,6 @@ function buildPlaybackQueue(ads, carousels) {
 //   }
 // }
 
-
-
 /**
  * Handle ads from MQTT payload with new content structure
  * @param {Object} payload - MQTT payload with ads, carousels, live_contents
@@ -1017,9 +1083,14 @@ async function handleMQTTAds(payload) {
   startAdSlide("ad_snippet", rcs, 1, rcs_enabled, logo_enabled);
 
   // STEP 1: Download ALL content upfront (ads + all carousel items)
-  console.log('📥 STEP 1: Downloading ALL content upfront...');
+  console.log("📥 STEP 1: Downloading ALL content upfront...");
   await downloadAllContentUpfront(ads, carousels);
-  console.log('✅ All content downloaded!');
+  console.log("✅ All content downloaded!");
+
+  // Initialize regular players if not already done
+      if (!p1 || !p2 || !stg) {
+        initializeRegularPlayers();
+      }
 
   // STEP 2: Check for active live content
   const activeLive = checkActiveLiveContent(liveContents);
@@ -1030,7 +1101,7 @@ async function handleMQTTAds(payload) {
   }
 
   // STEP 3: Normal mode - Build playback queue (schedule-filtered)
-  console.log('📺 Normal playback mode');
+  console.log("📺 Normal playback mode");
   const playbackQueue = buildPlaybackQueue(ads, carousels);
 
   if (playbackQueue.length === 0) {
@@ -1044,9 +1115,6 @@ async function handleMQTTAds(payload) {
   localAds = filenames;
   stopCurrentPlayback();
   adsFromServer = playbackQueue;
-
-
-
 
   playAllContentInLoop(filenames, playbackQueue, rcs);
 
@@ -1140,7 +1208,7 @@ async function checkAndDownloadContent(url, fileName) {
         addErrorLog(`Directory resolve failed: ${err.message}`);
         reject(err);
       },
-      "rw"
+      "rw",
     );
   });
 }
@@ -1157,6 +1225,12 @@ function stopCurrentPlayback() {
     p1.stop();
   } catch (e) {
     console.warn("Error stopping p1:", e);
+  }
+
+  try {
+    stg.stop()
+  } catch(e){
+
   }
 
   try {
@@ -1188,11 +1262,11 @@ function cleanUpOldAds(newFilenames) {
               .map((entry) => deleteFileFromDir(dir, entry.name));
             Promise.all(deletions).then(resolve).catch(reject);
           },
-          (err) => reject(err)
+          (err) => reject(err),
         );
       },
       (err) => reject(err),
-      "rw"
+      "rw",
     );
   });
 }
@@ -1210,7 +1284,7 @@ function deleteFileFromDir(dir, name) {
         console.error("❌ Delete failed:", name, err.message);
         addErrorLog(`Failed to delete ${name}: ${err.message}`);
         reject(err);
-      }
+      },
     );
   });
 }
@@ -1280,12 +1354,15 @@ function playImage(file, signal, currentAd) {
     document.getElementById("av-player2").classList.remove("vid");
     showImage(file, resolve); // your own image render logic
 
-    timeoutBox = managedSetTimeout(() => {
-      if (!signal.aborted) {
-        logVideo("Image display complete:", file);
-        resolve();
-      }
-    }, currentAd?.duration * 1000 || 10000); // 10 seconds per image
+    timeoutBox = managedSetTimeout(
+      () => {
+        if (!signal.aborted) {
+          logVideo("Image display complete:", file);
+          resolve();
+        }
+      },
+      currentAd?.duration * 1000 || 10000,
+    ); // 10 seconds per image
 
     // signal.addEventListener("abort", () => {
     //   clearTimeout(timeout);
@@ -1387,12 +1464,10 @@ async function playAllContentInLoop(filenames, contentItems, rcs) {
     await new Promise((res) => managedSetTimeout(res, 50));
   }
 
-  
-
   currentAbortController = new AbortController();
   const signal = currentAbortController.signal;
 
-  showNormalPlayers()
+  showNormalPlayers();
 
   if (!filenames || filenames.length === 0) {
     console.error("❌ No content to play.");
@@ -1401,11 +1476,10 @@ async function playAllContentInLoop(filenames, contentItems, rcs) {
 
   // Playback loop - NEVER BREAKS for downloading
   while (!signal.aborted) {
-
- // 🔁 LOOP COMPLETED → refresh carousel
- console.log("iterator", iterator);
- console.log("contentItems.length", contentItems.length);
- console.log("index", iterator % contentItems.length);
+    // 🔁 LOOP COMPLETED → refresh carousel
+    console.log("iterator", iterator);
+    console.log("contentItems.length", contentItems.length);
+    console.log("index", iterator % contentItems.length);
     if (iterator == 0 && iterator % contentItems.length === 0) {
       console.log("🔄 Loop completed — refreshing carousel items");
       console.log("window.LAST_ADS", window.LAST_ADS);
@@ -1414,7 +1488,7 @@ async function playAllContentInLoop(filenames, contentItems, rcs) {
       // Rebuild playback queue (this moves carousel forward)
       const newQueue = buildPlaybackQueue(
         window.LAST_ADS,
-        window.LAST_CAROUSELS
+        window.LAST_CAROUSELS,
       );
 
       filenames = newQueue.map(getFileName);
@@ -1489,7 +1563,7 @@ async function playVideoWithTracking(file, signal, currentAd, filenames) {
         {
           fileName: file,
           expectedDuration: currentAd?.duration,
-        }
+        },
       );
     }
 
@@ -1525,7 +1599,7 @@ async function playImageWithTracking(file, signal, currentAd, filenames) {
         "IMAGE_DISPLAY_STARTED",
         {
           fileName: file,
-        }
+        },
       );
     }
 
@@ -1568,6 +1642,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
 
       const player = useP1Next ? p1 : p2;
       const otherPlayer = useP1Next ? p2 : p1;
+      
 
       useP1Next = !useP1Next;
       try {
@@ -1579,23 +1654,31 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
         //console.log("player close....", error?.message);
         player.close?.();
       }
+      try{
+        stg.stop?.()
+      }catch(e){
+
+      }
 
       function timeoutFallbackHandler() {
-        timeoutFallback = setTimeout(() => {
-          if (!hasStarted) {
-            console.warn("⏭️ Timeout: Skipping stuck video:", file);
-            player.stop();
-            addErrorLog("Video playback timeout: Skipping stuck video");
-            resolve();
-          } else {
-            console.warn(
-              "⏭️ Timeout: Video playback took too long, stopping player."
-            );
-            player.stop();
-            addErrorLog("Video playback timeout: Stopping player");
-            resolve();
-          }
-        }, currentAd?.duration * 1000 || 15000); // e.g., 15 sec fallback
+        timeoutFallback = setTimeout(
+          () => {
+            if (!hasStarted) {
+              console.warn("⏭️ Timeout: Skipping stuck video:", file);
+              player.stop();
+              addErrorLog("Video playback timeout: Skipping stuck video");
+              resolve();
+            } else {
+              console.warn(
+                "⏭️ Timeout: Video playback took too long, stopping player.",
+              );
+              player.stop();
+              addErrorLog("Video playback timeout: Stopping player");
+              resolve();
+            }
+          },
+          currentAd?.duration * 1000 || 15000,
+        ); // e.g., 15 sec fallback
       }
 
       let successCallback = function () {
@@ -1640,7 +1723,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
           if (trackingId && window.proofOfPlayTracker) {
             window.proofOfPlayTracker.addPlaybackEvent(
               trackingId,
-              "BUFFERING_COMPLETE"
+              "BUFFERING_COMPLETE",
             );
           }
         },
@@ -1662,7 +1745,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
             if (trackingId && window.proofOfPlayTracker) {
               window.proofOfPlayTracker.addPlaybackEvent(
                 trackingId,
-                "STREAM_COMPLETED"
+                "STREAM_COMPLETED",
               );
             }
 
@@ -1672,14 +1755,14 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
             resolve();
           } else {
             console.log(
-              "🛑 Aborted during stream completion, stopping player."
+              "🛑 Aborted during stream completion, stopping player.",
             );
 
             // Add tracking event for aborted completion
             if (trackingId && window.proofOfPlayTracker) {
               window.proofOfPlayTracker.addPlaybackEvent(
                 trackingId,
-                "STREAM_ABORTED"
+                "STREAM_ABORTED",
               );
             }
 
@@ -1705,7 +1788,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
                 "PLAYBACK_ERROR",
                 {
                   errorType: errType,
-                }
+                },
               );
             }
 
@@ -1722,7 +1805,7 @@ function playVideo(file, signal, currentAd, trackingId = null, filenames) {
                 "ERROR_ABORTED",
                 {
                   errorType: errType,
-                }
+                },
               );
             }
 

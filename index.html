@@ -21,7 +21,7 @@
 
 
     <!-- NEW: Add HLS.js for M3U8 streaming -->
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script> -->
 
   <!-- App Scripts -->
   <script src="js/common.js" type="text/javascript"></script>
@@ -112,8 +112,10 @@
       <div class="ad-player" id="ad_player">
         <object id="av-player" type="application/avplayer" class=""></object>
         <object id="av-player2" type="application/avplayer" class=""></object>
+         <object id="hls-player" type="application/avplayer" class=""></object>
+        
         <!-- NEW: HLS/M3U8 Player -->
-        <video id="hls-player" style="
+        <!-- <video id="hls-player" style="
               display: none;
               width: 100vw;
               height: 95vh;
@@ -122,7 +124,7 @@
               top: 0;
               left: 0;
               z-index: 100;
-            " autoplay></video>
+            " autoplay></video> -->
 
         <!-- NEW: YouTube Player -->
         <iframe id="youtube-player" style="
