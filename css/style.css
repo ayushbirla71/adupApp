@@ -11,7 +11,7 @@
 
 body {
   font-family: "Inter", sans-serif;
-  background: linear-gradient(135deg, #060b15, #050b12);
+  /* background: linear-gradient(135deg, #060b15, #050b12); */
   height: 100vh;
   display: flex;
   width: 100%;
@@ -35,6 +35,11 @@ body {
   body {
     /* Styles for horizontal layout */
   }
+}
+
+/* Ensure all generic object tags (used by AVPlay) are transparent */
+object[type="application/avplayer"] {
+    background-color: transparent !important;
 }
 
 .main-container {
@@ -774,4 +779,19 @@ progress {
 .ad-player #youtube-player {
   border: none;
   outline: none;
+}
+
+
+
+/* ========================================================
+   CRITICAL TIZEN TRANSPARENCY OVERRIDES 
+   These ensure the hardware video layer is visible
+======================================================== */
+html, 
+.main-container,
+.ad-player-container,
+.ad-player-container-box,
+.ad-player {
+    /* background-color: transparent !important;
+    background: transparent !important; */
 }

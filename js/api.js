@@ -186,6 +186,7 @@ async function sendLogsToAPI(payload) {
         "Content-Type": "application/json",
         "X-Device-ID": localStorage.getItem("device_id") || "",
         "X-Android-ID": localStorage.getItem("android_id") || "",
+        "X-stg" : IS_STG,
       },
       data: JSON.stringify(payload),
       timeout: 30000, // 30 seconds
@@ -247,6 +248,7 @@ async function sendBulkLogsToAPI(bulkPayload) {
           "X-Device-ID": deviceId,
           "X-Android-ID": localStorage.getItem("android_id") || "",
           "X-Sync-Type": "BULK",
+          "X-stg" : IS_STG,
         },
         data: formData,
         processData: false, // ✅ IMPORTANT: Don't process FormData
@@ -311,6 +313,37 @@ async function deviceOriantationChange(orientationType, resolution) {
     },
     error: function (error) {
       console.error("Error changing device orientation:", error);
+    },
+  });
+}
+
+
+
+
+async function deviceExitConfirm() {
+  if (!localStorage.getItem("device_id")) {
+    return;
+  }
+
+  let isConnected = await window.networkMonitor.checkConnectivity();
+  if (!isConnected) {
+    logWarn("Device is offline - Exit api not work....");
+    return;
+  }
+  $.ajax({
+    url:
+      API_BASE_URL +
+      "device/confirm-delete" +
+      localStorage.getItem("device_id"),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    success: function (response) {
+      console.log("Device Exit successfully:", response);
+    },
+    error: function (error) {
+      console.error("Error device Exit api:", error);
     },
   });
 }

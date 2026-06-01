@@ -140,8 +140,8 @@ window.onload = async function () {
   console.log("Orientation listener initialized successfully");
 
   // const newToken = "your_token_here"; // Set this appropriately
-  // localStorage.setItem("group_id", "13a3aeb6-5952-43c2-9d0b-25777fdf4e9d");
-  // localStorage.setItem("device_id", "83de41b0-4cac-480e-a8f9-3278d8fb7e69");
+  // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
+  // localStorage.setItem("device_id", "caf0b3a1-8a11-42d0-8068-131d0f875b57");
 
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {
@@ -150,6 +150,7 @@ window.onload = async function () {
 
     // localStorage.setItem("token", newToken);
     const ads = JSON.parse(localStorage.getItem("ads") || "[]"); // fallback to empty array if null
+    const content = JSON.parse(localStorage.getItem("content") || "[]");
     const device_id = localStorage.getItem("device_id");
     const group_id = localStorage.getItem("group_id");
     let placeholder = localStorage.getItem("placeholder");
@@ -159,7 +160,11 @@ window.onload = async function () {
     let rcs_enabled = localStorage.getItem("rcs_enabled");
     let logo_enabled = localStorage.getItem("logo_enabled");
     if (placeholder && placeholder_enabled == true) {
-      ads.push({ url: placeholder, timestamp: timestamps });
+      content.push({
+        type: "placeholder",
+        url: placeholder,
+        timestamp: timestamps,
+      });
     }
     let rcs = localStorage.getItem("rcs");
     console.log("ads", ads);
@@ -181,11 +186,12 @@ window.onload = async function () {
     // }
     deviceOriantationChange(
       window.DEVICE_WINDOW_ORIENT,
-      window.DEVICE_WINDOW_WIDTH + "x" + window.DEVICE_WINDOW_HEIGHT
+      window.DEVICE_WINDOW_WIDTH + "x" + window.DEVICE_WINDOW_HEIGHT,
     );
 
     connectMQTT({
       ads: ads,
+      content: content,
       rcs: rcs,
       device_id: device_id,
       group_id: group_id,
@@ -290,7 +296,7 @@ function initOrientationListener() {
           "Screen dimensions (static):",
           screen.width,
           "x",
-          screen.height
+          screen.height,
         );
 
         window.DEVICE_WINDOW_WIDTH = screenWidth;
@@ -536,30 +542,30 @@ function renderDownloadedFiles() {
           const files = entries.map((entry) => entry.name);
           if (files.length === 0) {
             $list.append(
-              `<li class="download-item">No downloaded files found.</li>`
+              `<li class="download-item">No downloaded files found.</li>`,
             );
             return;
           }
 
           files.forEach((file, i) => {
             $list.append(
-              `<li class="download-item focusable" id="download-${i}">${file}</li>`
+              `<li class="download-item focusable" id="download-${i}">${file}</li>`,
             );
           });
         },
         (err) => {
           console.error("❌ Failed to list files:", err.message);
           $list.append(
-            `<li class="download-item error">Error listing files</li>`
+            `<li class="download-item error">Error listing files</li>`,
           );
-        }
+        },
       );
     },
     (err) => {
       console.error("❌ Failed to resolve directory:", err.message);
       $list.append(`<li class="download-item error">Directory not found</li>`);
     },
-    "r"
+    "r",
   );
 }
 
@@ -568,7 +574,7 @@ function renderErrors() {
   $list.empty();
   window.ERROR_LOGS.forEach((err, i) => {
     $list.append(
-      `<li class="error-item focusable" id="error-${i}">${err}</li>`
+      `<li class="error-item focusable" id="error-${i}">${err}</li>`,
     );
   });
 }
@@ -626,13 +632,13 @@ function showSystemInfo() {
     infoItems.push([
       "Firmware",
       tizen.systeminfo.getCapability(
-        "http://tizen.org/feature/platform.version"
+        "http://tizen.org/feature/platform.version",
       ),
     ]);
     infoItems.push([
       "Tizen Version",
       tizen.systeminfo.getCapability(
-        "http://tizen.org/feature/platform.native.api.version"
+        "http://tizen.org/feature/platform.native.api.version",
       ),
     ]);
     infoItems.push(["Screen Resolution", `${screen.width} x ${screen.height}`]);
@@ -658,7 +664,7 @@ function showSystemInfo() {
       (err) => {
         infoItems.push(["Storage", "Not Available"]);
         updateDeviceList(infoItems);
-      }
+      },
     );
   } catch (e) {
     console.warn("System info error:", e.message);
@@ -693,7 +699,7 @@ function fetchGeolocation(infoItems) {
         maximumAge: 60000,
         timeout: 5000,
         enableHighAccuracy: false,
-      }
+      },
     );
   } else {
     infoItems.push(["Location", "Geolocation API not supported"]);

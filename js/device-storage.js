@@ -1,34 +1,16 @@
-// Tizen Ad Loop Player - Handles large video downloads & async loading
+/**
+ * Tizen Multi-Zone Digital Signage Player
+ * Supports independent zones, PoP tracking, M3U8 live retries, and Tizen-specific quirks.
+ */
 
 const fileDir = "downloads/subDir";
-var localAds = []; // Tracks local ad filenames
-let adsFromServer = []; // Tracks ads from MQTT
-let adLoopTimeouts = []; // 🔁 To track all timeouts
-let currentVideo = null; // 🔇 To track currently playing video
-let lastAdSignature = ""; // For checking ad updates
-let liveMonitorInterval = null;
-let currentPlaybackMode = "normal"; // "normal" or "live"
-// Active live content
-let activeLiveContent = null;
-// Global carousel state - tracks last played index for each carousel
-let carouselState = {};
-
-// Current playback queue
-let currentContentQueue = [];
-var p1, p2, stg;
-var iterator = 0;
-// Remove global element references - get them when needed instead
-// var imageElement1 = document.getElementById("image-player1");
-// var imageElement2 = document.getElementById("image-player2");
-
-//////updated ////
+let activeZones = {};
+let globalDownloads = new Set();
 
 const YOUTUBE_CONFIG = {
-  // Test YouTube live stream URL - your testing link
-  testLiveUrl: "https://www.youtube.com/live/1wECsnGZcfc?si=3V_BjgrcYGzIbEzK",
   embedBaseUrl: "https://www.youtube.com/embed/",
   autoplay: 1,
-  mute: 0,
+  mute: 1,
   controls: 0,
   showinfo: 0,
   rel: 0,
@@ -36,22 +18,18 @@ const YOUTUBE_CONFIG = {
   iv_load_policy: 3,
 };
 
-let useImage1 = true;
-let useP1Next = true; // Global or scoped toggle
-
-// ✅ Ensure directory exists
+// ==========================================
+// 1. INITIALIZATION & FILESYSTEM
+let sources = "";
 tizen.filesystem.createDirectory(
   fileDir,
   (dir) => console.log("📁 Directory created:", dir),
-  (err) => console.error("❌ Directory creation error:", err.message),
+  (err) => console.log("📁 Directory exists or error:", err.message),
 );
 
-var sources = "";
-
 tizen.filesystem.resolve(
-  `${fileDir}`,
+  fileDir,
   (file) => {
-    console.log("📁 Resolved file:", file.toURI());
     sources = file.toURI();
   },
   (err) => {
@@ -60,1196 +38,1891 @@ tizen.filesystem.resolve(
   "r",
 );
 
-// Comment out regular players for YouTube live testing
-// p1 = webapis.avplaystore.getPlayer();
-// p2 = webapis.avplaystore.getPlayer();
-
-// Initialize players only when not using YouTube live mode
-function initializeRegularPlayers() {
-  if (!window.isYoutubeLiveMode) {
-    p1 = webapis.avplaystore.getPlayer();
-    p2 = webapis.avplaystore.getPlayer();
-    stg = webapis.avplaystore.getPlayer();
-
-    logInfo("🎥 Regular video players initialized");
-  }
-}
-
-/**
- * Initialize all state on app start
- */
-function initContentState() {
-  // Load carousel state from localStorage
-  initCarouselState();
-
-  // Reset playback mode
-  currentPlaybackMode = "normal";
-  activeLiveContent = null;
-
-  console.log("✅ Content state initialized");
-}
-
-// Call on app start
-initContentState();
-
-// Test function for YouTube live player
-function testYouTubePlayback() {
-  logInfo("🔴 Testing YouTube Live Player...");
-
-  // Test YouTube URL - you can replace this with your testing link
-  const testUrl =
-    "https://www.youtube.com/live/lj-FQ6ynmek?si=Yvd0pgkhr5xlx4wj"; // LoFi Hip Hop 24/7
-
-  const testSignal = new AbortController().signal;
-  const testAd = { duration: 3600 }; // 15 seconds for testing
-
-  if (window.playYouTubeLive) {
-    return window.playYouTubeLive(testUrl, testSignal, testAd);
-  } else {
-    logError("YouTube Live Player not available");
-    return Promise.resolve();
-  }
-}
-
-// Make test function globally available
-window.testYouTubePlayback = testYouTubePlayback;
-window.initializeRegularPlayers = initializeRegularPlayers;
-
-function increaseIterator(x) {
-  iterator++;
-  if (iterator >= x.length) {
-    iterator = 0;
-  }
-  //console.log("Current iterator value: " + iterator);
-}
-
-/**
- * Check if current time is within any of the provided time slots
- * @param {Array} timeSlots - Array of {start: "HH:MM", end: "HH:MM"}
- * @returns {boolean}
- */
-// function isWithinTimeSlot(timeSlots) {
-//   if (!timeSlots || timeSlots.length === 0) return true;
-
-//   const now = new Date();
-//   const currentHour = now.getHours();
-//   const currentMinute = now.getMinutes();
-//   const currentTimeMinutes = currentHour * 60 + currentMinute;
-
-//   return timeSlots.some((slot) => {
-//     const [startHour, startMin] = slot.start.split(":").map(Number);
-//     const [endHour, endMin] = slot.end.split(":").map(Number);
-//     const startMinutes = startHour * 60 + startMin;
-//     const endMinutes = endHour * 60 + endMin;
-
-//     // return currentTimeMinutes >= startMinutes && currentTimeMinutes <= endMinutes;
-//     return (
-//       currentTimeMinutes >= startMinutes && currentTimeMinutes < endMinutes
-//     );
-//   });
-// }
-
-
-function isWithinTimeSlot(timeSlots) {
-  if (!timeSlots || timeSlots.length === 0) return true;
-
-  const now = new Date();
-  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-
-  return timeSlots.some((slot) => {
-    const [startHour, startMin] = slot.start.split(":").map(Number);
-    const [endHour, endMin] = slot.end.split(":").map(Number);
-
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-
-    // ✅ NORMAL CASE (same day)
-    if (startMinutes < endMinutes) {
-      return (
-        currentTimeMinutes >= startMinutes &&
-        currentTimeMinutes < endMinutes
-      );
-    }
-
-    // ✅ OVERNIGHT CASE (cross midnight)
-    return (
-      currentTimeMinutes >= startMinutes || 
-      currentTimeMinutes < endMinutes
-    );
-  });
-}
-
-/**
- * Check if today is in the allowed weekdays
- * @param {Array} weekdays - Array of weekday numbers (0=Sunday, 1=Monday, etc.)
- * @returns {boolean}
- */
-function isValidWeekday(weekdays) {
-  if (!weekdays || weekdays.length === 0) return true;
-
-  const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
-  return weekdays.includes(today);
-}
-
-/**
- * Check if content should play based on schedule
- * @param {Object} item - Content item with time_slots and weekdays
- * @returns {boolean}
- */
-function shouldPlayContent(item) {
-  if (!item) return false;
-  console.log("Checking if content should play:", item);
-
-  // Check time slots
-  if (item.time_slots && !isWithinTimeSlot(item.time_slots)) {
-    return false;
-  }
-
-  // Check weekdays
-  if (item.weekdays && !isValidWeekday(item.weekdays)) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Filter content array based on scheduling rules
- * @param {Array} contentArray - Array of content items
- * @returns {Array} Filtered content that should play now
- */
-function filterScheduledContent(contentArray) {
-  if (!contentArray || contentArray.length === 0) return [];
-
-  return contentArray.filter((item) => shouldPlayContent(item));
-}
-
-/**
- * Initialize carousel state from localStorage
- */
-function initCarouselState() {
-  const saved = localStorage.getItem("carousel_state");
-  if (saved) {
-    try {
-      carouselState = JSON.parse(saved);
-      console.log("📊 Loaded carousel state:", carouselState);
-    } catch (e) {
-      console.error("Failed to parse carousel state:", e);
-      carouselState = {};
-    }
-  }
-}
-
-/**
- * Save carousel state to localStorage
- */
-function saveCarouselState() {
-  localStorage.setItem("carousel_state", JSON.stringify(carouselState));
-}
-
-/**
- * Get next item from carousel using round-robin selection
- * @param {Object} carousel - Carousel object with items array
- * @returns {Object} Next carousel item to play
- */
-function getNextCarouselItem(carousel) {
-  if (!carousel || !carousel.items || carousel.items.length === 0) {
-    return null;
-  }
-
-  const carouselId = carousel.carousel_id;
-
-  // Get last played index (default to -1 so first item is 0)
-  const lastIndex = carouselState[carouselId]?.lastPlayedIndex ?? -1;
-
-  // Calculate next index (round-robin)
-  const nextIndex = (lastIndex + 1) % carousel.items.length;
-
-  // Update state
-  carouselState[carouselId] = {
-    lastPlayedIndex: nextIndex,
-    totalItems: carousel.items.length,
-    carouselName: carousel.name,
-    lastUpdated: new Date().toISOString(),
-  };
-
-  // Save to localStorage
-  saveCarouselState();
-
-  const selectedItem = carousel.items[nextIndex];
-  console.log(
-    `🎠 Carousel "${carousel.name}": Selected item ${nextIndex + 1}/${carousel.items.length} - ${selectedItem.name}`,
-  );
-
-  return selectedItem;
-}
-
-/**
- * Process all carousels and pick one item from each
- * @param {Array} carousels - Array of carousel objects
- * @returns {Array} Array of selected carousel items
- */
-function processCarousels(carousels) {
-  if (!carousels || carousels.length === 0) {
-    console.log("📭 No carousels to process");
-    return [];
-  }
-
-  // Filter carousels by schedule
-  const validCarousels = filterScheduledContent(carousels);
-  console.log(
-    `🎠 Valid carousels: ${validCarousels.length}/${carousels.length}`,
-  );
-
-  // Pick one item from each valid carousel
-  const selectedItems = validCarousels
-    .map((carousel) => getNextCarouselItem(carousel))
-    .filter((item) => item !== null);
-
-  console.log(`✅ Selected ${selectedItems.length} carousel items`);
-  return selectedItems;
-}
-
-/**
- * Detect content type from URL
- * @param {string} url - Content URL
- * @returns {string} Content type: 'video', 'image', 'm3u8', 'youtube', 'website'
- */
-function detectContentType(url) {
-  if (!url) return "unknown";
-
-  const cleanUrl = url.split("?")[0].toLowerCase();
-
-  // Streaming (HLS)
-  if (cleanUrl.endsWith(".m3u8")) return "m3u8";
-
-  // YouTube
-  if (url.includes("youtube.com") || url.includes("youtu.be")) {
-    return "youtube";
-  }
-
-  // Video files
-  if (
-    cleanUrl.endsWith(".mp4") ||
-    cleanUrl.endsWith(".mkv") ||
-    cleanUrl.endsWith(".avi") ||
-    cleanUrl.endsWith(".webm")
-  ) {
-    return "video";
-  }
-
-  // Image files
-  if (
-    cleanUrl.endsWith(".jpg") ||
-    cleanUrl.endsWith(".jpeg") ||
-    cleanUrl.endsWith(".png") ||
-    cleanUrl.endsWith(".gif")
-  ) {
-    return "image";
-  }
-
-  // Website fallback
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return "website";
-  }
-
-  return "unknown";
-}
-
-/**
- * Check if content is downloadable
- * @param {Object} item - Content item
- * @returns {boolean}
- */
-function isDownloadableContent(item) {
-  const type = detectContentType(item.url);
-  return type === "video" || type === "image";
-}
-
-/**
- * Check if content is streaming/live
- * @param {Object} item - Content item
- * @returns {boolean}
- */
-function isStreamingContent(item) {
-  const type = detectContentType(item.url);
-  return type === "m3u8" || type === "youtube" || type === "website";
-}
-
-/**
- * Check if any live content is currently active
- * @param {Array} liveContents - Array of live content items
- * @returns {Object|null} Active live content or null
- */
-function checkActiveLiveContent(liveContents) {
-  if (!liveContents || liveContents.length === 0) {
-    return null;
-  }
-
-  // Find first active live content
-  for (const liveItem of liveContents) {
-    if (shouldPlayContent(liveItem)) {
-      console.log("🔴 LIVE CONTENT ACTIVE:", liveItem.name || liveItem.ad_id);
-      return liveItem;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Handle live content playback mode
- * @param {Array} liveItems - Array of live content items to play
- * @param {Array} allLiveContents - All live content for monitoring
- */
-async function handleLiveContentMode(liveItems, allLiveContents) {
-  console.log("🔴 Entering LIVE CONTENT MODE");
-  currentPlaybackMode = "live";
-
-  // 🛑 STOP ADS LOOP
-  if (currentAbortController) {
-    console.log("🛑 Aborting ad playback loop");
-    currentAbortController.abort();
-  }
-
-  // ⚠️ DO NOT DOWNLOAD - Live content is streamed directly
-  console.log("📡 Live content will be streamed (not downloaded)");
-
-  // Stop current playback
-  stopCurrentPlayback();
-
-  // Play live content directly from URL
-  console.log("▶️ Starting live content streaming");
-  playLiveContentStream(liveItems[0]); // Play first active live content
-  activeLiveContent = liveItems[0];
-
-  // Start monitoring for when live content ends
-  startLiveContentMonitor(allLiveContents);
-}
-
-/**
- * Play live streaming content
- * @param {Object} liveItem - Live content item
- */
-function playLiveContentStream(liveItem) {
-  const contentType = detectContentType(liveItem.url);
-
-  console.log(`🔴 Playing live content: ${contentType} - ${liveItem.url}`);
-
-  // Hide all other players
-  hideAllPlayers();
-
-  switch (contentType) {
-    case "m3u8":
-      playM3U8Stream(liveItem);
-      break;
-    case "youtube":
-      playYouTubeStream(liveItem);
-      break;
-    case "website":
-      playWebsiteStream(liveItem);
-      break;
+// ⭐ FEATURE 2: Tizen Screen Rotation
+function getRotationValue() {
+  const orientationType = screen.orientation.type;
+  switch (orientationType) {
+    case "portrait-primary":
+      return "PLAYER_DISPLAY_ROTATION_90";
+    case "portrait-secondary":
+      return "PLAYER_DISPLAY_ROTATION_180";
+    case "landscape-primary":
+      return "PLAYER_DISPLAY_ROTATION_NONE";
+    case "landscape-secondary":
+      return "PLAYER_DISPLAY_ROTATION_270";
     default:
-      console.error("❌ Unsupported live content type:", contentType);
+      return "PLAYER_DISPLAY_ROTATION_NONE";
   }
 }
 
-function scheduleStreamRetry(liveItem, retryCount) {
-  const RETRY_DELAY = 5000;
 
-  const retryTimeout = setTimeout(() => {
-    playM3U8Stream(liveItem, retryCount + 1);
-  }, RETRY_DELAY);
+// ==========================================
+// 2. ZONE CONTROLLER CLASS
+// ==========================================
+class ZoneController {
+  constructor(zoneConfig) {
+    this.zoneId = zoneConfig.zone_id;
+    this.rect = zoneConfig.rect;
+    this.type = zoneConfig.type;
+    this.zIndex = zoneConfig.z_index || 10;
+    this.border_radius = zoneConfig.border_radius
 
-  adLoopTimeouts.push(retryTimeout);
-}
+    this.ads = zoneConfig.ads || [];
+    this.carousels = zoneConfig.carousels || [];
+    this.liveContents = zoneConfig.liveContents || [];
 
-/**
- * Play M3U8/HLS stream using HTML5 video + HLS.js
- * @param {Object} liveItem - Live content item
- */
-function playM3U8Stream(liveItem, retryCount = 0) {
-  console.log("📡 Playing M3U8 stream:", liveItem.url);
+    this.iterator = 0;
+    this.currentPlaybackMode = "normal";
+    this.activeLiveContent = null;
+    this.abortController = null;
+    this.liveMonitorInterval = null;
+    this.timeoutBox = null;
+    this.widgetInterval = null; // Tracks ticking clocks
+    this.m3u8RetryTimeouts = [];
+    this.carouselState = {};
 
-  const player = stg;
-  const MAX_RETRY = 999; // or any large number
-  const RETRY_DELAY = 5000; // 5 seconds
+    this.websiteRefreshInterval = null;
 
-  try {
-    player.stop();
-  } catch (e) {
-    console.log("Player not running");
-  }
+    this.p1 = null;
+    this.p2 = null;
+    this.stg = null;
+    this.useP1Next = true;
 
-  const dynamicListener = {
-    onbufferingstart: function () {
-      console.log("⏳ Buffering start");
-    },
-
-    onbufferingprogress: function (percent) {
-      console.log("Buffering progress:", percent);
-    },
-
-    onbufferingcomplete: function () {
-      console.log("✅ Buffering complete");
-    },
-
-    onstreamcompleted: function () {
-      console.log("📺 Stream completed");
-    },
-
-    onerror: function (errType) {
-      console.error("❌ AVPlay error:", errType);
-
-      if (retryCount < MAX_RETRY) {
-        console.log("🔄 Retrying stream in 5 seconds...");
-               scheduleStreamRetry(liveItem, retryCount);
-      }
-    },
-  };
-
-  player.setListener(dynamicListener);
-
-  try {
-    player.open(liveItem.url);
-  } catch (e) {
-    console.error("❌ Open failed:", e);
-  }
-
-  const rotation = getRotationValue();
-
-  try {
-    player.setDisplayRotation(rotation);
-  } catch (e) {
-    console.log("Rotation not supported");
-  }
-
-  player.prepareAsync(
-    function () {
-      console.log("✅ Player prepared");
-
-      const playerContainer = document.getElementById("ad_player");
-      document.getElementById("hls-player").classList.add("vid");
-      const rect = playerContainer.getBoundingClientRect();
-      player.setDisplayMethod("PLAYER_DISPLAY_MODE_FULL_SCREEN");
-
-      // player.setDisplayRect(rect.left, rect.top, rect.width, rect.height);
-      let height =
-        localStorage.getItem("rcs_enabled") == "true"
-          ? window.innerHeight - 40
-          : window.innerHeight;
-      player.setDisplayRect(0, 0, window.innerWidth, height);
-      // player.setDisplayRect(0, 0, 1920, 1080);
-
-      player.play();
-      console.log("▶️ Stream started");
-    },
-    function (error) {
-      console.error("❌ Prepare failed:", error);
-
-      if (retryCount < MAX_RETRY) {
-        console.log("🔄 Retrying stream in 5 seconds...");
-       scheduleStreamRetry(liveItem, retryCount);
-      }
-    }
-  );
-}
-
-/**
- * Play YouTube video using iFrame API
- * @param {Object} liveItem - Live content item
- */
-// function playYouTubeStream(liveItem) {
-//   console.log('📺 Playing YouTube stream:', liveItem.url);
-
-//   // Extract YouTube video ID
-//   const videoId = extractYouTubeVideoId(liveItem.url);
-//   if (!videoId) {
-//     console.error('❌ Invalid YouTube URL');
-//     return;
-//   }
-
-//   // Get or create YouTube iframe
-//   let iframe = document.getElementById('youtube-player');
-//   if (!iframe) {
-//     iframe = document.createElement('iframe');
-//     iframe.id = 'youtube-player';
-//     iframe.style.cssText = 'width: 100vw; height: 95vh; position: absolute; top: 0; left: 0; z-index: 100; border: none;';
-//     iframe.allow = 'autoplay; encrypted-media';
-//     document.getElementById('ad_player').appendChild(iframe);
-//   }
-
-//   iframe.style.display = 'block';
-//   iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&showinfo=0&rel=0&modestbranding=1`;
-
-//   console.log('✅ YouTube player loaded');
-// }
-
-function playYouTubeStream(liveItem) {
-  console.log("📺 Playing YouTube live:", liveItem.url);
-
-  // const videoId = extractYouTubeVideoId(liveItem.url);
-  const videoId = extractYouTubeVideoId(YOUTUBE_CONFIG.testLiveUrl);
-  if (!videoId) {
-    console.error("❌ Invalid YouTube LIVE URL");
-    return;
-  }
-
-  console.log("videoId:", videoId);
-
-  let iframe = document.getElementById("youtube-player");
-  if (!iframe) {
-    iframe = document.createElement("iframe");
-    iframe.id = "youtube-player";
-    iframe.style.cssText =
-      "width:100vw;height:95vh;position:absolute;top:0;left:0;z-index:100;border:none;";
-    iframe.allow = "autoplay; encrypted-media";
-    iframe.allowFullscreen = true;
-    iframe.referrerpolicy = "strict-origin-when-cross-origin";
-    document.getElementById("ad_player").appendChild(iframe);
-  }
-
-  // const autoplay = liveItem.config?.autoplay ? 1 : 0;
-  // const mute = liveItem.config?.mute ? 1 : 0;
-
-  // Build embed URL
-  const embedUrl = buildYouTubeEmbedUrl(videoId);
-
-  iframe.src = embedUrl;
-  iframe.sandbox = "allow-scripts allow-same-origin allow-presentation"; // Add this
-
-  console.log("embedUrl:", embedUrl);
-  iframe.style.display = "block";
-
-  console.log("✅ YouTube LIVE player loaded");
-}
-
-/**
- * Build YouTube embed URL with parameters
- */
-function buildYouTubeEmbedUrl(videoId) {
-  const params = new URLSearchParams({
-    autoplay: YOUTUBE_CONFIG.autoplay,
-    mute: YOUTUBE_CONFIG.mute,
-    controls: YOUTUBE_CONFIG.controls,
-    // showinfo: YOUTUBE_CONFIG.showinfo,
-    // rel: YOUTUBE_CONFIG.rel,
-    modestbranding: YOUTUBE_CONFIG.modestbranding,
-    iv_load_policy: YOUTUBE_CONFIG.iv_load_policy,
-    enablejsapi: 1,
-    playlist: videoId,
-    // origin: window.location.origin,
-  });
-
-  return `${YOUTUBE_CONFIG.embedBaseUrl}${videoId}?${params.toString()}`;
-}
-
-/**
- * Extract YouTube video ID from URL
- * @param {string} url - YouTube URL
- * @returns {string|null} Video ID
- */
-// function extractYouTubeVideoId(url) {
-//   const patterns = [
-//     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
-//     /youtube\.com\/embed\/([^&\n?#]+)/
-//   ];
-
-//   for (const pattern of patterns) {
-//     const match = url.match(pattern);
-//     if (match && match[1]) {
-//       return match[1];
-//     }
-//   }
-
-//   return null;
-// }
-
-/**
- * Extract YouTube video ID from various URL formats
- */
-function extractYouTubeVideoId(url) {
-  // Handle different YouTube URL formats
-  let videoId = null;
-
-  // Standard watch URL: youtube.com/watch?v=VIDEO_ID
-  let regExp =
-    /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-  let match = url.match(regExp);
-  if (match && match[7].length === 11) {
-    videoId = match[7];
-  }
-
-  // Live URL format: youtube.com/live/VIDEO_ID (with optional parameters)
-  if (!videoId) {
-    regExp = /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/;
-    match = url.match(regExp);
-    if (match && match[1]) {
-      videoId = match[1];
+    this.initZoneDOM();
+    if (this.type === "video_primary" || this.type === "video") {
+      this.initVideoPlayers();
     }
   }
 
-  // Handle live URLs with parameters: youtube.com/live/VIDEO_ID?si=...
-  if (!videoId) {
-    regExp = /youtube\.com\/live\/([a-zA-Z0-9_-]+)/;
-    match = url.match(regExp);
-    if (match && match[1]) {
-      // Use the full extracted ID (YouTube live IDs can be different lengths)
-      videoId = match[1];
+  initZoneDOM() {
+    this.container = document.createElement("div");
+    this.container.id = `zone_${this.zoneId}`;
+    this.container.style.cssText = `position:absolute; left:${this.rect.x}px; transform: translateZ(0); border-radius:${this.border_radius}px; overflow:hidden; top:${this.rect.y}px; width:${this.rect.w}px; height:${this.rect.h}px; overflow:hidden; background-color:transparent; z-index:${this.zIndex};`;
+
+    const playerCss = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:15;`;
+
+    this.p1Element = document.createElement("object");
+    this.p1Element.type = "application/avplayer";
+    this.p1Element.id = `av-player-1-${this.zoneId}`;
+    this.p1Element.style.cssText = playerCss;
+
+    this.p2Element = document.createElement("object");
+    this.p2Element.type = "application/avplayer";
+    this.p2Element.id = `av-player-2-${this.zoneId}`;
+    this.p2Element.style.cssText = playerCss;
+
+    this.stgElement = document.createElement("object");
+    this.stgElement.type = "application/avplayer";
+    this.stgElement.id = `hls-player-${this.zoneId}`;
+    this.stgElement.style.cssText = playerCss;
+
+    this.img1 = document.createElement("img");
+    this.img2 = document.createElement("img");
+    const imgCss = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; object-fit:fit; z-index:20; background-color:black;`;
+    this.img1.style.cssText = imgCss;
+    this.img2.style.cssText = imgCss;
+    this.useImage1 = true;
+
+    this.iframeContainer = document.createElement("div");
+    this.iframeContainer.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:30; background-color:black;`;
+
+    // ⭐ NEW: Native Widget Container
+    this.widgetContainer = document.createElement("div");
+    this.widgetContainer.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:25; background-color:transparent; overflow:hidden;`;
+
+    this.container.appendChild(this.p1Element);
+    this.container.appendChild(this.p2Element);
+    this.container.appendChild(this.stgElement);
+    this.container.appendChild(this.img1);
+    this.container.appendChild(this.img2);
+    this.container.appendChild(this.iframeContainer);
+    this.container.appendChild(this.widgetContainer);
+
+    document.getElementById("ad_player")?.appendChild(this.container) ||
+      document.body.appendChild(this.container);
+  }
+
+  initVideoPlayers() {
+    try {
+      this.p1 = webapis.avplaystore.getPlayer(this.p1Element.id);
+      this.p2 = webapis.avplaystore.getPlayer(this.p2Element.id);
+      this.stg = webapis.avplaystore.getPlayer(this.stgElement.id);
+    } catch (e) {
+      console.error(`❌ AVPlay error in zone ${this.zoneId}`, e);
     }
   }
 
-  // Short URL: youtu.be/VIDEO_ID
-  if (!videoId) {
-    regExp = /youtu\.be\/([a-zA-Z0-9_-]{11})/;
-    match = url.match(regExp);
-    if (match && match[1]) {
-      videoId = match[1];
+  getAdjustedVideoHeight() {
+    return localStorage.getItem("rcs_enabled") == "true"
+      ? this.rect.h
+      : this.rect.h;
+  }
+
+  async startPlayback() {
+    const activeLive = this.checkActiveLiveContent();
+    if (activeLive) {
+      await this.handleLiveContentMode(activeLive);
+    } else {
+      const queue = this.buildPlaybackQueue();
+      if (queue.length > 0) this.playLoop(queue);
     }
+    this.startLiveContentMonitor();
   }
 
-  // Debug logging
-  if (videoId) {
-    logInfo("🔴 Extracted video ID:", videoId, "from URL:", url);
-  } else {
-    logError("🔴 Failed to extract video ID from URL:", url);
+  buildPlaybackQueue() {
+    const carouselItems = this.carousels
+      .map((c) => this.getNextCarouselItem(c))
+      .filter(Boolean);
+    return [...this.ads, ...carouselItems];
   }
 
-  return videoId;
-}
 
-/**
- * Play website content using iFrame
- * @param {Object} liveItem - Live content item
- */
-function playWebsiteStream(liveItem) {
-  console.log("🌐 Playing website:", liveItem.url);
+//  async playLoop(queue) {
+//     if (this.abortController) this.abortController.abort();
+//     this.abortController = new AbortController();
+//     const signal = this.abortController.signal;
+//     this.currentPlaybackMode = "normal";
 
-  // Get or create website iframe
-  let iframe = document.getElementById("website-player");
-  if (!iframe) {
-    iframe = document.createElement("iframe");
-    iframe.id = "website-player";
-    iframe.style.cssText =
-      "width: 100vw; height: 95vh; position: absolute; top: 0; left: 0; z-index: 100; border: none;";
-    iframe.allow = "autoplay; encrypted-media; fullscreen";
-    document.getElementById("ad_player").appendChild(iframe);
-  }
-
-  iframe.style.display = "block";
-  iframe.src = liveItem.url;
-
-  console.log("✅ Website loaded in iframe");
-}
-
-/**
- * Hide all players
- */
-function hideAllPlayers() {
-  // Hide AVPlayers
-
-  const avPlayer1 = document.getElementById("av-player");
-  const avPlayer2 = document.getElementById("av-player2");
-  if (avPlayer1) avPlayer1.classList.remove("vid");
-  if (avPlayer2) avPlayer2.classList.remove("vid");
-
-  // Hide image players
-  const imgPlayer1 = document.getElementById("image-player1");
-  const imgPlayer2 = document.getElementById("image-player2");
-  if (imgPlayer1) imgPlayer1.style.display = "none";
-  if (imgPlayer2) imgPlayer2.style.display = "none";
-
-  // Hide streaming players
-  const hlsPlayer = document.getElementById("hls-player");
-  if (hlsPlayer) hlsPlayer.classList.remove("vid");
-  const youtubePlayer = document.getElementById("youtube-player");
-  const websitePlayer = document.getElementById("website-player");
-
-  // if (hlsPlayer) hlsPlayer.style.display = "none";
-  if (youtubePlayer) youtubePlayer.style.display = "none";
-  if (websitePlayer) websitePlayer.style.display = "none";
-
-  // Cleanup HLS instance
-  if (window.currentHlsPlayer) {
-    window.currentHlsPlayer.destroy();
-    window.currentHlsPlayer = null;
-  }
-}
-
-/**
- * Show normal players (AVPlayer/Image)
- */
-function showNormalPlayers() {
-  hideAllPlayers();
-  // Normal players will be shown by playVideo/playImage functions
-}
-
-function restartNormalPlayback(queue) {
-  console.log("🔄 Restarting normal ad playback...");
-
-  if (!queue || queue.length === 0) {
-    console.error("❌ No content queue available.");
-    return;
-  }
-
-  iterator = 0;
-  currentPlaybackMode = "normal";
-  currentContentQueue = queue;
-
-  const filenames = queue.map(getFileName);
-
-  playAllContentInLoop(filenames, queue);
-}
-
-/**
- * Monitor live content and switch modes as needed
- * @param {Array} liveContents - All live content items
- * @param {Array} ads - All ads for resuming normal mode
- * @param {Array} carousels - All carousels for resuming normal mode
- */
-// function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
-//   // Clear existing monitor
-//   if (liveMonitorInterval) {
-//     clearInterval(liveMonitorInterval);
-//   }
-
-//   console.log('👁️ Starting live content monitor');
-
-//   liveMonitorInterval = setInterval(() => {
-//     const activeLive = checkActiveLiveContent(liveContents);
-
-//     if (currentPlaybackMode === "live" && !activeLive) {
-//       // Live content ended, switch back to normal
-//       console.log('✅ Live content ended - Resuming normal playback');
-//       currentPlaybackMode = "normal";
-
-//       // Rebuild queue and restart normal playback
-//       const queue = buildPlaybackQueue(ads, carousels);
-//       if (queue.length > 0) {
-//         restartNormalPlayback(queue);
+//     while (!signal.aborted) {
+//       if (this.iterator !== 0 && this.iterator % queue.length === 0) {
+//         queue = this.buildPlaybackQueue();
 //       }
 
-//     } else if (currentPlaybackMode === "normal" && activeLive) {
-//       // New live content started, interrupt normal playback
-//       console.log('🔴 Live content started - Interrupting normal playback');
-//       handleLiveContentMode([activeLive], liveContents);
+//       if (queue.length === 0) {
+//         await new Promise((r) => setTimeout(r, 5000));
+//         continue;
+//       }
+
+//       const item = queue[this.iterator % queue.length];
+      
+//       // ⭐ CRITICAL FIX: Check if this is the ONLY item assigned to the zone
+//       const isSingleItem = queue.length === 1;
+
+//       if (shouldPlayContent(item)) {
+//         const type = detectContentType(item);
+//         const fileName = getFileName(item);
+
+//         if (type === "video" && this.type === "image_only") {
+//           await new Promise((r) => setTimeout(r, 1000));
+//         } else {
+//           try {
+//             // ⭐ Pass the isSingleItem flag down to the players!
+//             if (type === "widget") await this.playWidget(signal, item, isSingleItem);
+//             else if (type === "video") await this.playVideo(fileName, signal, item);
+//             else await this.playImage(fileName, signal, item, isSingleItem);
+//           } catch (e) {
+//             await new Promise((r) => setTimeout(r, 1000));
+//           }
+//         }
+//       } else {
+//         await new Promise((r) => setTimeout(r, 1000));
+//       }
+//       this.iterator++;
 //     }
-//   }, 10000); // Check every 10 seconds
-// }
+//   }
 
-function startLiveContentMonitor(liveContents, ads = [], carousels = []) {
-  if (liveMonitorInterval) {
-    clearInterval(liveMonitorInterval);
-  }
 
-  console.log("👁️ Starting live content monitor");
 
-  liveMonitorInterval = setInterval(() => {
-    const activeLive = checkActiveLiveContent(liveContents);
+async playLoop(queue) {
+    if (this.abortController) this.abortController.abort();
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+    this.currentPlaybackMode = "normal";
 
-    // LIVE → NORMAL
-    if (currentPlaybackMode === "live" && !activeLive) {
-      console.log("✅ Live content ended - Resuming normal playback");
-
-      currentPlaybackMode = "normal";
-      activeLiveContent = null;
-
-      const queue = buildPlaybackQueue(ads, carousels);
-      if (queue.length > 0) {
-        restartNormalPlayback(queue);
+    while (!signal.aborted) {
+      // ⭐ CRITICAL FIX: If we reach the end of the queue (or if the queue only has 1 item and we just played it), REBUILD the queue so carousels can advance!
+      if (this.iterator > 0 && (this.iterator % queue.length === 0 || queue.length === 1)) {
+        queue = this.buildPlaybackQueue();
       }
-    }
 
-    // NORMAL → LIVE
-    else if (currentPlaybackMode === "normal" && activeLive) {
-      console.log("🔴 Live content started - Interrupting normal playback");
+      if (queue.length === 0) {
+        await new Promise((r) => setTimeout(r, 5000));
+        continue;
+      }
 
-      activeLiveContent = activeLive;
+      const item = queue[this.iterator % queue.length];
+      
+      // ⭐ FIX: Determine if the CURRENT queue has only one item. 
+      // If it's a carousel, we DO want it to cycle, so we trick it into thinking it's not a single item if there's a carousel present.
+      const isSingleItem = queue.length === 1 && this.carousels.length === 0;
 
-      handleLiveContentMode([activeLive], liveContents);
-    }
+      if (shouldPlayContent(item)) {
+        const type = detectContentType(item);
+        const fileName = getFileName(item);
 
-    // LIVE → DIFFERENT LIVE
-    else if (
-      currentPlaybackMode === "live" &&
-      activeLive &&
-      activeLiveContent &&
-      activeLive.ad_id !== activeLiveContent.ad_id
-    ) {
-      console.log("🔄 Switching live content");
-
-      activeLiveContent = activeLive;
-
-      playLiveContentStream(activeLive);
-    }
-  }, 10000);
-}
-
-/**
- * Stop live content monitor
- */
-function stopLiveContentMonitor() {
-  if (liveMonitorInterval) {
-    clearInterval(liveMonitorInterval);
-    liveMonitorInterval = null;
-    console.log("🛑 Live content monitor stopped");
-  }
-}
-
-/**
- * Extract ALL downloadable content from ads and carousels
- * @param {Array} ads - Array of ad items
- * @param {Array} carousels - Array of carousel objects
- * @returns {Array} All downloadable items (not filtered by schedule)
- */
-function extractAllDownloadableContent(ads, carousels) {
-  const downloadableItems = [];
-
-  // Add all ads
-  ads.forEach((ad) => {
-    if (isDownloadableContent(ad)) {
-      downloadableItems.push(ad);
-    }
-  });
-
-  // Add ALL items from ALL carousels
-  carousels.forEach((carousel) => {
-    if (carousel.items && carousel.items.length > 0) {
-      carousel.items.forEach((item) => {
-        if (isDownloadableContent(item)) {
-          downloadableItems.push(item);
+        if (type === "video" && this.type === "image_only") {
+          await new Promise((r) => setTimeout(r, 1000));
+        } else {
+          try {
+            if (type === "widget") await this.playWidget(signal, item, isSingleItem);
+            else if (type === "video") await this.playVideo(fileName, signal, item);
+            else await this.playImage(fileName, signal, item, isSingleItem);
+          } catch (e) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
         }
+      } else {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      this.iterator++;
+    }
+  }
+
+  // ==========================================
+  // ⭐ NATIVE WIDGET ENGINE
+  // ==========================================
+  playWidget(signal, item, isSingleItem = false) {
+    return new Promise((resolve) => {
+      let trackingId = null;
+      if (window.proofOfPlayTracker && item) {
+        trackingId = window.proofOfPlayTracker.startTracking(item, "widget");
+        window.proofOfPlayTracker.addPlaybackEvent(trackingId, "WIDGET_DISPLAY_STARTED", { zone: this.zoneId });
+      }
+
+      // Cleanup Environment
+      if (this.timeoutBox) clearTimeout(this.timeoutBox);
+      if (this.widgetInterval) clearInterval(this.widgetInterval);
+      
+      if (this.p1Element) this.p1Element.style.display = "none";
+      if (this.p2Element) this.p2Element.style.display = "none";
+      try {
+        if (this.p1 && this.p1.getState() !== "IDLE" && this.p1.getState() !== "NONE") this.p1.stop();
+        if (this.p2 && this.p2.getState() !== "IDLE" && this.p2.getState() !== "NONE") this.p2.stop();
+      } catch(e){}
+      this.img1.style.display = "none";
+      this.img2.style.display = "none";
+
+      const config = item.config || {};
+      
+      // BULLETPROOF ASPECT RATIO CALCULATION
+      let widgetW = this.rect.w;
+      let widgetH = this.rect.h;
+
+      const isTicker = item.widget_type === "sliding_text" || item.widget_type === "ticker";
+
+      // Ignore aspect ratios for Tickers so they always span the full zone width!
+      if (item.aspect_ratio && !isTicker) {
+          const parts = item.aspect_ratio.split(':');
+          if (parts.length === 2) {
+              const targetRatio = parseFloat(parts[0]) / parseFloat(parts[1]);
+              const zoneRatio = widgetW / widgetH;
+
+              if (zoneRatio > targetRatio) {
+                  widgetH = this.rect.h;
+                  widgetW = Math.round(widgetH * targetRatio);
+              } else {
+                  widgetW = this.rect.w;
+                  widgetH = Math.round(widgetW / targetRatio);
+              }
+          }
+      }
+
+      // Outer container
+      this.widgetContainer.style.backgroundColor = config.background || "transparent";
+      this.widgetContainer.style.display = "flex";
+      this.widgetContainer.style.justifyContent = "center";
+      this.widgetContainer.style.alignItems = "center";
+      this.widgetContainer.innerHTML = ""; 
+
+      const innerWrapper = `<div style="position:relative; width:${widgetW}px; height:${widgetH}px; display:flex; justify-content:center; align-items:center; overflow:hidden;">`;
+      const closeWrapper = `</div>`;
+
+      let widgetHTML = "";
+
+      console.log("widget_type .........",item.widget_type)
+
+      // 1. DIGITAL CLOCK
+      if (item.widget_type === "clock_digital") {
+          const tz = config.timezone || "Asia/Kolkata"; 
+          const use12h = config.format === "12h";
+          
+          widgetHTML = `${innerWrapper}<div id="clock_${this.zoneId}" style="width:100%; color:${config.color || '#ffffff'}; font-size:${config.fontSize || '32px'}; font-weight:bold; font-family:sans-serif; text-align:center;"></div>${closeWrapper}`;
+          
+          const updateClock = () => {
+              const el = document.getElementById(`clock_${this.zoneId}`);
+              if (el) el.innerText = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour12: use12h });
+          };
+          setTimeout(updateClock, 0); 
+          this.widgetInterval = setInterval(updateClock, 1000);
+      } 
+      
+      // 2. ANALOG CLOCK
+      else if (item.widget_type === "clock_analog") {
+          const tz = config.timezone || "Asia/Kolkata";
+          const c = config.color || '#ffffff';
+          
+          widgetHTML = `
+            ${innerWrapper}
+                <div style="position:relative; width:100%; height:100%; border-radius:50%; border:4px solid ${c}; box-sizing:border-box;">
+                   <div style="position:absolute; top:50%; left:50%; width:12px; height:12px; background:${c}; border-radius:50%; transform:translate(-50%, -50%); z-index:4;"></div>
+                   <div id="hr_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:6px; height:25%; background:${c}; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:2; border-radius:4px;"></div>
+                   <div id="mn_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:4px; height:38%; background:${c}; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:1; border-radius:4px;"></div>
+                   <div id="sc_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:2px; height:42%; background:#ff3b30; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:3;"></div>
+                </div>
+            ${closeWrapper}`;
+            
+          const updateAnalogClock = () => {
+              const now = new Date(new Date().toLocaleString("en-US", {timeZone: tz}));
+              const sec = now.getSeconds();
+              const min = now.getMinutes();
+              const hr = now.getHours();
+              
+              const hrEl = document.getElementById(`hr_${this.zoneId}`);
+              const mnEl = document.getElementById(`mn_${this.zoneId}`);
+              const scEl = document.getElementById(`sc_${this.zoneId}`);
+              
+              if (scEl) scEl.style.transform = `translate(-50%, -100%) rotate(${sec * 6}deg)`;
+              if (mnEl) mnEl.style.transform = `translate(-50%, -100%) rotate(${(min * 6) + (sec * 0.1)}deg)`;
+              if (hrEl) hrEl.style.transform = `translate(-50%, -100%) rotate(${(hr * 30) + (min * 0.5)}deg)`;
+          };
+          setTimeout(updateAnalogClock, 0);
+          this.widgetInterval = setInterval(updateAnalogClock, 1000);
+      }
+
+      // 3. CALENDAR
+      else if (item.widget_type === "calendar") {
+          const tz = config.timezone || "Asia/Kolkata";
+          const optsDay = tz ? { timeZone: tz, weekday: 'long' } : { weekday: 'long' };
+          const optsMonth = tz ? { timeZone: tz, month: 'long' } : { month: 'long' };
+          
+          // ⭐ CRITICAL FIX: Calculate absolute pixels to fill ~95% of the zone dynamically
+          // Use Math.min to guarantee it never overflows horizontally if the zone is tall and skinny
+          let calBase = Math.min(widgetW, widgetH) * 0.95; 
+          let mainFontSize = Math.floor(calBase * 0.45) + "px"; // Massive font for the day number
+          let subFontSize = Math.floor(calBase * 0.15) + "px";  // Smaller font for Month/Year/Day
+          
+          widgetHTML = `${innerWrapper}<div id="cal_${this.zoneId}" style="display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; height:100%; color:${config.color || '#ffffff'}; font-family:sans-serif; text-align:center; font-weight:bold;"></div>${closeWrapper}`;
+          
+          const updateCalendar = () => {
+              const el = document.getElementById(`cal_${this.zoneId}`);
+              if (el) {
+                  const now = new Date();
+                  const dayName = now.toLocaleDateString('en-US', optsDay);
+                  const monthName = now.toLocaleDateString('en-US', optsMonth);
+                  const dateNum = tz ? new Intl.DateTimeFormat('en-US', { timeZone: tz, day: 'numeric' }).format(now) : now.getDate();
+                  const year = tz ? new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric' }).format(now) : now.getFullYear();
+
+                  el.innerHTML = `
+                      <div style="font-size:${subFontSize}; text-transform:uppercase; letter-spacing:2px; opacity:0.8; line-height:1.2;">${monthName} ${year}</div>
+                      <div style="font-size:${mainFontSize}; line-height:1.1;">${dateNum}</div>
+                      <div style="font-size:${subFontSize}; font-weight:300; line-height:1.2;">${dayName}</div>
+                  `;
+              }
+          };
+          setTimeout(updateCalendar, 0);
+          this.widgetInterval = setInterval(updateCalendar, 60000); 
+      }
+
+    else if (item.widget_type === "countdown_timer") {
+          console.log("l...... Timeer............")
+
+          const endTime = config.endTime ? new Date(config.endTime).getTime() : new Date().getTime() + 86400000;
+          const format = config.format || "hh:mm:ss";
+          const runningText = config.runningText || "";
+          const endedText = config.endedText || "Ended";
+          const c = config.color || "#ffffff";
+          
+          // Adjust max allowed size since we are stacking two lines of text now
+          let requestedSize = config.fontSize ? parseFloat(config.fontSize.toString().replace(/[^0-9.]/g, '')) : 32;
+          let maxAllowedSize = widgetH * 0.6; // Reduced to 60% of zone height to safely fit two lines
+          let timeFontSize = Math.min(requestedSize, maxAllowedSize);
+          let textFontSize = Math.max(12, timeFontSize * 0.4); // Top text is 40% of the time size
+
+          // Use Flexbox column to center everything perfectly
+          widgetHTML = `
+            ${innerWrapper}
+            <div id="cd_${this.zoneId}" style="width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:${c}; font-family:sans-serif; text-align:center;">
+            </div>
+            ${closeWrapper}
+          `;
+          
+          const updateCountdown = () => {
+              const el = document.getElementById(`cd_${this.zoneId}`);
+              if (!el) return;
+              
+              const now = new Date().getTime();
+              const diff = Math.max(0, endTime - now);
+              
+              // Handle Ended State
+              if (diff <= 0) {
+                  el.innerHTML = `<div style="font-size:${timeFontSize}px; font-weight:900; text-transform:uppercase;">${endedText}</div>`;
+                  return;
+              }
+              
+              const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+              const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+              const m = Math.floor((diff / 1000 / 60) % 60);
+              const s = Math.floor((diff / 1000) % 60);
+              const pad = (n) => n.toString().padStart(2, '0');
+              
+              let timeStr = "";
+              if (format === "dd:hh:mm:ss") timeStr = `${pad(d)}:${pad(h)}:${pad(m)}:${pad(s)}`;
+              else if (format === "hh:mm:ss") timeStr = `${pad(d * 24 + h)}:${pad(m)}:${pad(s)}`; // Rolls days into hours
+              else if (format === "mm:ss") timeStr = `${pad(d * 24 * 60 + h * 60 + m)}:${pad(s)}`; // Rolls hours into mins
+              else timeStr = `${pad(h)}:${pad(m)}:${pad(s)}`; // Safe fallback
+              
+              // Build the stacked HTML with different styling for top and bottom
+              let contentHtml = "";
+              
+              if (runningText) {
+                  // Top text: smaller, uppercase, slightly faded, with a little bottom margin
+                  contentHtml += `<div style="font-size:${textFontSize}px; opacity:0.8; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; font-weight:600;">${runningText}</div>`;
+              }
+              
+              // Bottom text (Time): massive, bold, tabular-nums prevents wiggling
+              contentHtml += `<div style="font-size:${timeFontSize}px; font-weight:900; line-height:1.1; font-variant-numeric:tabular-nums;">${timeStr}</div>`;
+              
+              el.innerHTML = contentHtml;
+          };
+          
+          setTimeout(updateCountdown, 0);
+          this.widgetInterval = setInterval(updateCountdown, 1000);
+      }
+
+      // 4. LOGO
+      else if (item.widget_type === "logo") {
+          const fit = config.fit || "contain";
+          const localImgSrc = sources + "/" + getFileName(item);
+          const fallbackUrl = config.url || item.url;
+          
+          widgetHTML = `
+              ${innerWrapper}
+                  <img src="${localImgSrc}" style="width:100%; height:100%; object-fit:${fit};" onerror="this.onerror=null; this.src='${fallbackUrl}';">
+              ${closeWrapper}`;
+      } 
+      
+      // 5. EMOJI
+      else if (item.widget_type === "emoji") {
+          widgetHTML = `
+              ${innerWrapper}
+                  <div style="font-size:${config.size || 48}px; text-align:center; line-height:1;">
+                      ${config.emoji || '👋'}
+                  </div>
+              ${closeWrapper}`;
+      }
+
+      // ==========================================
+      // ⭐ 8. HEADING WIDGET (NEW)
+      // ==========================================
+      else if (item.widget_type === "heading" || item.widget_type === "heading_v1") {
+          const text = config.text || "";
+          const color = config.color || "#ffffff";
+          const fontSize = config.fontSize || "32px";
+          const textAlign = config.textAlign || "center";
+          const background = config.background || "transparent";
+          const fontWeight = config.fontWeight || "bold";
+          const maxLines = config.maxLines || 1;
+          const overflowMode = config.overflow || "wrap";
+
+          // Handle advanced text wrapping and overflow logic natively
+          let overflowStyles = "";
+          if (overflowMode === "ellipsis") {
+              overflowStyles = `
+                  display: -webkit-box; 
+                  -webkit-line-clamp: ${maxLines}; 
+                  -webkit-box-orient: vertical; 
+                  overflow: hidden; 
+                  text-overflow: ellipsis; 
+                  white-space: normal;
+              `;
+          } else if (overflowMode === "hidden") {
+              overflowStyles = `
+                  overflow: hidden; 
+                  white-space: nowrap;
+              `;
+          } else {
+              // Default: wrap
+              overflowStyles = `
+                  white-space: normal; 
+                  word-wrap: break-word;
+              `;
+          }
+
+          // Build the final HTML with a flex container to center the text block vertically if needed
+          widgetHTML = `
+              ${innerWrapper}
+                  <div style="width: 100%; height: 100%; background: ${background}; display: flex; flex-direction: column; justify-content: center; padding: 10px; box-sizing: border-box;">
+                      <div style="color: ${color}; font-size: ${fontSize}; font-weight: ${fontWeight}; text-align: ${textAlign}; ${overflowStyles}">
+                          ${text}
+                      </div>
+                  </div>
+              ${closeWrapper}`;
+      }
+
+      // 6. SEAMLESS CONTINUOUS SCROLLING TEXT (TICKER)
+      else if (isTicker) {
+          const direction = config.direction === 'right' ? 'right' : 'left';
+          const animName = `scroll_${this.zoneId}_${Date.now()}`;
+          
+          let requestedSize = config.fontSize ? parseFloat(config.fontSize.toString().replace(/[^0-9.]/g, '')) : 24;
+          let maxAllowedSize = widgetH * 0.9;
+          let finalFontSize = Math.min(requestedSize, maxAllowedSize) + 'px';
+
+          const tickerText = (config.text || 'No text provided') + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+
+          const keyframes = direction === 'left'
+              ? `@keyframes ${animName} { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`
+              : `@keyframes ${animName} { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }`;
+
+          widgetHTML = `
+              <style>
+                  ${keyframes}
+                  .ticker-track-${this.zoneId} {
+                      display: flex;
+                      width: max-content;
+                      animation: ${animName} ${config.speed || 15}s linear infinite;
+                  }
+                  .ticker-item-${this.zoneId} {
+                      white-space: nowrap;
+                      color: ${config.color || '#ffffff'};
+                      font-size: ${finalFontSize};
+                      font-weight: bold;
+                      line-height: 1;
+                      padding-right: 50px;
+                      min-width: ${widgetW}px;
+                      display: flex;
+                      align-items: center;
+                  }
+              </style>
+              ${innerWrapper}
+                  <div style="width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center;">
+                      <div class="ticker-track-${this.zoneId}">
+                          <div class="ticker-item-${this.zoneId}">${tickerText}</div>
+                          <div class="ticker-item-${this.zoneId}">${tickerText}</div>
+                      </div>
+                  </div>
+              ${closeWrapper}`;
+      } else {
+          widgetHTML = `${innerWrapper}<div style="color:red;">Unknown Widget</div>${closeWrapper}`;
+      }
+
+      // Inject HTML into DOM
+      this.widgetContainer.innerHTML = widgetHTML;
+      this.widgetContainer.style.display = "flex";
+
+      const finishWidget = () => {
+          if (this.widgetInterval) clearInterval(this.widgetInterval);
+          this.widgetContainer.innerHTML = "";
+          this.widgetContainer.style.display = "none";
+      };
+
+      if (!isSingleItem) {
+          this.timeoutBox = setTimeout(() => {
+            if (!signal.aborted) {
+              finishWidget();
+              if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+              resolve();
+            }
+          }, item.duration * 1000 || 15000);
+      }
+
+      signal.addEventListener("abort", () => {
+        finishWidget();
+        resolve();
       });
-    }
-  });
+    });
+  }
+  // playImage(file, signal, item) {
+  //   return new Promise((resolve) => {
+  //     let trackingId = null;
+  //     if (window.proofOfPlayTracker && item) {
+  //       trackingId = window.proofOfPlayTracker.startTracking(item, "image");
+  //       window.proofOfPlayTracker.addPlaybackEvent(
+  //         trackingId,
+  //         "IMAGE_DISPLAY_STARTED",
+  //         { fileName: file, zone: this.zoneId },
+  //       );
+  //     }
 
-  console.log(`📦 Total downloadable items: ${downloadableItems.length}`);
-  return downloadableItems;
-}
+  //     if (this.timeoutBox) clearTimeout(this.timeoutBox);
 
-/**
- * Download all content upfront (called when MQTT message arrives)
- * @param {Array} ads - All ads
- * @param {Array} carousels - All carousels
- */
-async function downloadAllContentUpfront(ads, carousels) {
-  console.log("📥 Starting upfront download of ALL content...");
+  //     // Cleanup widgets and video
+  //     if (this.widgetContainer) this.widgetContainer.style.display = "none";
+  //     if (this.widgetInterval) clearInterval(this.widgetInterval);
+  //     if (this.p1Element) this.p1Element.style.display = "none";
+  //     if (this.p2Element) this.p2Element.style.display = "none";
 
-  const allDownloadable = extractAllDownloadableContent(ads, carousels);
-  console.log("ALL DOWNLOADABLE: ", allDownloadable);
+  //     try {
+  //       if (
+  //         this.p1 &&
+  //         this.p1.getState() !== "IDLE" &&
+  //         this.p1.getState() !== "NONE"
+  //       )
+  //         this.p1.stop();
+  //       if (
+  //         this.p2 &&
+  //         this.p2.getState() !== "IDLE" &&
+  //         this.p2.getState() !== "NONE"
+  //       )
+  //         this.p2.stop();
+  //     } catch (e) {}
 
-  if (allDownloadable.length === 0) {
-    console.log("📭 No downloadable content found");
-    return [];
+  //     let currentImg = this.useImage1 ? this.img1 : this.img2;
+  //     let prevImg = this.useImage1 ? this.img2 : this.img1;
+
+  //     currentImg.onerror = () => {
+  //       currentImg.style.display = "none";
+  //       if (trackingId)
+  //         window.proofOfPlayTracker.endTracking(trackingId, "error");
+  //       resolve();
+  //     };
+
+  //     currentImg.src = sources + "/" + file;
+  //     currentImg.style.display = "block";
+  //     prevImg.style.display = "none";
+  //     this.useImage1 = !this.useImage1;
+
+  //     this.timeoutBox = setTimeout(
+  //       () => {
+  //         if (!signal.aborted) {
+  //           if (trackingId)
+  //             window.proofOfPlayTracker.endTracking(trackingId, "completed");
+  //           resolve();
+  //         }
+  //       },
+  //       item.duration * 1000 || 10000,
+  //     );
+  //   });
+  // }
+
+  // ⭐ Accept isSingleItem parameter
+  playImage(file, signal, item, isSingleItem = false) {
+    return new Promise((resolve) => {
+      let trackingId = null;
+      if (window.proofOfPlayTracker && item) {
+        trackingId = window.proofOfPlayTracker.startTracking(item, "image");
+        window.proofOfPlayTracker.addPlaybackEvent(trackingId, "IMAGE_DISPLAY_STARTED", { fileName: file, zone: this.zoneId });
+      }
+
+      if (this.timeoutBox) clearTimeout(this.timeoutBox);
+      
+      if (this.widgetContainer) this.widgetContainer.style.display = "none";
+      if (this.widgetInterval) clearInterval(this.widgetInterval);
+      if (this.p1Element) this.p1Element.style.display = "none";
+      if (this.p2Element) this.p2Element.style.display = "none";
+
+      try {
+        if (this.p1 && this.p1.getState() !== "IDLE" && this.p1.getState() !== "NONE") this.p1.stop();
+        if (this.p2 && this.p2.getState() !== "IDLE" && this.p2.getState() !== "NONE") this.p2.stop();
+      } catch(e){}
+
+      let currentImg = this.useImage1 ? this.img1 : this.img2;
+      let prevImg = this.useImage1 ? this.img2 : this.img1;
+
+      currentImg.onerror = () => {
+        currentImg.style.display = "none";
+        if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+        resolve();
+      };
+
+      currentImg.src = sources + "/" + file;
+      currentImg.style.display = "block";
+      prevImg.style.display = "none";
+      this.useImage1 = !this.useImage1;
+
+      // ⭐ CRITICAL FIX: If it's a full-time image, DO NOT set a timeout!
+      if (!isSingleItem) {
+          this.timeoutBox = setTimeout(() => {
+            if (!signal.aborted) {
+              if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+              resolve();
+            }
+          }, item.duration * 1000 || 10000);
+      }
+
+      signal.addEventListener("abort", () => {
+        resolve();
+      });
+    });
   }
 
-  const filenames = allDownloadable.map((item) => getFileName(item));
+  playVideo(file, signal, item) {
+    return new Promise((resolve) => {
+      if (!this.p1) return resolve();
+      let aborted = false;
+      let trackingId = null;
 
-  await cleanUpOldAds(filenames);
-  logCleanup("Cleanup done!");
-  console.log("Filenames: Cleaned up old ads");
-  console.log("Filenames: ", filenames);
+      if (window.proofOfPlayTracker && item) {
+        trackingId = window.proofOfPlayTracker.startTracking(item, "video");
+        window.proofOfPlayTracker.addPlaybackEvent(trackingId, "PLAYBACK_STARTED", { fileName: file, zone: this.zoneId });
+      }
+      if (this.widgetContainer) this.widgetContainer.style.display = "none";
 
-  // Download all files
-  for (let i = 0; i < filenames.length; i++) {
+      // 1. Assign Active & Background Players based on what's available
+      let activePlayer = this.p1;
+      let activeElement = this.p1Element;
+      let bgPlayer = null;
+      let bgElement = null;
+
+      // Only Ping-Pong if this zone has 2 decoders!
+      if (this.p2) {
+          activePlayer = this.useP1Next ? this.p1 : this.p2;
+          activeElement = this.useP1Next ? this.p1Element : this.p2Element;
+          bgPlayer = this.useP1Next ? this.p2 : this.p1;
+          bgElement = this.useP1Next ? this.p2Element : this.p1Element;
+          this.useP1Next = !this.useP1Next;
+      }
+
+      let timeoutFallback;
+
+      const dynamicListener = {
+        onbufferingcomplete: () => {
+          if (trackingId) window.proofOfPlayTracker.addPlaybackEvent(trackingId, "BUFFERING_COMPLETE");
+        },
+        onstreamcompleted: () => {
+          if (!aborted) {
+            if (trackingId) window.proofOfPlayTracker.addPlaybackEvent(trackingId, "STREAM_COMPLETED");
+
+            // CRITICAL FIX: FREEZE THE FINAL FRAME ON SCREEN
+            try { activePlayer.setVideoStillMode("true"); } catch(e){}
+            try { activePlayer.stop(); } catch(e){}
+
+            // DO NOT HIDE activeElement! Leave it on screen to prevent the 500ms black flash.
+            clearTimeout(timeoutFallback);
+            if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+            resolve();
+          }
+        },
+        onerror: (errType) => {
+          if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+          try { activePlayer.stop(); } catch(e){}
+          if (activeElement) activeElement.style.display = "none";
+          clearTimeout(timeoutFallback);
+          resolve();
+        }
+      };
+
+      try {
+        // Prepare the new video in the background
+        activePlayer.open(sources + "/" + file);
+        activePlayer.setListener(dynamicListener);
+
+        try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e) {}
+        activePlayer.setDisplayRotation(getRotationValue());
+
+        let height = this.getAdjustedVideoHeight();
+        // activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height);
+        activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+
+        activePlayer.prepareAsync(() => {
+          this.img1.style.display = "none";
+          this.img2.style.display = "none";
+
+          // 2. POP NEW VIDEO TO FRONT
+          if (activeElement) {
+              activeElement.style.zIndex = "16";
+              activeElement.classList.add("vid");
+              activeElement.style.display = "block";
+          }
+
+          // 3. HIDE AND STOP THE OLD VIDEO (This creates the seamless cut)
+          if (bgElement) {
+              bgElement.style.zIndex = "14";
+              bgElement.classList.remove("vid");
+              bgElement.style.display = "none";
+          }
+          if (bgPlayer) {
+              try { bgPlayer.stop(); } catch(e){}
+          }
+
+          // Turn off Still Mode so the new video actually plays
+          try { activePlayer.setVideoStillMode("false"); } catch(e){}
+          activePlayer.play();
+
+          timeoutFallback = setTimeout(() => {
+            try { activePlayer.setVideoStillMode("true"); } catch(e){}
+            try { activePlayer.stop(); } catch(e){}
+            resolve();
+          }, item.duration * 1000 || 15000);
+
+        }, () => {
+          if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+          if (activeElement) activeElement.style.display = "none";
+          resolve();
+        });
+
+      } catch (err) {
+        if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+        if (activeElement) activeElement.style.display = "none";
+        resolve();
+      }
+
+      signal.addEventListener("abort", () => {
+        aborted = true;
+        try { activePlayer.stop(); } catch(e){}
+        if (activeElement) activeElement.style.display = "none";
+        resolve();
+      });
+    });
+  }
+
+
+  // --- LIVE MODE ---
+  checkActiveLiveContent() {
+    if (!this.liveContents.length) return null;
+    return this.liveContents.find((item) => shouldPlayContent(item)) || null;
+  }
+
+  startLiveContentMonitor() {
+    if (this.liveMonitorInterval) clearInterval(this.liveMonitorInterval);
+    this.liveMonitorInterval = setInterval(() => {
+      const activeLive = this.checkActiveLiveContent();
+      if (this.currentPlaybackMode === "live" && !activeLive) {
+        this.iframeContainer.innerHTML = "";
+        this.iframeContainer.style.display = "none";
+        try {
+          this.stg.stop();
+        } catch (e) {}
+        if (this.stgElement) this.stgElement.style.display = "none";
+        this.startPlayback();
+      } else if (this.currentPlaybackMode === "normal" && activeLive) {
+        this.handleLiveContentMode(activeLive);
+      }
+    }, 10000);
+  }
+
+async handleLiveContentMode(liveItem) {
+    this.currentPlaybackMode = "live";
+    this.activeLiveContent = liveItem;
+    if (this.abortController) this.abortController.abort();
+
+    // Cleanup widgets
+    if (this.widgetContainer) this.widgetContainer.style.display = "none";
+    if (this.widgetInterval) clearInterval(this.widgetInterval);
+
+    if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
+
+    try { if (this.p1) this.p1.stop(); } catch(e){}
+    try { if (this.p2) this.p2.stop(); } catch(e){}
+
+    if (this.p1Element) this.p1Element.style.display = "none";
+    if (this.p2Element) this.p2Element.style.display = "none";
+    this.img1.style.display = "none";
+    this.img2.style.display = "none";
+
+    const type = detectContentType(liveItem);
+    
+    // ⭐ CRITICAL FIX: Use p1 instead of stg!
+    if (type === "m3u8" && this.p1) {
+       this.playM3U8Stream(liveItem, 0);
+    } else if (type === "youtube") {
+       this.playYouTubeZone(liveItem);
+    } else if (type === "website") {
+       this.playWebsiteZone(liveItem);
+    }
+  }
+
+  playM3U8Stream(liveItem, retryCount = 0) {
+    const MAX_RETRY = 999;
+    const RETRY_DELAY = 5000;
+    
+    // ⭐ Assign our guaranteed hardware player
+    let activePlayer = this.p1;
+    let activeElement = this.p1Element;
+
+    try { activePlayer.stop(); } catch (e) {}
+
+    const dynamicListener = {
+      onerror: (errType) => {
+        console.error("❌ Live Stream Error:", errType);
+        if (activeElement) {
+            activeElement.classList.remove("vid");
+            activeElement.style.display = "none";
+        }
+        if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
+          let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
+          this.m3u8RetryTimeouts.push(to);
+        }
+      }
+    };
+
+    activePlayer.setListener(dynamicListener);
+
     try {
-      console.log(`📥 Downloading ${filenames[i]}...`);
-      await checkAndDownloadContent(allDownloadable[i].url, filenames[i]);
-    } catch (err) {
-      console.error(`❌ Failed to download ${filenames[i]}:`, err);
+      activePlayer.open(liveItem.url);
+      
+      try { activePlayer.setDisplayRotation(getRotationValue()); } catch(e){ console.error("Rotation err", e); }
+      try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e){}
+
+      let height = this.getAdjustedVideoHeight();
+      // try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
+ try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h); } catch(e){}
+
+      activePlayer.prepareAsync(
+        () => {
+          if (activeElement) {
+            // Force pixel dimensions so the live stream doesn't shrink into a tiny box
+            activeElement.style.width = this.rect.w + "px";
+            activeElement.style.height = height + "px";
+            activeElement.style.zIndex = "16";
+            activeElement.classList.add("vid");
+            activeElement.style.display = "block";
+          }
+          
+          // Double-tap the layout boundaries right before hitting play
+          try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
+
+          // Turn off frozen frames for live TV
+          try { activePlayer.setVideoStillMode("false"); } catch(e){}
+          
+          activePlayer.play();
+          console.log("▶️ Live Stream playing perfectly on P1!");
+        },
+        (err) => {
+          console.error("❌ Live Stream Prepare Error:", err);
+          if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
+            let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
+            this.m3u8RetryTimeouts.push(to);
+          }
+        },
+      );
+    } catch (e) {
+        console.error("❌ Live Stream Setup Error:", e);
     }
   }
 
-  console.log(`✅ Upfront download complete: ${filenames.length} files`);
-  return filenames;
+  playYouTubeZone(liveItem) {
+    const videoId = extractYouTubeVideoId(liveItem.url);
+    if (!videoId) return;
+    this.iframeContainer.innerHTML = `<iframe style="width:100%; height:100%; border:none;" src="${YOUTUBE_CONFIG.embedBaseUrl}${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1" allow="autoplay"></iframe>`;
+    this.iframeContainer.style.display = "block";
+  }
+
+playWebsiteZone(liveItem) {
+  console.log("web site data......", liveItem)
+    // Clear any existing interval just in case
+    if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
+
+    const iframeId = `iframe_${this.zoneId}`;
+    this.iframeContainer.innerHTML = `<iframe id="${iframeId}" style="width:100%; height:100%; border:none;" src="${liveItem.url}"></iframe>`;
+    this.iframeContainer.style.display = "block";
+
+    // ⭐ If the website is STATIC, force an iframe refresh every 3 seconds
+    if (liveItem.website_type === "STATIC") {
+        this.websiteRefreshInterval = setInterval(() => {
+            const iframe = document.getElementById(iframeId);
+            if (iframe) {
+                // Determine if the original URL already has query parameters
+                const separator = liveItem.url.includes('?') ? '&' : '?';
+                
+                // Append a unique timestamp. This prevents Tizen from using the cached page!
+                iframe.src = `${liveItem.url}${separator}cb=${new Date().getTime()}`;
+            }
+        }, 5000); // 3000ms = 3 seconds
+    }
+  }
+
+  getNextCarouselItem(carousel) {
+    if (!carousel || !carousel.items || carousel.items.length === 0)
+      return null;
+    const lastIndex =
+      this.carouselState[carousel.carousel_id]?.lastPlayedIndex ?? -1;
+    const nextIndex = (lastIndex + 1) % carousel.items.length;
+    this.carouselState[carousel.carousel_id] = { lastPlayedIndex: nextIndex };
+    return carousel.items[nextIndex];
+  }
+
+  destroy() {
+    if (this.abortController) this.abortController.abort();
+    if (this.liveMonitorInterval) clearInterval(this.liveMonitorInterval);
+    if (this.timeoutBox) clearTimeout(this.timeoutBox);
+    if (this.widgetInterval) clearInterval(this.widgetInterval); // Clean up clock/calendar
+    
+    if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
+    
+    this.m3u8RetryTimeouts.forEach(clearTimeout);
+
+    if (this.p1) {
+      try {
+        this.p1.stop();
+        this.p1.close();
+      } catch (e) {}
+    }
+    if (this.p2) {
+      try {
+        this.p2.stop();
+        this.p2.close();
+      } catch (e) {}
+    }
+    if (this.stg) {
+      try {
+        this.stg.stop();
+        this.stg.close();
+      } catch (e) {}
+    }
+
+    if (this.p1Element) this.p1Element.style.display = "none";
+    if (this.p2Element) this.p2Element.style.display = "none";
+    if (this.stgElement) this.stgElement.style.display = "none";
+
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
+    }
+  }
 }
 
-/**
- * Build unified playback queue from ads and carousels
- * @param {Array} ads - Array of ad items
- * @param {Array} carousels - Array of carousel objects
- * @returns {Array} Unified playback queue
- */
-function buildPlaybackQueue(ads, carousels) {
-  console.log("🔨 Building playback queue...");
 
-  // Step 1: Filter ads by schedule
-  const validAds = filterScheduledContent(ads);
-  console.log(`📺 Valid ads: ${validAds.length}/${ads.length}`);
+// ==========================================
+// 2. ZONE CONTROLLER CLASS
+// ==========================================
+// class ZoneController {
+//   constructor(zoneConfig) {
+//     this.zoneId = zoneConfig.zone_id;
+//     this.rect = zoneConfig.rect || { x: zoneConfig.x, y: zoneConfig.y, w: zoneConfig.width, h: zoneConfig.height };
+//     this.type = zoneConfig.type;
+//     this.zIndex = zoneConfig.z_index || 10;
+//     this.border_radius = zoneConfig.border_radius || 0; 
 
-  // Step 2: Process carousels (filter + pick one item from each)
-  const carouselItems = processCarousels(carousels);
+//     this.ads = zoneConfig.ads || [];
+//     this.carousels = zoneConfig.carousels || [];
+//     this.liveContents = zoneConfig.liveContents || [];
 
-  // Step 3: Combine ads + carousel items
-  const queue = [...validAds, ...carouselItems];
+//     this.iterator = 0;
+//     this.currentPlaybackMode = "normal";
+//     this.activeLiveContent = null;
+//     this.abortController = null;
+//     this.liveMonitorInterval = null;
+//     this.timeoutBox = null;
+//     this.widgetInterval = null; 
+//     this.m3u8RetryTimeouts = [];
+//     this.carouselState = {};
 
-  console.log(
-    `📋 Playback Queue: ${validAds.length} ads + ${carouselItems.length} carousel items = ${queue.length} total`,
-  );
+//     // Only ONE player per zone
+//     this.p1 = null;
 
-  return queue;
-}
-
-// 📥 Handle ads from MQTT payload
-// async function handleMQTTAds(payload) {
-//   const ads = payload.ads;
-//   const rcs = payload.rcs;
-//   const placeholder_enabled = payload.placeholder_enabled;
-//   const rcs_enabled = payload.rcs_enabled;
-//   const logo_enabled = payload.logo_enabled;
-
-//   let old_placeholder_enabled = localStorage.getItem("placeholder_enabled");
-//   let old_rcs_enabled = localStorage.getItem("rcs_enabled");
-//   let old_logo_enabled = localStorage.getItem("logo_enabled");
-//   console.log("📥 Received ads:", ads);
-
-//   if (placeholder_enabled !== old_placeholder_enabled) {
-//     localStorage.setItem("placeholder_enabled", placeholder_enabled);
-//   }
-//   if (rcs_enabled !== old_rcs_enabled) {
-//     localStorage.setItem("rcs_enabled", rcs_enabled);
-//   }
-//   if (logo_enabled !== old_logo_enabled) {
-//     localStorage.setItem("logo_enabled", logo_enabled);
-//   }
-
-//   const filenames = ads.map((ad) => getFileName(ad));
-//   const newSignature = filenames.join(",");
-
-//   console.log("rcs_enabled", rcs_enabled);
-//   console.log("logo_enabled", logo_enabled);
-//   console.log("placeholder_enabled", placeholder_enabled);
-//   startAdSlide("ad_snippet", rcs, 1, rcs_enabled, logo_enabled);
-
-//   console.log("placeholderUpdate:", payload.placeholderUpdate);
-
-//   if (newSignature === lastAdSignature && !payload.placeholderUpdate) {
-//     console.log("📭 No ad changes. Skipping update.");
-//     return;
-//   }
-
-//   lastAdSignature = newSignature;
-
-//   try {
-//     await cleanUpOldAds(filenames);
-//     logCleanup("Cleanup done!");
-
-//     // Download all files first (sequential or parallel)
-//     for (let i = 0; i < filenames.length; i++) {
-//       await checkAndDownloadContent(ads[i].url, filenames[i]);
+//     this.initZoneDOM();
+//     if (this.type === "video_primary" || this.type === "video") {
+//       this.initVideoPlayers();
 //     }
-//     logDownload("All downloads complete, starting playback");
-//     localAds = filenames;
-//     stopCurrentPlayback(); // 💥 Stop current playback first
-//     adsFromServer = ads;
-//     playAllContentInLoop(filenames, ads, rcs);
-//     // document.getElementById("ad_player").innerHTML = ""; // Clear previous content
-//   } catch (err) {
-//     logError("Error in ad handling:", err.message || err);
+//   }
+
+//   initZoneDOM() {
+//     this.container = document.createElement("div");
+//     this.container.id = `zone_${this.zoneId}`;
+    
+//     // GPU composite hack + Border Radius
+//     this.container.style.cssText = `position:absolute; left:${this.rect.x}px; transform: translateZ(0); border-radius:${this.border_radius}px; overflow:hidden; top:${this.rect.y}px; width:${this.rect.w}px; height:${this.rect.h}px; background-color:transparent; z-index:${this.zIndex};`;
+
+//     const childCss = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; border-radius:${this.border_radius}px; overflow:hidden; z-index:15;`;
+
+//     // Only one AVPlayer object created
+//     this.p1Element = document.createElement("object");
+//     this.p1Element.type = "application/avplayer";
+//     this.p1Element.id = `av-player-1-${this.zoneId}`;
+//     this.p1Element.style.cssText = childCss;
+
+//     this.img1 = document.createElement("img");
+//     this.img2 = document.createElement("img");
+//     const imgCss = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; object-fit:fill; z-index:20; background-color:black; border-radius:${this.border_radius}px; overflow:hidden;`;
+//     this.img1.style.cssText = imgCss;
+//     this.img2.style.cssText = imgCss;
+//     this.useImage1 = true;
+
+//     this.iframeContainer = document.createElement("div");
+//     this.iframeContainer.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:30; background-color:black; border-radius:${this.border_radius}px; overflow:hidden;`;
+
+//     this.widgetContainer = document.createElement("div");
+//     this.widgetContainer.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:25; background-color:transparent; overflow:hidden; border-radius:${this.border_radius}px;`;
+
+//     this.container.appendChild(this.p1Element);
+//     this.container.appendChild(this.img1);
+//     this.container.appendChild(this.img2);
+//     this.container.appendChild(this.iframeContainer);
+//     this.container.appendChild(this.widgetContainer);
+
+//     document.getElementById("ad_player")?.appendChild(this.container) || document.body.appendChild(this.container);
+//   }
+
+//   initVideoPlayers() {
+//     try {
+//       this.p1 = webapis.avplaystore.getPlayer(this.p1Element.id);
+//     } catch (e) {
+//       console.error(`❌ AVPlay error in zone ${this.zoneId}`, e);
+//     }
+//   }
+
+//   getAdjustedVideoHeight() {
+//     return localStorage.getItem("rcs_enabled") == "true" ? this.rect.h - 40 : this.rect.h;
+//   }
+
+//   async startPlayback() {
+//     const activeLive = this.checkActiveLiveContent();
+//     if (activeLive) {
+//       await this.handleLiveContentMode(activeLive);
+//     } else {
+//       const queue = this.buildPlaybackQueue();
+//       if (queue.length > 0) this.playLoop(queue);
+//     }
+//     this.startLiveContentMonitor();
+//   }
+
+//   buildPlaybackQueue() {
+//     const carouselItems = this.carousels.map((c) => this.getNextCarouselItem(c)).filter(Boolean);
+//     return [...this.ads, ...carouselItems];
+//   }
+
+//   async playLoop(queue) {
+//     if (this.abortController) this.abortController.abort();
+//     this.abortController = new AbortController();
+//     const signal = this.abortController.signal;
+//     this.currentPlaybackMode = "normal";
+
+//     while (!signal.aborted) {
+//       if (this.iterator !== 0 && this.iterator % queue.length === 0) {
+//         queue = this.buildPlaybackQueue();
+//       }
+
+//       if (queue.length === 0) {
+//         await new Promise((r) => setTimeout(r, 5000));
+//         continue;
+//       }
+
+//       const item = queue[this.iterator % queue.length];
+//       const isSingleItem = queue.length === 1;
+
+//       if (shouldPlayContent(item)) {
+//         const type = detectContentType(item);
+//         const fileName = getFileName(item);
+
+//         if (type === "video" && this.type === "image_only") {
+//           await new Promise((r) => setTimeout(r, 1000));
+//         } else {
+//           try {
+//             if (type === "widget") await this.playWidget(signal, item, isSingleItem);
+//             else if (type === "video") await this.playVideo(fileName, signal, item);
+//             else await this.playImage(fileName, signal, item, isSingleItem);
+//           } catch (e) {
+//             await new Promise((r) => setTimeout(r, 1000));
+//           }
+//         }
+//       } else {
+//         await new Promise((r) => setTimeout(r, 1000));
+//       }
+//       this.iterator++;
+//     }
+//   }
+
+//   // --- WIDGET ENGINE (Standard) ---
+//   playWidget(signal, item, isSingleItem = false) {
+//     return new Promise((resolve) => {
+//       let trackingId = null;
+//       if (window.proofOfPlayTracker && item) {
+//         trackingId = window.proofOfPlayTracker.startTracking(item, "widget");
+//         window.proofOfPlayTracker.addPlaybackEvent(trackingId, "WIDGET_DISPLAY_STARTED", { zone: this.zoneId });
+//       }
+
+//       if (this.timeoutBox) clearTimeout(this.timeoutBox);
+//       if (this.widgetInterval) clearInterval(this.widgetInterval);
+      
+//       if (this.p1Element) this.p1Element.style.display = "none";
+//       try {
+//         if (this.p1 && this.p1.getState() !== "IDLE" && this.p1.getState() !== "NONE") this.p1.stop();
+//       } catch(e){}
+//       this.img1.style.display = "none";
+//       this.img2.style.display = "none";
+
+//       const config = item.config || {};
+//       let widgetW = this.rect.w;
+//       let widgetH = this.rect.h;
+//       const isTicker = item.widget_type === "sliding_text" || item.widget_type === "ticker";
+
+//       if (item.aspect_ratio && !isTicker) {
+//           const parts = item.aspect_ratio.split(':');
+//           if (parts.length === 2) {
+//               const targetRatio = parseFloat(parts[0]) / parseFloat(parts[1]);
+//               const zoneRatio = widgetW / widgetH;
+
+//               if (zoneRatio > targetRatio) {
+//                   widgetH = this.rect.h;
+//                   widgetW = Math.round(widgetH * targetRatio);
+//               } else {
+//                   widgetW = this.rect.w;
+//                   widgetH = Math.round(widgetW / targetRatio);
+//               }
+//           }
+//       }
+
+//       this.widgetContainer.style.backgroundColor = config.background || "transparent";
+//       this.widgetContainer.style.display = "flex";
+//       this.widgetContainer.style.justifyContent = "center";
+//       this.widgetContainer.style.alignItems = "center";
+//       this.widgetContainer.innerHTML = ""; 
+
+//       const innerWrapper = `<div style="position:relative; width:${widgetW}px; height:${widgetH}px; display:flex; justify-content:center; align-items:center; overflow:hidden;">`;
+//       const closeWrapper = `</div>`;
+
+//       let widgetHTML = "";
+
+//       // [Insert Clock/Calendar HTML Logic Here exactly as it was]
+//       if (item.widget_type === "clock_digital") {
+//           const tz = config.timezone || "Asia/Kolkata"; 
+//           const use12h = config.format === "12h";
+//           widgetHTML = `${innerWrapper}<div id="clock_${this.zoneId}" style="width:100%; color:${config.color || '#ffffff'}; font-size:${config.fontSize || '32px'}; font-weight:bold; font-family:sans-serif; text-align:center;"></div>${closeWrapper}`;
+//           const updateClock = () => {
+//               const el = document.getElementById(`clock_${this.zoneId}`);
+//               if (el) el.innerText = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour12: use12h });
+//           };
+//           setTimeout(updateClock, 0); 
+//           this.widgetInterval = setInterval(updateClock, 1000);
+//       } else if (item.widget_type === "clock_analog") {
+//           const tz = config.timezone || "Asia/Kolkata";
+//           const c = config.color || '#ffffff';
+//           widgetHTML = `
+//             ${innerWrapper}
+//                 <div style="position:relative; width:100%; height:100%; border-radius:50%; border:4px solid ${c}; box-sizing:border-box;">
+//                    <div style="position:absolute; top:50%; left:50%; width:12px; height:12px; background:${c}; border-radius:50%; transform:translate(-50%, -50%); z-index:4;"></div>
+//                    <div id="hr_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:6px; height:25%; background:${c}; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:2; border-radius:4px;"></div>
+//                    <div id="mn_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:4px; height:38%; background:${c}; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:1; border-radius:4px;"></div>
+//                    <div id="sc_${this.zoneId}" style="position:absolute; top:50%; left:50%; width:2px; height:42%; background:#ff3b30; transform-origin:bottom center; transform: translate(-50%, -100%) rotate(0deg); z-index:3;"></div>
+//                 </div>
+//             ${closeWrapper}`;
+//           const updateAnalogClock = () => {
+//               const now = new Date(new Date().toLocaleString("en-US", {timeZone: tz}));
+//               const sec = now.getSeconds(); const min = now.getMinutes(); const hr = now.getHours();
+//               const hrEl = document.getElementById(`hr_${this.zoneId}`);
+//               const mnEl = document.getElementById(`mn_${this.zoneId}`);
+//               const scEl = document.getElementById(`sc_${this.zoneId}`);
+//               if (scEl) scEl.style.transform = `translate(-50%, -100%) rotate(${sec * 6}deg)`;
+//               if (mnEl) mnEl.style.transform = `translate(-50%, -100%) rotate(${(min * 6) + (sec * 0.1)}deg)`;
+//               if (hrEl) hrEl.style.transform = `translate(-50%, -100%) rotate(${(hr * 30) + (min * 0.5)}deg)`;
+//           };
+//           setTimeout(updateAnalogClock, 0);
+//           this.widgetInterval = setInterval(updateAnalogClock, 1000);
+//       } else if (item.widget_type === "calendar") {
+//           const tz = config.timezone || "Asia/Kolkata";
+//           const optsDay = tz ? { timeZone: tz, weekday: 'long' } : { weekday: 'long' };
+//           const optsMonth = tz ? { timeZone: tz, month: 'long' } : { month: 'long' };
+//           let calBase = Math.min(widgetW, widgetH) * 0.95; 
+//           let mainFontSize = Math.floor(calBase * 0.45) + "px"; 
+//           let subFontSize = Math.floor(calBase * 0.15) + "px";  
+//           widgetHTML = `${innerWrapper}<div id="cal_${this.zoneId}" style="display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; height:100%; color:${config.color || '#ffffff'}; font-family:sans-serif; text-align:center; font-weight:bold;"></div>${closeWrapper}`;
+//           const updateCalendar = () => {
+//               const el = document.getElementById(`cal_${this.zoneId}`);
+//               if (el) {
+//                   const now = new Date();
+//                   const dayName = now.toLocaleDateString('en-US', optsDay);
+//                   const monthName = now.toLocaleDateString('en-US', optsMonth);
+//                   const dateNum = tz ? new Intl.DateTimeFormat('en-US', { timeZone: tz, day: 'numeric' }).format(now) : now.getDate();
+//                   const year = tz ? new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric' }).format(now) : now.getFullYear();
+//                   el.innerHTML = `
+//                       <div style="font-size:${subFontSize}; text-transform:uppercase; letter-spacing:2px; opacity:0.8; line-height:1.2;">${monthName} ${year}</div>
+//                       <div style="font-size:${mainFontSize}; line-height:1.1;">${dateNum}</div>
+//                       <div style="font-size:${subFontSize}; font-weight:300; line-height:1.2;">${dayName}</div>
+//                   `;
+//               }
+//           };
+//           setTimeout(updateCalendar, 0);
+//           this.widgetInterval = setInterval(updateCalendar, 60000); 
+//       } else if (item.widget_type === "logo") {
+//           const fit = config.fit || "contain";
+//           const localImgSrc = sources + "/" + getFileName(item);
+//           const fallbackUrl = config.url || item.url;
+//           widgetHTML = `${innerWrapper}<img src="${localImgSrc}" style="width:100%; height:100%; object-fit:${fit};" onerror="this.onerror=null; this.src='${fallbackUrl}';">${closeWrapper}`;
+//       } else if (item.widget_type === "emoji") {
+//           widgetHTML = `${innerWrapper}<div style="font-size:${config.size || 48}px; text-align:center; line-height:1;">${config.emoji || '👋'}</div>${closeWrapper}`;
+//       } else if (isTicker) {
+//           const direction = config.direction === 'right' ? 'right' : 'left';
+//           const animName = `scroll_${this.zoneId}_${Date.now()}`;
+//           let requestedSize = config.fontSize ? parseFloat(config.fontSize.toString().replace(/[^0-9.]/g, '')) : 24;
+//           let maxAllowedSize = widgetH * 0.9;
+//           let finalFontSize = Math.min(requestedSize, maxAllowedSize) + 'px';
+//           const tickerText = (config.text || 'No text provided') + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+//           const keyframes = direction === 'left' ? `@keyframes ${animName} { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }` : `@keyframes ${animName} { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }`;
+//           widgetHTML = `
+//               <style>
+//                   ${keyframes}
+//                   .ticker-track-${this.zoneId} { display: flex; width: max-content; animation: ${animName} ${config.speed || 15}s linear infinite; }
+//                   .ticker-item-${this.zoneId} { white-space: nowrap; color: ${config.color || '#ffffff'}; font-size: ${finalFontSize}; font-weight: bold; line-height: 1; padding-right: 50px; min-width: ${widgetW}px; display: flex; align-items: center; }
+//               </style>
+//               ${innerWrapper}
+//                   <div style="width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center;">
+//                       <div class="ticker-track-${this.zoneId}">
+//                           <div class="ticker-item-${this.zoneId}">${tickerText}</div>
+//                           <div class="ticker-item-${this.zoneId}">${tickerText}</div>
+//                       </div>
+//                   </div>
+//               ${closeWrapper}`;
+//       } else {
+//           widgetHTML = `${innerWrapper}<div style="color:red;">Unknown Widget</div>${closeWrapper}`;
+//       }
+
+//       this.widgetContainer.innerHTML = widgetHTML;
+//       this.widgetContainer.style.display = "flex";
+
+//       const finishWidget = () => {
+//           if (this.widgetInterval) clearInterval(this.widgetInterval);
+//           this.widgetContainer.innerHTML = "";
+//           this.widgetContainer.style.display = "none";
+//       };
+
+//       if (!isSingleItem) {
+//           this.timeoutBox = setTimeout(() => {
+//             if (!signal.aborted) {
+//               finishWidget();
+//               if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+//               resolve();
+//             }
+//           }, item.duration * 1000 || 15000);
+//       }
+
+//       signal.addEventListener("abort", () => {
+//         finishWidget();
+//         resolve();
+//       });
+//     });
+//   }
+
+//   playImage(file, signal, item, isSingleItem = false) {
+//     return new Promise((resolve) => {
+//       let trackingId = null;
+//       if (window.proofOfPlayTracker && item) {
+//         trackingId = window.proofOfPlayTracker.startTracking(item, "image");
+//         window.proofOfPlayTracker.addPlaybackEvent(trackingId, "IMAGE_DISPLAY_STARTED", { fileName: file, zone: this.zoneId });
+//       }
+
+//       if (this.timeoutBox) clearTimeout(this.timeoutBox);
+      
+//       if (this.widgetContainer) this.widgetContainer.style.display = "none";
+//       if (this.widgetInterval) clearInterval(this.widgetInterval);
+//       if (this.p1Element) this.p1Element.style.display = "none";
+
+//       try {
+//         if (this.p1 && this.p1.getState() !== "IDLE" && this.p1.getState() !== "NONE") this.p1.stop();
+//       } catch(e){}
+
+//       let currentImg = this.useImage1 ? this.img1 : this.img2;
+//       let prevImg = this.useImage1 ? this.img2 : this.img1;
+
+//       currentImg.onerror = () => {
+//         currentImg.style.display = "none";
+//         if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+//         resolve();
+//       };
+
+//       currentImg.src = sources + "/" + file;
+//       currentImg.style.display = "block";
+//       prevImg.style.display = "none";
+//       this.useImage1 = !this.useImage1;
+
+//       if (!isSingleItem) {
+//           this.timeoutBox = setTimeout(() => {
+//             if (!signal.aborted) {
+//               if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+//               resolve();
+//             }
+//           }, item.duration * 1000 || 10000);
+//       }
+
+//       signal.addEventListener("abort", () => { resolve(); });
+//     });
+//   }
+
+//   playVideo(file, signal, item) {
+//     return new Promise((resolve) => {
+//       if (!this.p1) return resolve();
+//       let aborted = false;
+//       let trackingId = null;
+
+//       if (window.proofOfPlayTracker && item) {
+//         trackingId = window.proofOfPlayTracker.startTracking(item, "video");
+//         window.proofOfPlayTracker.addPlaybackEvent(trackingId, "PLAYBACK_STARTED", { fileName: file, zone: this.zoneId });
+//       }
+      
+//       if (this.widgetContainer) this.widgetContainer.style.display = "none";
+//       if (this.timeoutBox) clearTimeout(this.timeoutBox);
+
+//       // ALWAYS USE P1
+//       const activePlayer = this.p1;
+//       const activeElement = this.p1Element;
+
+//       // Ensure old state is stopped safely before loading new
+//       try {
+//          if(activePlayer.getState() !== "IDLE" && activePlayer.getState() !== "NONE") {
+//              activePlayer.stop();
+//          }
+//       } catch (e) {}
+
+//       const dynamicListener = {
+//         onbufferingcomplete: () => {
+//           if (trackingId) window.proofOfPlayTracker.addPlaybackEvent(trackingId, "BUFFERING_COMPLETE");
+//         },
+//         onstreamcompleted: () => {
+//           if (!aborted) {
+//             if (trackingId) window.proofOfPlayTracker.addPlaybackEvent(trackingId, "STREAM_COMPLETED");
+
+//             try { activePlayer.setVideoStillMode("true"); } catch(e){}
+//             try { activePlayer.stop(); } catch(e){}
+
+//             // Hide the video element immediately so the next content can take over seamlessly
+//             if (activeElement) activeElement.style.display = "none";
+//             if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+//             resolve();
+//           }
+//         },
+//         onerror: (errType) => {
+//           if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+//           try { activePlayer.stop(); } catch(e){}
+//           if (activeElement) activeElement.style.display = "none";
+//           resolve();
+//         }
+//       };
+
+//       try {
+//         activePlayer.open(sources + "/" + file);
+//         activePlayer.setListener(dynamicListener);
+
+//         try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e) {}
+//         activePlayer.setDisplayRotation(getRotationValue());
+
+//         activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+
+//         activePlayer.prepareAsync(() => {
+//           // Hide images
+//           this.img1.style.display = "none";
+//           this.img2.style.display = "none";
+
+//           if (activeElement) {
+//               activeElement.style.zIndex = "16";
+//               activeElement.style.display = "block";
+//           }
+
+//           try { activePlayer.setVideoStillMode("false"); } catch(e){}
+//           activePlayer.play();
+
+//           // Force timeout just in case streamcompleted fails
+//           this.timeoutBox = setTimeout(() => {
+//             try { activePlayer.setVideoStillMode("true"); } catch(e){}
+//             try { activePlayer.stop(); } catch(e){}
+//             if (activeElement) activeElement.style.display = "none";
+//             resolve();
+//           }, item.duration * 1000 || 15000);
+
+//         }, () => {
+//           if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+//           if (activeElement) activeElement.style.display = "none";
+//           resolve();
+//         });
+
+//       } catch (err) {
+//         if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+//         if (activeElement) activeElement.style.display = "none";
+//         resolve();
+//       }
+
+//       signal.addEventListener("abort", () => {
+//         aborted = true;
+//         try { activePlayer.stop(); } catch(e){}
+//         if (activeElement) activeElement.style.display = "none";
+//         resolve();
+//       });
+//     });
+//   }
+
+
+//   // --- LIVE MODE ---
+//   checkActiveLiveContent() {
+//     if (!this.liveContents.length) return null;
+//     return this.liveContents.find((item) => shouldPlayContent(item)) || null;
+//   }
+
+//   startLiveContentMonitor() {
+//     if (this.liveMonitorInterval) clearInterval(this.liveMonitorInterval);
+//     this.liveMonitorInterval = setInterval(() => {
+//       const activeLive = this.checkActiveLiveContent();
+//       if (this.currentPlaybackMode === "live" && !activeLive) {
+//         this.iframeContainer.innerHTML = "";
+//         this.iframeContainer.style.display = "none";
+//         try { this.p1.stop(); } catch (e) {}
+//         if (this.p1Element) this.p1Element.style.display = "none";
+//         this.startPlayback();
+//       } else if (this.currentPlaybackMode === "normal" && activeLive) {
+//         this.handleLiveContentMode(activeLive);
+//       }
+//     }, 10000);
+//   }
+
+//   async handleLiveContentMode(liveItem) {
+//     this.currentPlaybackMode = "live";
+//     this.activeLiveContent = liveItem;
+//     if (this.abortController) this.abortController.abort();
+
+//     if (this.widgetContainer) this.widgetContainer.style.display = "none";
+//     if (this.widgetInterval) clearInterval(this.widgetInterval);
+
+//     try { if (this.p1) this.p1.stop(); } catch(e){}
+
+//     if (this.p1Element) this.p1Element.style.display = "none";
+//     this.img1.style.display = "none";
+//     this.img2.style.display = "none";
+
+//     const type = detectContentType(liveItem);
+    
+//     // ⭐ ALWAYS USE P1 FOR LIVE M3U8 NOW
+//     if (type === "m3u8" && this.p1) {
+//        this.playM3U8Stream(liveItem, 0);
+//     } else if (type === "youtube") {
+//        this.playYouTubeZone(liveItem);
+//     } else if (type === "website") {
+//        this.playWebsiteZone(liveItem);
+//     }
+//   }
+
+//   playM3U8Stream(liveItem, retryCount = 0) {
+//     const MAX_RETRY = 999;
+//     const RETRY_DELAY = 5000;
+    
+//     const activePlayer = this.p1;
+//     const activeElement = this.p1Element;
+
+//     try { activePlayer.stop(); } catch (e) {}
+
+//     const dynamicListener = {
+//       onerror: (errType) => {
+//         console.error("❌ Live Stream Error:", errType);
+//         if (activeElement) {
+//             activeElement.style.display = "none";
+//         }
+//         if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
+//           let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
+//           this.m3u8RetryTimeouts.push(to);
+//         }
+//       }
+//     };
+
+//     activePlayer.setListener(dynamicListener);
+
+//     try {
+//       activePlayer.open(liveItem.url);
+      
+//       try { activePlayer.setDisplayRotation(getRotationValue()); } catch(e){ }
+//       try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e){}
+
+//       let height = this.getAdjustedVideoHeight();
+//       try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
+
+//       activePlayer.prepareAsync(
+//         () => {
+//           if (activeElement) {
+//             activeElement.style.width = this.rect.w + "px";
+//             activeElement.style.height = height + "px";
+//             activeElement.style.zIndex = "16";
+//             activeElement.style.display = "block";
+//           }
+          
+//           try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
+//           try { activePlayer.setVideoStillMode("false"); } catch(e){}
+          
+//           activePlayer.play();
+//           console.log("▶️ Live Stream playing perfectly on P1!");
+//         },
+//         (err) => {
+//           console.error("❌ Live Stream Prepare Error:", err);
+//           if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
+//             let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
+//             this.m3u8RetryTimeouts.push(to);
+//           }
+//         },
+//       );
+//     } catch (e) {
+//         console.error("❌ Live Stream Setup Error:", e);
+//     }
+//   }
+
+//   playYouTubeZone(liveItem) {
+//     const videoId = extractYouTubeVideoId(liveItem.url);
+//     if (!videoId) return;
+//     this.iframeContainer.innerHTML = `<iframe style="width:100%; height:100%; border:none;" src="${YOUTUBE_CONFIG.embedBaseUrl}${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1" allow="autoplay"></iframe>`;
+//     this.iframeContainer.style.display = "block";
+//   }
+
+//   playWebsiteZone(liveItem) {
+//     this.iframeContainer.innerHTML = `<iframe style="width:100%; height:100%; border:none;" src="${liveItem.url}"></iframe>`;
+//     this.iframeContainer.style.display = "block";
+//   }
+
+//   getNextCarouselItem(carousel) {
+//     if (!carousel || !carousel.items || carousel.items.length === 0) return null;
+//     const lastIndex = this.carouselState[carousel.carousel_id]?.lastPlayedIndex ?? -1;
+//     const nextIndex = (lastIndex + 1) % carousel.items.length;
+//     this.carouselState[carousel.carousel_id] = { lastPlayedIndex: nextIndex };
+//     return carousel.items[nextIndex];
+//   }
+
+//   destroy() {
+//     if (this.abortController) this.abortController.abort();
+//     if (this.liveMonitorInterval) clearInterval(this.liveMonitorInterval);
+//     if (this.timeoutBox) clearTimeout(this.timeoutBox);
+//     if (this.widgetInterval) clearInterval(this.widgetInterval); 
+//     this.m3u8RetryTimeouts.forEach(clearTimeout);
+
+//     // Only clean up p1 since others are gone
+//     if (this.p1) {
+//       try {
+//         this.p1.stop();
+//         this.p1.close();
+//       } catch (e) {}
+//     }
+
+//     if (this.p1Element) this.p1Element.style.display = "none";
+
+//     if (this.container && this.container.parentNode) {
+//       this.container.parentNode.removeChild(this.container);
+//     }
 //   }
 // }
 
-/**
- * Handle ads from MQTT payload with new content structure
- * @param {Object} payload - MQTT payload with ads, carousels, live_contents
- */
+
+// ==========================================
+// 3. GLOBAL HANDLERS & HELPERS
+// ==========================================
+
 async function handleMQTTAds(payload) {
-  const ads = payload.ads || [];
-  const carousels = payload.carousels || [];
-  const liveContents = payload.liveContents || [];
-  const rcs = payload.rcs;
-  const placeholder_enabled = payload.placeholder_enabled;
-  const rcs_enabled = payload.rcs_enabled;
-  const logo_enabled = payload.logo_enabled;
-  window.LAST_ADS = ads;
-  window.LAST_CAROUSELS = carousels;
+  // ⭐ FEATURE 3: Saving Layout Globals & Starting RCS Ticker
+  localStorage.setItem("placeholder_enabled", payload.placeholder_enabled);
+  localStorage.setItem("rcs_enabled", payload.rcs_enabled);
+  localStorage.setItem("logo_enabled", payload.logo_enabled);
 
-  // Update localStorage
-  let old_placeholder_enabled = localStorage.getItem("placeholder_enabled");
-  let old_rcs_enabled = localStorage.getItem("rcs_enabled");
-  let old_logo_enabled = localStorage.getItem("logo_enabled");
-
-  if (placeholder_enabled !== old_placeholder_enabled) {
-    localStorage.setItem("placeholder_enabled", placeholder_enabled);
-  }
-  if (rcs_enabled !== old_rcs_enabled) {
-    localStorage.setItem("rcs_enabled", rcs_enabled);
-  }
-  if (logo_enabled !== old_logo_enabled) {
-    localStorage.setItem("logo_enabled", logo_enabled);
+  if (typeof startAdSlide === "function") {
+    startAdSlide(
+      "ad_snippet",
+      payload.rcs,
+      1,
+      payload.rcs_enabled,
+      payload.logo_enabled,
+    );
   }
 
-  // Update RCS and logo
-  startAdSlide("ad_snippet", rcs, 1, rcs_enabled, logo_enabled);
+  // 1. Gather all required content and filenames
+  let allDownloadableUrls = [];
+  let expectedFileNames = [];
 
-  // STEP 1: Download ALL content upfront (ads + all carousel items)
-  console.log("📥 STEP 1: Downloading ALL content upfront...");
-  await downloadAllContentUpfront(ads, carousels);
-  console.log("✅ All content downloaded!");
-
-  // Initialize regular players if not already done
-      if (!p1 || !p2 || !stg) {
-        initializeRegularPlayers();
+  payload.zones.forEach((zone) => {
+    [...zone.ads, ...zone.carousels.flatMap((c) => c.items)].forEach((item) => {
+      if (isDownloadableContent(item)) {
+        allDownloadableUrls.push(item);
+        expectedFileNames.push(getFileName(item));
       }
+    });
+  });
 
-  // STEP 2: Check for active live content
-  const activeLive = checkActiveLiveContent(liveContents);
-  if (activeLive) {
-    console.log("🔴 LIVE CONTENT DETECTED - Switching to live mode");
-    await handleLiveContentMode([activeLive], liveContents, ads, carousels);
-    return;
+  // Remove duplicate filenames just in case multiple zones use the same file
+  expectedFileNames = [...new Set(expectedFileNames)];
+
+  // 2. ⭐ FEATURE 7: Delete old files NOT in the new payload
+  console.log("🧹 Starting cleanup of old files...");
+  try {
+    await cleanUpOldAds(expectedFileNames);
+    console.log("✅ Cleanup complete.");
+  } catch (err) {
+    console.error("❌ Cleanup failed:", err);
   }
 
-  // STEP 3: Normal mode - Build playback queue (schedule-filtered)
-  console.log("📺 Normal playback mode");
-  const playbackQueue = buildPlaybackQueue(ads, carousels);
+  // 3. Clear memory cache so we physically check the hard drive again
+  globalDownloads.clear();
 
-  if (playbackQueue.length === 0) {
-    console.log("📭 No content to play");
-    // return;
+  // 4. Download missing files
+  console.log("📥 Starting downloads...");
+  for (let item of allDownloadableUrls) {
+    const fileName = getFileName(item);
+    const downloadUrl = item.url || (item.config && item.config.url);
+
+    // Check if we already processed this file in this loop to avoid double-downloading
+    if (!globalDownloads.has(fileName)) {
+      globalDownloads.add(fileName);
+      try {
+        await checkAndDownloadContent(downloadUrl, fileName);
+      } catch (e) {
+        console.error("Download failed:", fileName);
+      }
+    }
+  }
+  console.log("✅ All downloads processed.");
+
+  // 5. Teardown and Rebuild Zones
+  Object.values(activeZones).forEach((zone) => zone.destroy());
+  activeZones = {};
+
+const bgColor = payload.background_color || "#000000"; 
+  
+  // Paint the entire TV screen background
+  document.body.style.backgroundColor = bgColor;
+  
+  // Paint your specific ad player container
+  const adPlayerContainer = document.getElementById("ad_player");
+  if (adPlayerContainer) {
+      adPlayerContainer.style.backgroundColor = bgColor;
   }
 
-  // STEP 4: Start playback (no download needed - already done!)
-  const filenames = playbackQueue.map((item) => getFileName(item));
-
-  localAds = filenames;
-  stopCurrentPlayback();
-  adsFromServer = playbackQueue;
-
-  playAllContentInLoop(filenames, playbackQueue, rcs);
-
-  // STEP 5: Start live content monitor
-  startLiveContentMonitor(liveContents, ads, carousels);
+  payload.zones.forEach((zoneConfig) => {
+    const zone = new ZoneController(zoneConfig);
+    activeZones[zoneConfig.zone_id] = zone;
+    zone.startPlayback();
+  });
 }
 
-function getFileName(adsData) {
-  let url = adsData.url;
-  let ad_id = adsData.ad_id;
-
-  console.log("adsData", adsData);
-  console.log("url ......>>>>>>>>>>>>", url);
-
-  const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
-  const dotIndex = originalName.lastIndexOf(".");
-
-  if (dotIndex === -1) {
-    console.log("no extension found", originalName);
-    return ad_id
-      ? `${originalName}_${ad_id}.${adsData.file_extension}`
-      : originalName + "." + adsData.file_extension;
-  }
-
-  const nameWithoutExt = originalName.substring(0, dotIndex);
-  const extension =
-    originalName.substring(dotIndex) || adsData.file_extension || "mp4";
-
-  if (nameWithoutExt.startsWith("placeholder")) {
-    //console.log("data in placehoder", adsData);
-    return `${nameWithoutExt}_${adsData?.timestamp}${extension}`;
-  }
-
-  console.log("final name", `${nameWithoutExt}_${ad_id}${extension}`);
-  return ad_id ? `${nameWithoutExt}_${ad_id}${extension}` : originalName;
-}
-
-async function checkAndDownloadContent(url, fileName) {
-  return new Promise((resolve, reject) => {
+function checkAndDownloadContent(url, fileName) {
+  return new Promise((resolve) => {
     tizen.filesystem.resolve(
       fileDir,
       (dir) => {
         try {
           dir.resolve(fileName);
-          console.log("✅ Already downloaded:", fileName);
-          addDownloadedFile(fileName);
-          trackDownloadProgress(fileName, url, 100);
-          resolve();
+          if (typeof addDownloadedFile === "function")
+            addDownloadedFile(fileName);
+          if (typeof trackDownloadProgress === "function")
+            trackDownloadProgress(fileName, url, 100);
+          resolve(); // Already exists
         } catch (e) {
-          addInfoLog(`Downloading: ${fileName}`);
-          trackDownloadProgress(fileName, url, 0);
-          console.log("⬇️ Downloading:", fileName);
-          const request = new tizen.DownloadRequest(url, fileDir, fileName);
-          // Set custom HTTP headers (e.g., Authorization, Content-Type)
-          request.httpHeader = {
-            "x-player-width": window.DEVICE_WIDTH,
-          };
-          const downloadId = tizen.download.start(request);
+          if (typeof trackDownloadProgress === "function")
+            trackDownloadProgress(fileName, url, 0);
 
+          const request = new tizen.DownloadRequest(url, fileDir, fileName);
+
+          // ⭐ FEATURE 4: Custom Headers
+          request.httpHeader = {
+            "x-player-width": window.DEVICE_WIDTH || "1920",
+          };
+
+          const downloadId = tizen.download.start(request);
           tizen.download.setListener(downloadId, {
             onprogress: (id, received, total) => {
               const percent = Math.floor((received / total) * 100);
-              console.log(`Downloading ${fileName}: ${percent}%`);
-              trackDownloadProgress(fileName, url, percent);
-              addInfoLog(`Downloading ${fileName}: ${percent}%`);
+              if (typeof trackDownloadProgress === "function")
+                trackDownloadProgress(fileName, url, percent);
+              if (typeof addInfoLog === "function")
+                addInfoLog(`Downloading ${fileName}: ${percent}%`);
             },
-            onpaused: (id) => {
-              console.warn(`Paused: ${fileName}`);
-              addInfoLog(`Paused: ${fileName}`);
-            },
-            oncanceled: (id) => {
-              addInfoLog(`Canceled: ${fileName}`);
+            oncompleted: () => {
+              if (typeof addDownloadedFile === "function")
+                addDownloadedFile(fileName);
+              if (typeof trackDownloadProgress === "function")
+                trackDownloadProgress(fileName, url, 100);
               resolve();
             },
-            oncompleted: (id, path) => {
-              console.log(`Download complete: ${fileName}`);
-              addInfoLog(`Download complete: ${fileName}`);
-              addDownloadedFile(fileName);
-              trackDownloadProgress(fileName, url, 100);
+            onfailed: (id, err) => {
+              if (typeof addErrorLog === "function")
+                addErrorLog(`Download fail: ${err.message}`);
               resolve();
             },
-            onfailed: (id, error) => {
-              console.log(`Failed to download ${fileName}: ${error.message}`);
-              addErrorLog(`Failed to download ${fileName}: ${error.message}`);
-              resolve(); // or reject(error) if needed
-            },
+            oncanceled: () => resolve(),
           });
         }
       },
-      (err) => {
-        addErrorLog(`Directory resolve failed: ${err.message}`);
-        reject(err);
-      },
+      () => resolve(),
       "rw",
     );
   });
 }
-// Stop current playback and clear timeouts
-function stopCurrentPlayback() {
-  iterator = 0;
 
-  // Abort all active proof of play tracking sessions
-  if (window.proofOfPlayTracker) {
-    window.proofOfPlayTracker.abortAllActiveTracking("new_content_loaded");
+
+function getFileName(item) {
+  console.log("item.,.........>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", item)
+
+  if (item.is_widget && item.widget_type === "logo") {
+    const url = item.url || item.config.url || "";
+    const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
+    return `logo_${item.ad_id}_${originalName}`;
   }
 
-  try {
-    p1.stop();
-  } catch (e) {
-    console.warn("Error stopping p1:", e);
+  if (item.is_widget) return `widget_${item.widget_type}_${item.ad_id}`; // Safe fallback for widgets
+
+  let url = item.url || "";
+  let ad_id = item.ad_id;
+  const originalName = url.substring(url.lastIndexOf("/") + 1).split("?")[0];
+  const dotIndex = originalName.lastIndexOf(".");
+
+  if (dotIndex === -1) {
+    return ad_id
+      ? `${originalName}_${ad_id}.${item.file_extension}`
+      : originalName + "." + item.file_extension;
   }
 
-  try {
-    stg.stop()
-  } catch(e){
+  const nameWithoutExt = originalName.substring(0, dotIndex);
+  const extension =
+    originalName.substring(dotIndex) || item.file_extension || "mp4";
 
+  if (nameWithoutExt.startsWith("placeholder")) {
+    return `${nameWithoutExt}_${item?.timestamp || new Date().getTime()}${extension}`;
   }
 
-  try {
-    p2.stop();
-  } catch (e) {
-    console.warn("Error stopping p2:", e);
-  }
-
-  adLoopTimeouts.forEach(clearTimeout);
-  adLoopTimeouts = [];
-
-  const imageElement1 = document.getElementById("image-player1");
-  const imageElement2 = document.getElementById("image-player2");
-  if (imageElement1) imageElement1.style.display = "none";
-  if (imageElement2) imageElement2.style.display = "none";
-  document.getElementById("av-player").classList.remove("vid");
-  document.getElementById("av-player2").classList.remove("vid");
+  return ad_id ? `${nameWithoutExt}_${ad_id}${extension}` : originalName;
 }
 
+// --- STANDARD SCHEDULING HELPERS ---
+function shouldPlayContent(item) {
+  if (!item) return false;
+  if (item.time_slots && !isWithinTimeSlot(item.time_slots)) return false;
+  if (item.weekdays && !isValidWeekday(item.weekdays)) return false;
+  return true;
+}
+
+function isWithinTimeSlot(timeSlots) {
+  if (!timeSlots || timeSlots.length === 0) return true;
+  const now = new Date();
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+
+  return timeSlots.some((slot) => {
+    const [startH, startM] = slot.start.split(":").map(Number);
+    const [endH, endM] = slot.end.split(":").map(Number);
+    const startMins = startH * 60 + startM;
+    const endMins = endH * 60 + endM;
+
+    if (startMins < endMins)
+      return currentMins >= startMins && currentMins < endMins;
+    return currentMins >= startMins || currentMins < endMins;
+  });
+}
+
+function isValidWeekday(weekdays) {
+  return (
+    !weekdays || weekdays.length === 0 || weekdays.includes(new Date().getDay())
+  );
+}
+
+function isVideo(fileName) {
+  return (
+    fileName.endsWith(".mp4") ||
+    fileName.endsWith(".mkv") ||
+    fileName.endsWith(".avi")
+  );
+}
+
+function detectContentType(item) {
+  if (!item) return "unknown";
+  if (item.is_widget) return "widget"; // Detect widgets immediately
+
+  const url = item.url || "";
+  const cleanUrl = url.split("?")[0].toLowerCase();
+
+  if (cleanUrl.endsWith(".m3u8")) return "m3u8";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+  if (
+    cleanUrl.endsWith(".mp4") ||
+    cleanUrl.endsWith(".jpg") ||
+    cleanUrl.endsWith(".jpeg") ||
+    cleanUrl.endsWith(".png")
+  )
+    return isVideo(cleanUrl) ? "video" : "image";
+  return "website";
+}
+
+
+function isDownloadableContent(item) {
+  const type = detectContentType(item);
+  if (type === "video" || type === "image") return true;
+  // ⭐ NEW: Allow logo widgets to be added to the download queue!
+  if (item.is_widget && item.widget_type === "logo" && (item.url || item.config?.url)) return true;
+  return false;
+}
+
+function extractYouTubeVideoId(url) {
+  let match = url.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|live\/))([\w-]{11})/,
+  );
+  return match ? match[1] : null;
+}
+
+// ⭐ FEATURE 7: Clean up old files to save Tizen Storage
 function cleanUpOldAds(newFilenames) {
   return new Promise((resolve, reject) => {
     tizen.filesystem.resolve(
@@ -1276,645 +1949,22 @@ function deleteFileFromDir(dir, name) {
     dir.deleteFile(
       `${fileDir}/${name}`,
       () => {
-        console.log("🗑️ Deleted:", name);
-        addInfoLog(`Deleted file: ${name}`);
+        console.log("🗑️ Deleted old file:", name);
+        if (typeof addInfoLog === "function")
+          addInfoLog(`Deleted file: ${name}`);
         resolve();
       },
       (err) => {
         console.error("❌ Delete failed:", name, err.message);
-        addErrorLog(`Failed to delete ${name}: ${err.message}`);
+        if (typeof addErrorLog === "function")
+          addErrorLog(`Failed to delete ${name}: ${err.message}`);
         reject(err);
       },
     );
   });
 }
 
-function isVideo(fileName) {
-  return (
-    fileName.endsWith(".mp4") ||
-    fileName.endsWith(".mkv") ||
-    fileName.endsWith(".avi")
-  );
-}
-
-// 🖼️ Show image
-function showImage(file, resolve) {
-  try {
-    // $(".login_loader").hide();
-    const imageElement1 = document.getElementById("image-player1");
-    const imageElement2 = document.getElementById("image-player2");
-
-    if (!imageElement1 || !imageElement2) {
-      console.error("❌ Image elements not found in DOM");
-      addErrorLog("Image elements not found in DOM");
-      resolve();
-      return;
-    }
-
-    let imgElement = useImage1 ? imageElement1 : imageElement2;
-    let otherImgElement = useImage1 ? imageElement2 : imageElement1;
-    var videoElement1 = document.getElementById("av-player");
-    var videoElement2 = document.getElementById("av-player2");
-
-    // Hide videos
-    videoElement1.classList.remove("vid");
-    videoElement2.classList.remove("vid");
-    imgElement.style.display = "block";
-    otherImgElement.style.display = "none";
-    // Show image
-
-    imgElement.onerror = function () {
-      imgElement.style.display = "none";
-      // $(".login_loader").show();
-      resolve();
-      console.error("❌ Error loading image:", file);
-    };
-    //console.log("image_url " + sources + "/" + file);
-    //console.log("🖼️ Displaying image:", adsFromServer[iterator]);
-    let image_url = sources + "/" + file;
-    // if (file.startsWith("placeholder")) {
-    //   image_url = image_url + "?v=" + new Date().getTime(); // cache buster
-    // }
-    imgElement.src = image_url; // ✅ use updated URL
-  } catch (err) {
-    addErrorLog(" Error preparing or Image file:", err.message || err);
-    resolve();
-  }
-}
-
-let timeoutBox = null;
-
-function playImage(file, signal, currentAd) {
-  return new Promise((resolve) => {
-    if (timeoutBox) {
-      clearTimeout(timeoutBox);
-      timeoutBox = null;
-    }
-    document.getElementById("av-player").classList.remove("vid");
-    document.getElementById("av-player2").classList.remove("vid");
-    showImage(file, resolve); // your own image render logic
-
-    timeoutBox = managedSetTimeout(
-      () => {
-        if (!signal.aborted) {
-          logVideo("Image display complete:", file);
-          resolve();
-        }
-      },
-      currentAd?.duration * 1000 || 10000,
-    ); // 10 seconds per image
-
-    // signal.addEventListener("abort", () => {
-    //   clearTimeout(timeout);
-    //   console.log("🛑 Aborted during image");
-    //   resolve();
-    // });
-  });
-}
-
-let currentAbortController = null;
-
-// async function playAllContentInLoop(filenames, ads, rcs) {
-//   logCleanup("Cleaning previous timeouts and DOM...");
-//   addInfoLog("🔁 Re-Start the Loop.....");
-//   logInfo("Loaded ads list in localAds", localAds);
-//   logInfo("Loaded ads in filenames", filenames);
-//   iterator = 0;
-
-//   // 🛑 Abort existing controller and wait for it to settle
-//   if (currentAbortController) {
-//     logInfo("Aborting previous loop...");
-//     currentAbortController.abort();
-
-//     // Wait a short time to let pending image/video resolves finish
-//     await new Promise((res) => managedSetTimeout(res, 50));
-//   }
-
-//   currentAbortController = new AbortController();
-//   const signal = currentAbortController.signal;
-
-//   if (!filenames || filenames.length === 0) {
-//     addErrorLog("❌ No content to play.");
-//     return;
-//   }
-
-//   //   if (localAds.length !== filenames.length) {
-//   //     localAds = filenames;
-//   //     iterator = 0;
-//   //   }
-
-//   while (!signal.aborted) {
-//     const currentFile = filenames[iterator % filenames.length];
-//     const currentAd = ads[iterator % ads.length];
-//     //console.log("▶️ Now playing: " + currentFile);
-//     //console.log("playing index...." + iterator);
-//     //console.log("Playing Index is " + (iterator % filenames.length));
-//     // $(".login_loader").hide();
-
-//     const imageElement1 = document.getElementById("image-player1");
-//     const imageElement2 = document.getElementById("image-player2");
-//     let imgElement = useImage1 ? imageElement1 : imageElement2;
-//     let otherImgElement = useImage1 ? imageElement2 : imageElement1;
-//     try {
-//       if (isVideo(currentFile)) {
-//         console.log(
-//           "🎥 Displaying video:",
-//           adsFromServer[iterator % adsFromServer.length]
-//         );
-//         let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
-//         if (!isVideo(filenames[nexIndex]) && imgElement) {
-//           //console.log("next content is show...");
-//           //console.log("imagess", imgElement);
-//           //console.log("image1", imageElement1);
-//           //console.log("image2", imageElement2);
-//           // imgElement.src = sources + "/" + filenames[nexIndex];
-//         }
-//         await playVideoWithTracking(currentFile, signal, currentAd, filenames);
-//       } else {
-//         await playImageWithTracking(currentFile, signal, currentAd, filenames);
-//         // imgElement.style.display = "none";
-//         //useImage1 = !useImage1;
-//       }
-//     } catch (err) {
-//       console.error("❌ Error during media playback:", err.message || err);
-//       addErrorLog("Media playback error: " + (err.message || err));
-//     }
-//     increaseIterator(filenames);
-//   }
-
-//   console.log("🛑 Playback loop terminated.");
-// }
-
-/**
- * Play all content in loop (NO DOWNLOAD - files already downloaded)
- * @param {Array} filenames - Array of filenames to play
- * @param {Array} contentItems - Array of content item objects
- * @param {string} rcs - RCS message
- */
-async function playAllContentInLoop(filenames, contentItems, rcs) {
-  console.log(`🔁 Starting playback loop`);
-  console.log(`📋 Content items: ${filenames.length}`);
-
-  iterator = 0;
-
-  // Abort existing controller
-  if (currentAbortController) {
-    console.log("🛑 Aborting previous loop...");
-    currentAbortController.abort();
-    await new Promise((res) => managedSetTimeout(res, 50));
-  }
-
-  currentAbortController = new AbortController();
-  const signal = currentAbortController.signal;
-
-  showNormalPlayers();
-
-  if (!filenames || filenames.length === 0) {
-    console.error("❌ No content to play.");
-    return;
-  }
-
-  // Playback loop - NEVER BREAKS for downloading
-  while (!signal.aborted) {
-    // 🔁 LOOP COMPLETED → refresh carousel
-    console.log("iterator", iterator);
-    console.log("contentItems.length", contentItems.length);
-    console.log("index", iterator % contentItems.length);
-    if (iterator == 0 && iterator % contentItems.length === 0) {
-      console.log("🔄 Loop completed — refreshing carousel items");
-      console.log("window.LAST_ADS", window.LAST_ADS);
-      console.log("window.LAST_CAROUSELS", window.LAST_CAROUSELS);
-
-      // Rebuild playback queue (this moves carousel forward)
-      const newQueue = buildPlaybackQueue(
-        window.LAST_ADS,
-        window.LAST_CAROUSELS,
-      );
-
-      filenames = newQueue.map(getFileName);
-      contentItems = newQueue;
-      // iterator = 0;
-      // continue;
-    }
-
-    const index = iterator % contentItems.length;
-    const item = contentItems[index];
-
-    // ⏱️ Schedule validation
-    if (!shouldPlayContent(item)) {
-      iterator++;
-      continue;
-    }
-
-    const file = filenames[index];
-
-    console.log("▶️ Now playing:", file);
-    console.log("playing index....", iterator);
-
-    try {
-      // Play downloaded content (video or image)
-      if (isVideo(file)) {
-        await playVideoWithTracking(file, signal, item, filenames);
-      } else {
-        await playImageWithTracking(file, signal, item, filenames);
-      }
-    } catch (err) {
-      console.error("❌ Error during media playback:", err.message || err);
-    }
-
-    increaseIterator(filenames);
-  }
-
-  console.log("🛑 Playback loop terminated.");
-}
-function getRotationValue() {
-  const orientationType = screen.orientation.type;
-  console.log("orrrr", orientationType);
-
-  switch (orientationType) {
-    case "portrait-primary":
-      return "PLAYER_DISPLAY_ROTATION_90";
-    case "portrait-secondary":
-      return "PLAYER_DISPLAY_ROTATION_180";
-    case "landscape-primary":
-      return "PLAYER_DISPLAY_ROTATION_NONE";
-    case "landscape-secondary":
-      return "PLAYER_DISPLAY_ROTATION_270";
-    default:
-      return "PLAYER_DISPLAY_ROTATION_NONE";
-  }
-}
-
-// Wrapper functions with proof of play tracking
-async function playVideoWithTracking(file, signal, currentAd, filenames) {
-  let trackingId = null;
-
-  try {
-    // Start tracking
-    if (window.proofOfPlayTracker && currentAd) {
-      trackingId = window.proofOfPlayTracker.startTracking(currentAd, "video");
-    }
-
-    // Add playback started event
-    if (trackingId) {
-      window.proofOfPlayTracker.addPlaybackEvent(
-        trackingId,
-        "PLAYBACK_STARTED",
-        {
-          fileName: file,
-          expectedDuration: currentAd?.duration,
-        },
-      );
-    }
-
-    // Call original playVideo function
-    await playVideo(file, signal, currentAd, trackingId, filenames);
-
-    // End tracking on successful completion
-    if (trackingId) {
-      window.proofOfPlayTracker.endTracking(trackingId, "completed");
-    }
-  } catch (error) {
-    logError("Enhanced video playback failed:", error);
-    if (trackingId) {
-      window.proofOfPlayTracker.endTracking(trackingId, "error");
-    }
-    throw error;
-  }
-}
-
-async function playImageWithTracking(file, signal, currentAd, filenames) {
-  let trackingId = null;
-
-  try {
-    // Start tracking
-    if (window.proofOfPlayTracker && currentAd) {
-      trackingId = window.proofOfPlayTracker.startTracking(currentAd, "image");
-    }
-
-    // Add display event
-    if (trackingId) {
-      window.proofOfPlayTracker.addPlaybackEvent(
-        trackingId,
-        "IMAGE_DISPLAY_STARTED",
-        {
-          fileName: file,
-        },
-      );
-    }
-
-    // Call original playImage function
-    await playImage(file, signal, currentAd);
-
-    // End tracking
-    if (trackingId) {
-      window.proofOfPlayTracker.endTracking(trackingId, "completed");
-    }
-  } catch (error) {
-    logError("Enhanced image playback failed:", error);
-    if (trackingId) {
-      window.proofOfPlayTracker.endTracking(trackingId, "error");
-    }
-    throw error;
-  }
-}
-
-function playVideo(file, signal, currentAd, trackingId = null, filenames) {
-  return new Promise((resolve, reject) => {
-    let aborted = false;
-    let hasStarted = false;
-    let timeoutFallback = null;
-
-    try {
-      // Check if this is a YouTube live stream URL
-      if (window.isYouTubeUrl && window.isYouTubeUrl(file)) {
-        logInfo("🔴 Detected YouTube URL, using YouTube Live Player:", file);
-        return window
-          .playYouTubeLive(file, signal, currentAd)
-          .then(resolve)
-          .catch(reject);
-      }
-
-      // Initialize regular players if not already done
-      if (!p1 || !p2) {
-        initializeRegularPlayers();
-      }
-
-      const player = useP1Next ? p1 : p2;
-      const otherPlayer = useP1Next ? p2 : p1;
-      
-
-      useP1Next = !useP1Next;
-      try {
-        otherPlayer.stop?.();
-      } catch {}
-      try {
-        player.stop?.();
-      } catch (error) {
-        //console.log("player close....", error?.message);
-        player.close?.();
-      }
-      try{
-        stg.stop?.()
-      }catch(e){
-
-      }
-
-      function timeoutFallbackHandler() {
-        timeoutFallback = setTimeout(
-          () => {
-            if (!hasStarted) {
-              console.warn("⏭️ Timeout: Skipping stuck video:", file);
-              player.stop();
-              addErrorLog("Video playback timeout: Skipping stuck video");
-              resolve();
-            } else {
-              console.warn(
-                "⏭️ Timeout: Video playback took too long, stopping player.",
-              );
-              player.stop();
-              addErrorLog("Video playback timeout: Stopping player");
-              resolve();
-            }
-          },
-          currentAd?.duration * 1000 || 15000,
-        ); // e.g., 15 sec fallback
-      }
-
-      let successCallback = function () {
-        //console.log("The media has finished preparing");
-        player.setVideoStillMode("false");
-        const imageElement1 = document.getElementById("image-player1");
-        document.getElementById("image-player1").style.display = "none";
-        document.getElementById("image-player2").style.display = "none";
-        document.getElementById("av-player").classList.add("vid");
-        document.getElementById("av-player2").classList.add("vid");
-        player.play();
-        const currentFile = filenames[iterator % filenames.length];
-        let nexIndex = iterator + 1 >= filenames.length ? 0 : iterator + 1;
-        if (!isVideo(filenames[nexIndex]) && imageElement1) {
-          imageElement1.src = sources + "/" + filenames[nexIndex];
-        }
-        //console.log("🎞️ Playing video:", file);
-        let state = player.getState();
-        //console.log("[Player][seekBackward] state 1: ", state);
-      };
-
-      let errorCallback = function () {
-        //console.log("The media has failed to prepare");
-        addErrorLog("Video playback error: Failed to prepare media");
-        player.stop();
-        clearTimeout(timeoutFallback);
-        resolve();
-      };
-
-      const dynamicListener = {
-        onbufferingstart: () => {
-          //console.log("⏳ Buffering start.");
-        },
-        onbufferingprogress: function (percent) {
-          //console.log("Buffering progress data : " + percent);
-        },
-        onbufferingcomplete: function () {
-          //console.log("✅ Buffering complete");
-          hasStarted = true;
-
-          // Add tracking event for buffering complete
-          if (trackingId && window.proofOfPlayTracker) {
-            window.proofOfPlayTracker.addPlaybackEvent(
-              trackingId,
-              "BUFFERING_COMPLETE",
-            );
-          }
-        },
-        oncurrentplaytime: function (currentTime) {
-          let state = player.getState();
-          //console.log("[Player][seekBackward] state 2: ", state);
-          if (state === "PLYING") {
-            if (!timeoutFallback) {
-              timeoutFallbackHandler();
-            }
-          }
-          //console.log("Current playtime: " + currentTime);
-        },
-        onstreamcompleted: () => {
-          if (!aborted) {
-            //console.log("🎞️ Stream completed:", file);
-
-            // Add tracking event for stream completion
-            if (trackingId && window.proofOfPlayTracker) {
-              window.proofOfPlayTracker.addPlaybackEvent(
-                trackingId,
-                "STREAM_COMPLETED",
-              );
-            }
-
-            player.setVideoStillMode("true"); // Turn on still mode to keep last frame
-            player.stop();
-            clearTimeout(timeoutFallback);
-            resolve();
-          } else {
-            console.log(
-              "🛑 Aborted during stream completion, stopping player.",
-            );
-
-            // Add tracking event for aborted completion
-            if (trackingId && window.proofOfPlayTracker) {
-              window.proofOfPlayTracker.addPlaybackEvent(
-                trackingId,
-                "STREAM_ABORTED",
-              );
-            }
-
-            player.stop();
-            clearTimeout(timeoutFallback);
-            resolve();
-          }
-        },
-
-        onevent: function (eventType, eventData) {
-          //console.log("event type: " + eventType + ", data: " + eventData);
-        },
-
-        onerror: (errType) => {
-          if (!aborted) {
-            console.error("❌ Playback error:", errType);
-            addErrorLog("Playback error: " + errType);
-
-            // Add tracking event for playback error
-            if (trackingId && window.proofOfPlayTracker) {
-              window.proofOfPlayTracker.addPlaybackEvent(
-                trackingId,
-                "PLAYBACK_ERROR",
-                {
-                  errorType: errType,
-                },
-              );
-            }
-
-            player.stop();
-            clearTimeout(timeoutFallback);
-            resolve();
-          } else {
-            console.log("🛑 Aborted during error handling, stopping player.");
-
-            // Add tracking event for aborted error handling
-            if (trackingId && window.proofOfPlayTracker) {
-              window.proofOfPlayTracker.addPlaybackEvent(
-                trackingId,
-                "ERROR_ABORTED",
-                {
-                  errorType: errType,
-                },
-              );
-            }
-
-            player.stop();
-            clearTimeout(timeoutFallback);
-            resolve();
-          }
-        },
-      };
-
-      player.open(sources + "/" + file);
-      player.setListener(dynamicListener);
-      // player.setDisplayRotation("PLAYER_DISPLAY_ROTATION_90");
-      const rotation = getRotationValue();
-      console.log("outpeee", rotation);
-      player.setDisplayRotation(rotation);
-      // player.setDisplayRect(0, 0, 1080, 1824);
-
-      console.log("rcs_enabled", localStorage.getItem("rcs_enabled"));
-      let height =
-        localStorage.getItem("rcs_enabled") == "true"
-          ? window.innerHeight - 40
-          : window.innerHeight;
-      player.setDisplayRect(0, 0, window.innerWidth, height);
-      // player.prepare();
-
-      // --- SET THE SKIP TIMEOUT HERE ---
-      // timeoutFallback = setTimeout(() => {
-      //   console.warn("⏭️ Timeout: Skipping stuck video:", file);
-      //   player.stop();
-      //   resolve();
-      // }, currentAd?.duration || 15000); // e.g., 15 sec fallback
-
-      player.prepareAsync(successCallback, errorCallback);
-      // player.setVideoStillMode("false");
-      // player.play();
-
-      // Handle abortion after play started
-      if (signal.aborted) {
-        aborted = true;
-        console.log("🛑 Aborted during video");
-        player.stop();
-        resolve();
-        return;
-      }
-
-      const abortHandler = () => {
-        aborted = true;
-        console.log("🛑 Abort signal triggered during playback");
-        player.stop();
-        resolve();
-      };
-
-      // signal.addEventListener("abort", abortHandler, { once: true });
-    } catch (err) {
-      console.error("❌ Error playing video:", err.message || err);
-      addErrorLog("Video playback error: " + (err.message || err));
-      resolve(); // Resolve to continue loop
-    }
-  });
-}
-
+// Cleanup on exit
 window.addEventListener("unload", () => {
-  logCleanup("Unloading... cleaning up");
-
-  // 1. Clear all ad loop timeouts
-  adLoopTimeouts.forEach(clearTimeout);
-  adLoopTimeouts = [];
-
-  // 2. Abort any current video/image loop
-  if (currentAbortController) {
-    currentAbortController.abort();
-    currentAbortController = null;
-  }
-
-  // 3. Stop and close both video players
-  try {
-    if (p1) {
-      p1.stop();
-      p1.close();
-    }
-    if (p2) {
-      p2.stop();
-      p2.close();
-    }
-  } catch (e) {
-    logWarn("Player cleanup failed:", e);
-  }
-
-  // 4. Perform complete memory cleanup
-  if (window.performMemoryCleanup) {
-    window.performMemoryCleanup();
-  }
-
-  // 4. Clear image display
-  const img1 = document.getElementById("image-player1");
-  if (img1) {
-    img1.src = "";
-    img1.style.display = "none";
-  }
-  const img2 = document.getElementById("image-player2");
-  if (img2) {
-    img2.src = "";
-    img2.style.display = "none";
-  }
-
-  // 5. Optional: remove listeners on players if any (safety)
-  p1 && p1.setListener(null);
-  p2 && p2.setListener(null);
-
-  console.log("✅ Cleanup complete");
+  Object.values(activeZones).forEach((zone) => zone.destroy());
 });

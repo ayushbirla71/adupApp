@@ -1,17 +1,19 @@
 window.APP_NAME = "AD96 Player";
-window.APP_VERSION = 105;
-window.APP_BUILD = "1.0.5";
+window.APP_VERSION = 106;
+window.APP_BUILD = "1.0.6";
 
-window.APP_BUILD_DATE = "2026-03-30";
+window.APP_BUILD_DATE = "2026-04-23";
 // window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
 window.BULK_LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
-// window.API_BASE_URL = "http://3.110.179.237:8081/api/";
+// window.API_BASE_URL = "https:cms.ad96.in/api/";
 window.API_BASE_URL = "https://stg-cms.ad96.in/api/";
 window.SECRETKEY =
   "2182zy64mc64nswkemzmcbvjlaie44bd8cdkhsg312c81187ab82bbe053df6b7aa55";
+
+window.IS_STG = true;
 
 window.DEVICE_WIDTH = 1920;
 window.DEVICE_HEIGHT = 1080;
