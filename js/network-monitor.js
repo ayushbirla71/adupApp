@@ -265,6 +265,21 @@ class NetworkMonitor {
         this.currentRetries = 0;
         this.notifyListeners("online");
 
+        // 🔔 Dispatch instant online notification
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "DEVICE_ONLINE",
+            "Screen Online",
+            "Screen network connection restored and active",
+            {
+              status: "online",
+              latency: this.networkQuality ? this.networkQuality.latency : null,
+              timestamp: Date.now(),
+            },
+            "success",
+          );
+        }
+
         // ✅ Wait 3 seconds for network to stabilize before syncing
         logInfo("Network came online - waiting 3 seconds for stabilization...");
         setTimeout(() => {
@@ -312,6 +327,21 @@ class NetworkMonitor {
         }, 3000); // 3 second initial delay for network stabilization
       } else {
         this.notifyListeners("offline");
+
+        // 🔔 Dispatch instant offline notification (if MQTT client or queue is available)
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "DEVICE_OFFLINE",
+            "Screen Offline",
+            "Screen lost network connectivity",
+            {
+              status: "offline",
+              retries: this.currentRetries,
+              timestamp: Date.now(),
+            },
+            "warning",
+          );
+        }
       }
     }
 

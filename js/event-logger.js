@@ -107,6 +107,23 @@ class EventLogger {
   }
 
   setupErrorHandlers() {
+    let lastErrorNotifTime = 0;
+    const sendInstantErrorNotification = (title, message, errorData) => {
+      const now = Date.now();
+      if (now - lastErrorNotifTime > 30000) { // 30s cooldown to prevent notification flooding
+        lastErrorNotifTime = now;
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "SYSTEM_ERROR",
+            title,
+            message,
+            errorData,
+            "error",
+          );
+        }
+      }
+    };
+
     // Global error handler
     window.addEventListener("error", (event) => {
       this.logEvent("DIAGNOSTIC_ERROR", {
@@ -117,6 +134,16 @@ class EventLogger {
         colno: event.colno,
         stack: event.error ? event.error.stack : null,
       });
+
+      sendInstantErrorNotification(
+        "Runtime Error",
+        event.message || "Unhandled JavaScript exception",
+        {
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+        },
+      );
     });
 
     // Unhandled promise rejections
@@ -127,6 +154,14 @@ class EventLogger {
         reason: event.reason,
         stack: event.reason && event.reason.stack ? event.reason.stack : null,
       });
+
+      sendInstantErrorNotification(
+        "Promise Error",
+        event.reason ? (event.reason.message || String(event.reason)) : "Unhandled promise rejection",
+        {
+          reason: String(event.reason),
+        },
+      );
     });
 
     // Override console.error to capture errors

@@ -712,6 +712,15 @@ async playLoop(queue) {
       currentImg.onerror = () => {
         currentImg.style.display = "none";
         if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "MEDIA_IMAGE_ERROR",
+            "Image Load Failure",
+            "Failed to load or display image asset: " + file,
+            { file: file, zone: this.zoneId, type: "image" },
+            "error",
+          );
+        }
         resolve();
       };
 
@@ -785,6 +794,15 @@ async playLoop(queue) {
         },
         onerror: (errType) => {
           if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+          if (typeof window.triggerDeviceNotification === "function") {
+            window.triggerDeviceNotification(
+              "PLAYBACK_ERROR",
+              "Video Playback Error",
+              "AVPlay decoder error (" + errType + ") playing video asset: " + file,
+              { file: file, errorType: String(errType), zone: this.zoneId, type: "video" },
+              "error",
+            );
+          }
           try { activePlayer.stop(); } catch(e){}
           if (activeElement) activeElement.style.display = "none";
           clearTimeout(timeoutFallback);
@@ -835,14 +853,32 @@ async playLoop(queue) {
             resolve();
           }, item.duration * 1000 || 15000);
 
-        }, () => {
+        }, (prepareErr) => {
           if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+          if (typeof window.triggerDeviceNotification === "function") {
+            window.triggerDeviceNotification(
+              "PLAYBACK_ERROR",
+              "Video Prepare Error",
+              "Failed to prepare AVPlay hardware video player for: " + file,
+              { file: file, error: String(prepareErr), zone: this.zoneId, type: "video" },
+              "error",
+            );
+          }
           if (activeElement) activeElement.style.display = "none";
           resolve();
         });
 
       } catch (err) {
         if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "error");
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "PLAYBACK_ERROR",
+            "Video Setup Exception",
+            "Exception during video setup for " + file + ": " + (err ? err.message : "unknown"),
+            { file: file, error: String(err), zone: this.zoneId, type: "video" },
+            "error",
+          );
+        }
         if (activeElement) activeElement.style.display = "none";
         resolve();
       }
@@ -925,6 +961,15 @@ async handleLiveContentMode(liveItem) {
     const dynamicListener = {
       onerror: (errType) => {
         console.error("❌ Live Stream Error:", errType);
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "STREAM_ERROR",
+            "Live Stream Playback Error",
+            "M3U8 live stream error (" + errType + ") for URL: " + (liveItem ? liveItem.url : ""),
+            { url: liveItem ? liveItem.url : "", errorType: String(errType), retryCount: retryCount, zone: this.zoneId },
+            "error",
+          );
+        }
         if (activeElement) {
             activeElement.classList.remove("vid");
             activeElement.style.display = "none";
@@ -940,7 +985,7 @@ async handleLiveContentMode(liveItem) {
 
     try {
       activePlayer.open(liveItem.url);
-      
+
       try { activePlayer.setDisplayRotation(getRotationValue()); } catch(e){ console.error("Rotation err", e); }
       try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e){}
 
@@ -958,18 +1003,27 @@ async handleLiveContentMode(liveItem) {
             activeElement.classList.add("vid");
             activeElement.style.display = "block";
           }
-          
+
           // Double-tap the layout boundaries right before hitting play
           try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
 
           // Turn off frozen frames for live TV
           try { activePlayer.setVideoStillMode("false"); } catch(e){}
-          
+
           activePlayer.play();
           console.log("▶️ Live Stream playing perfectly on P1!");
         },
         (err) => {
           console.error("❌ Live Stream Prepare Error:", err);
+          if (typeof window.triggerDeviceNotification === "function") {
+            window.triggerDeviceNotification(
+              "STREAM_ERROR",
+              "Live Stream Prepare Error",
+              "Failed to prepare live stream player for URL: " + (liveItem ? liveItem.url : ""),
+              { url: liveItem ? liveItem.url : "", error: String(err), retryCount: retryCount, zone: this.zoneId },
+              "error",
+            );
+          }
           if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
             let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
             this.m3u8RetryTimeouts.push(to);
@@ -978,6 +1032,15 @@ async handleLiveContentMode(liveItem) {
       );
     } catch (e) {
         console.error("❌ Live Stream Setup Error:", e);
+        if (typeof window.triggerDeviceNotification === "function") {
+          window.triggerDeviceNotification(
+            "STREAM_ERROR",
+            "Live Stream Setup Error",
+            "Exception during live stream setup: " + (e ? e.message : "unknown"),
+            { url: liveItem ? liveItem.url : "", error: String(e), zone: this.zoneId },
+            "error",
+          );
+        }
     }
   }
 

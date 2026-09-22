@@ -784,14 +784,108 @@ progress {
 
 
 /* ========================================================
-   CRITICAL TIZEN TRANSPARENCY OVERRIDES 
+   CRITICAL TIZEN TRANSPARENCY OVERRIDES
    These ensure the hardware video layer is visible
 ======================================================== */
-html, 
+html,
 .main-container,
 .ad-player-container,
 .ad-player-container-box,
 .ad-player {
     /* background-color: transparent !important;
     background: transparent !important; */
+}
+
+/* ========================================================
+   DEVICE NOTIFICATION OVERLAY (FLOATING TOAST / BANNER)
+   Non-intrusive HUD overlay for remote & local alerts
+======================================================== */
+.device-notification-overlay {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  min-width: 340px;
+  max-width: 520px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  padding: 16px 20px;
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  z-index: 10000;
+  opacity: 0;
+  transform: translateY(-30px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+
+.device-notification-overlay.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.device-notification-overlay.info {
+  border-color: #3b82f6;
+}
+
+.device-notification-overlay.warning {
+  border-color: #f59e0b;
+}
+
+.device-notification-overlay.error {
+  border-color: #ef4444;
+}
+
+.device-notification-overlay.success {
+  border-color: #10b981;
+}
+
+.notif-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.notif-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.notif-badge.info {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+.notif-badge.warning {
+  background: #78350f;
+  color: #fde68a;
+}
+
+.notif-badge.error {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+.notif-badge.success {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+.notif-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.notif-body {
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.4;
+  word-break: break-word;
 }
