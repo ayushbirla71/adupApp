@@ -23,8 +23,14 @@ class ProofOfPlayTracker {
       return null;
     }
 
+    if(!adData.ad_id && !adData.adId){
+         return null
+    }
+
     const trackingId = generateUUID();
     const startTime = new Date().toISOString();
+
+    console.log("tracking data.....", adData)
 
     const playbackRecord = {
       trackingId: trackingId,
@@ -54,6 +60,7 @@ class ProofOfPlayTracker {
 
   // Add an event to a tracked playback
   addPlaybackEvent(trackingId, eventType, eventData = {}) {
+    if(!trackingId) return;
     const playback = this.activePlaybacks.get(trackingId);
     if (!playback) {
       logWarn("Cannot add event to unknown tracking ID:", trackingId);
@@ -77,6 +84,7 @@ class ProofOfPlayTracker {
 
   // End tracking an ad playback
   endTracking(trackingId, reason = "completed") {
+      if(!trackingId) return;
     const playback = this.activePlaybacks.get(trackingId);
     if (!playback) {
       logWarn("Cannot end tracking for unknown tracking ID:", trackingId);

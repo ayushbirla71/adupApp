@@ -1,8 +1,8 @@
 window.APP_NAME = "AD96 Player";
-window.APP_VERSION = 106;
-window.APP_BUILD = "1.0.6";
+window.APP_VERSION = 107;
+window.APP_BUILD = "1.0.7";
 
-window.APP_BUILD_DATE = "2026-04-23";
+window.APP_BUILD_DATE = "2026-07-21";
 // window.API_BASE_URL = "https://cms.ad96.in/api/";
 window.LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
@@ -29,7 +29,7 @@ window.FILE_DIRECTORY = "";
 window.DOWNLOAD_PROGRESS = [];
 
 // Environment Configuration
-window.ENVIRONMENT = "dev"; // "dev" or "prod"
+window.ENVIRONMENT = "prod"; // "dev" or "prod"
 window.IS_DEVELOPMENT = window.ENVIRONMENT === "dev";
 
 // Memory Management Configuration

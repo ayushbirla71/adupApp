@@ -988,30 +988,125 @@ async handleLiveContentMode(liveItem) {
     this.iframeContainer.style.display = "block";
   }
 
-playWebsiteZone(liveItem) {
-  console.log("web site data......", liveItem)
-    // Clear any existing interval just in case
-    if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
+// playWebsiteZone(liveItem) {
+//   console.log("web site data......", liveItem)
+//     // Clear any existing interval just in case
+//     if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
 
-    const iframeId = `iframe_${this.zoneId}`;
-    this.iframeContainer.innerHTML = `<iframe id="${iframeId}" style="width:100%; height:100%; border:none;" src="${liveItem.url}"></iframe>`;
+//     const iframeId = `iframe_${this.zoneId}`;
+//     this.iframeContainer.innerHTML = `<iframe id="${iframeId}" style="width:100%; height:100%; border:none;" src="${liveItem.url}"></iframe>`;
+//     this.iframeContainer.style.display = "block";
+
+//     // ⭐ If the website is STATIC, force an iframe refresh every 3 seconds
+//     if (liveItem.website_type === "STATIC") {
+//         this.websiteRefreshInterval = setInterval(() => {
+//             const iframe = document.getElementById(iframeId);
+//             if (iframe) {
+//                 // Determine if the original URL already has query parameters
+//                 const separator = liveItem.url.includes('?') ? '&' : '?';
+                
+//                 // Append a unique timestamp. This prevents Tizen from using the cached page!
+//                 iframe.src = `${liveItem.url}${separator}cb=${new Date().getTime()}`;
+//             }
+
+//             console.log("test...... 0001 5 second")
+//         }, 5000); // 3000ms = 3 seconds
+//     }
+//   }
+
+playWebsiteZone(liveItem) {
+    console.log("Website data (Live Ticker Mode):", liveItem);
+    
+    // 1. CLEAR ALL TIMERS (Fixes the Ghost Loop problem)
+    if (this.websiteRefreshTimer) clearTimeout(this.websiteRefreshTimer);
+    if (this.transitionTimer) clearTimeout(this.transitionTimer);
+    if (this.fallbackTimer) clearTimeout(this.fallbackTimer); // New fallback timer
+
+    const iframe1Id = `iframe_${this.zoneId}_1`;
+    const iframe2Id = `iframe_${this.zoneId}_2`;
+    
+    this.iframeContainer.innerHTML = `
+        <div style="position: relative; width: 100%; height: 100%; background-color: #000;">
+            <iframe id="${iframe1Id}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; opacity: 1; z-index: 2;"></iframe>
+            <iframe id="${iframe2Id}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; opacity: 0; z-index: 1;"></iframe>
+        </div>
+    `;
     this.iframeContainer.style.display = "block";
 
-    // ⭐ If the website is STATIC, force an iframe refresh every 3 seconds
-    if (liveItem.website_type === "STATIC") {
-        this.websiteRefreshInterval = setInterval(() => {
-            const iframe = document.getElementById(iframeId);
-            if (iframe) {
-                // Determine if the original URL already has query parameters
-                const separator = liveItem.url.includes('?') ? '&' : '?';
-                
-                // Append a unique timestamp. This prevents Tizen from using the cached page!
-                iframe.src = `${liveItem.url}${separator}cb=${new Date().getTime()}`;
-            }
-        }, 5000); // 3000ms = 3 seconds
-    }
-  }
+    let activeIframe = document.getElementById(iframe1Id);
+    let hiddenIframe = document.getElementById(iframe2Id);
 
+    const getFreshUrl = (baseUrl) => {
+        try {
+            const urlObj = new URL(baseUrl);
+            urlObj.searchParams.set('cb', new Date().getTime());
+            return urlObj.toString();
+        } catch (e) {
+            const separator = baseUrl.includes('?') ? '&' : '?';
+            return `${baseUrl}${separator}cb=${new Date().getTime()}`;
+        }
+    };
+
+    const loadNextWebsite = () => {
+        hiddenIframe.onload = null;
+        if (this.fallbackTimer) clearTimeout(this.fallbackTimer);
+
+        hiddenIframe.onload = () => {
+            hiddenIframe.onload = null; 
+            if (this.fallbackTimer) clearTimeout(this.fallbackTimer); // Clear fallback on success
+            
+            hiddenIframe.style.opacity = "1";
+            hiddenIframe.style.zIndex = "2";
+            activeIframe.style.zIndex = "1";
+
+            // Save the timeout to a class variable so it can be cleared if the zone changes
+            this.transitionTimer = setTimeout(() => {
+                activeIframe.style.opacity = "0";
+                activeIframe.onload = null; 
+                activeIframe.src = 'about:blank'; 
+
+                const temp = activeIframe;
+                activeIframe = hiddenIframe;
+                hiddenIframe = temp;
+
+                this.websiteRefreshTimer = setTimeout(loadNextWebsite, 5000);
+            }, 100); 
+        };
+
+        // 2. NETWORK FALLBACK TIMEOUT (Fixes the network drop freeze)
+        // If the website doesn't load within 10 seconds, force a retry.
+        this.fallbackTimer = setTimeout(() => {
+            console.warn("Website load timed out or failed. Retrying...");
+            hiddenIframe.onload = null; // Detach broken listener
+            hiddenIframe.src = 'about:blank'; // Reset broken iframe
+            this.websiteRefreshTimer = setTimeout(loadNextWebsite, 2000); // Try again in 2 seconds
+        }, 10000);
+
+        hiddenIframe.src = getFreshUrl(liveItem.url); 
+    };
+
+    activeIframe.onload = null;
+    activeIframe.onload = () => {
+        activeIframe.onload = null; 
+        if (this.fallbackTimer) clearTimeout(this.fallbackTimer); // Clear initial fallback
+        
+        if (liveItem.website_type === "STATIC") {
+            this.websiteRefreshTimer = setTimeout(loadNextWebsite, 5000);
+        }
+    };
+
+    // Initial fallback timer for the very first load
+    this.fallbackTimer = setTimeout(() => {
+        console.warn("Initial website load timed out.");
+        activeIframe.onload = null;
+        if (liveItem.website_type === "STATIC") {
+             // If initial load fails, just start the loop so it can try again in the background
+             this.websiteRefreshTimer = setTimeout(loadNextWebsite, 5000);
+        }
+    }, 10000);
+
+    activeIframe.src = getFreshUrl(liveItem.url);
+}
   getNextCarouselItem(carousel) {
     if (!carousel || !carousel.items || carousel.items.length === 0)
       return null;
