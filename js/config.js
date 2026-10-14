@@ -9,7 +9,8 @@ window.LOGS_API_BASE_URL =
 window.BULK_LOGS_API_BASE_URL =
   "https://xrf24byn2f.execute-api.ap-south-1.amazonaws.com/";
 // window.API_BASE_URL = "https:cms.ad96.in/api/";
-window.API_BASE_URL = "https://stg-cms.ad96.in/api/";
+// window.API_BASE_URL = "https://stg-cms.ad96.in/api/";
+window.API_BASE_URL = "https://4fb0-2401-4900-8f70-f2ba-2d83-6cb3-a5fa-5b68.ngrok-free.app/api/";
 window.SECRETKEY =
   "2182zy64mc64nswkemzmcbvjlaie44bd8cdkhsg312c81187ab82bbe053df6b7aa55";
 
@@ -76,6 +77,17 @@ window.SYNC_CONFIG = {
   batchSize: 50, // Max records per normal sync
   bulkThreshold: 5000, // Use bulk sync if > 1000 records (was 50000 - too high!)
   maxBatchesPerSync: 20, // Maximum batches per sync cycle (safety limit to prevent infinite loops)
+};
+
+// Live HLS "stay at the live edge" tuning (see js/live-edge-keeper.js).
+// Starting values: tune on a real TV. Any key left out uses the keeper default.
+window.LIVE_EDGE_CONFIG = {
+  singleStallMs: 2000, // one stall this long triggers a re-join
+  totalStallMs: 4000, // stalls since the last join add up to this -> re-join
+  freezeMs: 8000, // playback time not advancing for this long -> re-join
+  periodicResyncMs: 20 * 60 * 1000, // safety re-join even without stalls
+  minResyncGapMs: 30000, // never re-join more often than this
+  bufferForPlaySec: 0, // experiment: >0 shortens AVPlay's initial buffer (0 = off)
 };
 
 // Log Arrays with Memory Management

@@ -79,6 +79,7 @@ class ZoneController {
     this.timeoutBox = null;
     this.widgetInterval = null; // Tracks ticking clocks
     this.m3u8RetryTimeouts = [];
+    this.liveKeeper = null;
     this.carouselState = {};
 
     this.websiteRefreshInterval = null;
@@ -906,6 +907,7 @@ async playLoop(queue) {
       if (this.currentPlaybackMode === "live" && !activeLive) {
         this.iframeContainer.innerHTML = "";
         this.iframeContainer.style.display = "none";
+        this.stopLiveKeeper();
         try {
           this.stg.stop();
         } catch (e) {}
@@ -928,6 +930,7 @@ async handleLiveContentMode(liveItem) {
 
     if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
 
+    this.stopLiveKeeper();
     try { if (this.p1) this.p1.stop(); } catch(e){}
     try { if (this.p2) this.p2.stop(); } catch(e){}
 
@@ -940,7 +943,7 @@ async handleLiveContentMode(liveItem) {
     
     // ⭐ CRITICAL FIX: Use p1 instead of stg!
     if (type === "m3u8" && this.p1) {
-       this.playM3U8Stream(liveItem, 0);
+       this.playM3U8Stream(liveItem);
     } else if (type === "youtube") {
        this.playYouTubeZone(liveItem);
     } else if (type === "website") {
@@ -948,100 +951,55 @@ async handleLiveContentMode(liveItem) {
     }
   }
 
-  playM3U8Stream(liveItem, retryCount = 0) {
-    const MAX_RETRY = 999;
-    const RETRY_DELAY = 5000;
-    
-    // ⭐ Assign our guaranteed hardware player
-    let activePlayer = this.p1;
-    let activeElement = this.p1Element;
-
-    try { activePlayer.stop(); } catch (e) {}
-
-    const dynamicListener = {
-      onerror: (errType) => {
-        console.error("❌ Live Stream Error:", errType);
-        if (typeof window.triggerDeviceNotification === "function") {
-          window.triggerDeviceNotification(
-            "STREAM_ERROR",
-            "Live Stream Playback Error",
-            "M3U8 live stream error (" + errType + ") for URL: " + (liveItem ? liveItem.url : ""),
-            { url: liveItem ? liveItem.url : "", errorType: String(errType), retryCount: retryCount, zone: this.zoneId },
-            "error",
-          );
-        }
-        if (activeElement) {
-            activeElement.classList.remove("vid");
-            activeElement.style.display = "none";
-        }
-        if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
-          let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
-          this.m3u8RetryTimeouts.push(to);
-        }
-      }
-    };
-
-    activePlayer.setListener(dynamicListener);
-
-    try {
-      activePlayer.open(liveItem.url);
-
-      try { activePlayer.setDisplayRotation(getRotationValue()); } catch(e){ console.error("Rotation err", e); }
-      try { activePlayer.setDisplayMethod("PLAYER_DISPLAY_MODE_CUSTOM"); } catch(e){}
-
-      let height = this.getAdjustedVideoHeight();
-      // try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
- try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h); } catch(e){}
-
-      activePlayer.prepareAsync(
-        () => {
-          if (activeElement) {
-            // Force pixel dimensions so the live stream doesn't shrink into a tiny box
-            activeElement.style.width = this.rect.w + "px";
-            activeElement.style.height = height + "px";
-            activeElement.style.zIndex = "16";
-            activeElement.classList.add("vid");
-            activeElement.style.display = "block";
-          }
-
-          // Double-tap the layout boundaries right before hitting play
-          try { activePlayer.setDisplayRect(this.rect.x, this.rect.y, this.rect.w, height); } catch(e){}
-
-          // Turn off frozen frames for live TV
-          try { activePlayer.setVideoStillMode("false"); } catch(e){}
-
-          activePlayer.play();
-          console.log("▶️ Live Stream playing perfectly on P1!");
-        },
-        (err) => {
-          console.error("❌ Live Stream Prepare Error:", err);
-          if (typeof window.triggerDeviceNotification === "function") {
-            window.triggerDeviceNotification(
-              "STREAM_ERROR",
-              "Live Stream Prepare Error",
-              "Failed to prepare live stream player for URL: " + (liveItem ? liveItem.url : ""),
-              { url: liveItem ? liveItem.url : "", error: String(err), retryCount: retryCount, zone: this.zoneId },
-              "error",
-            );
-          }
-          if (retryCount < MAX_RETRY && this.currentPlaybackMode === "live") {
-            let to = setTimeout(() => this.playM3U8Stream(liveItem, retryCount + 1), RETRY_DELAY);
-            this.m3u8RetryTimeouts.push(to);
-          }
-        },
-      );
-    } catch (e) {
-        console.error("❌ Live Stream Setup Error:", e);
-        if (typeof window.triggerDeviceNotification === "function") {
-          window.triggerDeviceNotification(
-            "STREAM_ERROR",
-            "Live Stream Setup Error",
-            "Exception during live stream setup: " + (e ? e.message : "unknown"),
-            { url: liveItem ? liveItem.url : "", error: String(e), zone: this.zoneId },
-            "error",
-          );
-        }
+  // Live HLS is driven by LiveEdgeKeeper (js/live-edge-keeper.js): it joins the
+  // stream, watches for stalls, and re-joins at the live edge without a black frame.
+  playM3U8Stream(liveItem) {
+    if (typeof LiveEdgeKeeper === "undefined") {
+      console.error("❌ LiveEdgeKeeper not loaded, cannot play live stream");
+      return;
     }
+    if (!this.liveKeeper) this.liveKeeper = new LiveEdgeKeeper(this);
+    this.liveKeeper.start(liveItem);
+  }
+
+  stopLiveKeeper() {
+    if (this.liveKeeper) this.liveKeeper.stop();
+  }
+
+  // True when a new payload can keep this zone (and its running live stream)
+  // as is: same geometry and the same live item. Avoids a black flash and a
+  // re-join on every MQTT sync.
+  canReuseLive(cfg) {
+    if (this.currentPlaybackMode !== "live" || !this.activeLiveContent) return false;
+    if (!this.liveKeeper || !this.liveKeeper.isRunning()) return false;
+
+    const r = cfg.rect || {};
+    const sameGeometry =
+      cfg.type === this.type &&
+      (cfg.z_index || 10) === this.zIndex &&
+      cfg.border_radius === this.border_radius &&
+      r.x === this.rect.x &&
+      r.y === this.rect.y &&
+      r.w === this.rect.w &&
+      r.h === this.rect.h;
+    if (!sameGeometry) return false;
+
+    const next = (cfg.liveContents || []).find((item) => shouldPlayContent(item));
+    const current = this.activeLiveContent;
+    return (
+      !!next &&
+      next.url === current.url &&
+      String(next.ad_id) === String(current.ad_id)
+    );
+  }
+
+  // Applies a new payload to a reused zone without touching the live player.
+  updateConfig(cfg) {
+    this.ads = cfg.ads || [];
+    this.carousels = cfg.carousels || [];
+    this.liveContents = cfg.liveContents || [];
+    const stillActive = this.checkActiveLiveContent();
+    if (stillActive) this.activeLiveContent = stillActive;
   }
 
   playYouTubeZone(liveItem) {
@@ -1189,6 +1147,7 @@ playWebsiteZone(liveItem) {
     if (this.websiteRefreshInterval) clearInterval(this.websiteRefreshInterval);
     
     this.m3u8RetryTimeouts.forEach(clearTimeout);
+    this.stopLiveKeeper();
 
     if (this.p1) {
       try {
@@ -1834,7 +1793,19 @@ playWebsiteZone(liveItem) {
 // 3. GLOBAL HANDLERS & HELPERS
 // ==========================================
 
-async function handleMQTTAds(payload) {
+// Payloads are applied one at a time. Overlapping MQTT messages (retained
+// snapshot + a live update, reconnect redelivery) must not interleave their
+// teardown / rebuild, or two ZoneControllers could end up sharing player ids.
+let mqttAdsQueue = Promise.resolve();
+
+function handleMQTTAds(payload) {
+  const run = () => applyMQTTAdsPayload(payload);
+  const result = mqttAdsQueue.then(run, run);
+  mqttAdsQueue = result.catch(() => {});
+  return result;
+}
+
+async function applyMQTTAdsPayload(payload) {
   // ⭐ FEATURE 3: Saving Layout Globals & Starting RCS Ticker
   localStorage.setItem("placeholder_enabled", payload.placeholder_enabled);
   localStorage.setItem("rcs_enabled", payload.rcs_enabled);
@@ -1897,8 +1868,21 @@ async function handleMQTTAds(payload) {
   console.log("✅ All downloads processed.");
 
   // 5. Teardown and Rebuild Zones
-  Object.values(activeZones).forEach((zone) => zone.destroy());
-  activeZones = {};
+  // A zone whose live stream is running and unchanged is kept as is: tearing it
+  // down would flash black and re-join the stream on every unrelated sync.
+  const keptZones = {};
+  Object.keys(activeZones).forEach((zoneId) => {
+    const zone = activeZones[zoneId];
+    const nextCfg = payload.zones.find((z) => String(z.zone_id) === String(zoneId));
+    if (nextCfg && zone.canReuseLive(nextCfg)) {
+      zone.updateConfig(nextCfg);
+      keptZones[zoneId] = zone;
+      console.log("♻️ Reusing live zone, stream untouched:", zoneId);
+    } else {
+      zone.destroy();
+    }
+  });
+  activeZones = keptZones;
 
 const bgColor = payload.background_color || "#000000"; 
   
@@ -1912,6 +1896,7 @@ const bgColor = payload.background_color || "#000000";
   }
 
   payload.zones.forEach((zoneConfig) => {
+    if (activeZones[zoneConfig.zone_id]) return; // reused above
     const zone = new ZoneController(zoneConfig);
     activeZones[zoneConfig.zone_id] = zone;
     zone.startPlayback();
