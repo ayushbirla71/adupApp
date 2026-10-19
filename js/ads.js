@@ -32,6 +32,14 @@ function connectMQTT(options) {
     options.logo_enabled,
   );
 
+  // Identifies this MQTT session so the server can ignore a late Last Will
+  // "offline" from a previous session after the device has reconnected.
+  var sessionId =
+    "signage-" +
+    (device_id ? device_id + "-" : "") +
+    Math.random().toString(36).substr(2, 8);
+  window.mqttSessionId = sessionId;
+
   var willPayload = {
     device_id: device_id,
     android_id: android_id,
@@ -40,12 +48,16 @@ function connectMQTT(options) {
     title: "Device Offline",
     message: "Screen lost connection to MQTT broker (Unplanned Disconnect)",
     severity: "warning",
-    data: { reason: "mqtt_lwt_disconnect", status: "offline" },
+    data: {
+      reason: "mqtt_lwt_disconnect",
+      status: "offline",
+      session_id: sessionId,
+    },
     timestamp: Date.now(),
   };
 
   client = mqtt.connect(url, {
-    clientId: "signage-" + (device_id ? device_id + "-" : "") + Math.random().toString(36).substr(2, 8),
+    clientId: sessionId,
     username: "myuser",
     password: "adup_2025",
     reconnectPeriod: 5000,
@@ -130,6 +142,7 @@ function connectMQTT(options) {
             status: "online",
             device_id: device_id,
             group_id: group_id,
+            session_id: sessionId,
             reconnected: client.reconnecting || false,
           },
           "success",
@@ -289,6 +302,21 @@ function connectMQTT(options) {
         console.log("🔔 Remote notification alert received:", data);
         showDeviceNotificationOverlay(data);
       } else if (topic.indexOf("ads/") === 0) {
+        // Server-assigned id of this push (absent on older backends)
+        var payloadMeta = getPayloadMeta(data);
+        var payloadGuard = checkPayloadGuard(payloadMeta);
+        if (payloadGuard === "stale") {
+          console.warn("⏭️ Ignoring stale payload", payloadMeta.payload_id);
+          return;
+        }
+        if (payloadGuard === "duplicate") {
+          // Retained message replayed after an MQTT reconnect: already applied
+          // in this session, so just re-acknowledge instead of restarting zones.
+          console.log("♻️ Payload already applied, acknowledging only");
+          publishAcknowledgment(client, payloadMeta);
+          return;
+        }
+
         let content = data.content || [];
 
         localStorage.setItem("content", JSON.stringify(content));
@@ -324,6 +352,7 @@ function connectMQTT(options) {
                   data.placeholder_enabled,
                   data.rcs_enabled,
                   data.logo_enabled,
+                  payloadMeta,
                 );
               })
               .catch(function (error) {
@@ -336,6 +365,7 @@ function connectMQTT(options) {
                   data.placeholder_enabled,
                   data.rcs_enabled,
                   data.logo_enabled,
+                  payloadMeta,
                 );
               });
           } else {
@@ -352,6 +382,7 @@ function connectMQTT(options) {
               data.placeholder_enabled,
               data.rcs_enabled,
               data.logo_enabled,
+              payloadMeta,
             );
           }
         } else {
@@ -363,6 +394,7 @@ function connectMQTT(options) {
             data.placeholder_enabled,
             data.rcs_enabled,
             data.logo_enabled,
+            payloadMeta,
           );
         }
       } else if (topic.indexOf("device/") === 0) {
@@ -752,6 +784,7 @@ function processAds(
   placeholder_enabled,
   rcs_enabled,
   logo_enabled,
+  payloadMeta,
 ) {
   console.log("🔄 Routing data through Multi-Zone Transformer...");
 
@@ -771,6 +804,7 @@ function processAds(
     console.log("✅ Successfully generated Layout:", cleanPayload);
   } catch (e) {
     console.error("❌ Transformer failed:", e.message);
+    publishAcknowledgment(client, payloadMeta, "failed", e.message);
     return;
   }
 
@@ -778,33 +812,89 @@ function processAds(
     placeholderUpdate ? "Placeholder updated" : "No placeholder update",
   );
 
-  publishAcknowledgment(client);
+  // The payload is parsed and persisted at this point: remember it and ack it
+  rememberPayload(payloadMeta);
+  publishAcknowledgment(client, payloadMeta);
 
   // 3. Send the clean, multi-zone payload directly to your Zone Controller architecture
   handleMQTTAds(cleanPayload);
 }
 
-function publishAcknowledgment(client) {
+// Extracts the server-assigned payload identity from an ads/ message.
+function getPayloadMeta(data) {
+  if (!data || !data.payload_id) return null;
+  return {
+    payload_id: String(data.payload_id),
+    generated_at: data.payload_generated_at
+      ? String(data.payload_generated_at)
+      : null,
+  };
+}
+
+// "stale": older than the payload already applied in this app session.
+// "duplicate": the same payload already applied in this session. Anything else
+// is applied normally. Kept in memory only, so a reboot always starts clean and
+// a bad timestamp can never make the player ignore future pushes.
+function checkPayloadGuard(payloadMeta) {
+  if (!payloadMeta) return "apply";
+  if (
+    payloadMeta.generated_at &&
+    window.appliedPayloadGeneratedAt &&
+    payloadMeta.generated_at < window.appliedPayloadGeneratedAt
+  ) {
+    return "stale";
+  }
+  if (
+    window.appliedPayloadId &&
+    window.appliedPayloadId === payloadMeta.payload_id
+  ) {
+    return "duplicate";
+  }
+  return "apply";
+}
+
+function rememberPayload(payloadMeta) {
+  if (!payloadMeta) return;
+  window.appliedPayloadId = payloadMeta.payload_id;
+  window.appliedPayloadGeneratedAt = payloadMeta.generated_at || null;
+}
+
+// Without payloadMeta this is the legacy "I'm alive / synced" ack. With it, the
+// server records that this device accepted (or failed) that specific push.
+function publishAcknowledgment(client, payloadMeta, status, reason) {
   if (!client) {
     console.error("❌ MQTT Client not initialized");
     return;
   }
 
-  client.publish(
-    "device/sync",
-    JSON.stringify({
+  try {
+    var body = {
       android_id: localStorage.getItem("android_id"),
-    }),
-    { qos: 1, retain: true },
-    function (err) {
-      if (err) {
-        console.error("❌ Error publishing acknowledgment:", err);
-        showToast("error", "Error publishing acknowledgment");
-      } else {
-        console.log("📤 Acknowledgment sent successfully");
-      }
-    },
-  );
+      device_id: localStorage.getItem("device_id"),
+      ts: Date.now(),
+    };
+    if (payloadMeta && payloadMeta.payload_id) {
+      body.payload_id = payloadMeta.payload_id;
+      body.status = status || "acked";
+      if (reason) body.reason = String(reason).substring(0, 200);
+    }
+
+    client.publish(
+      "device/sync",
+      JSON.stringify(body),
+      { qos: 1, retain: false },
+      function (err) {
+        if (err) {
+          console.error("❌ Error publishing acknowledgment:", err);
+          showToast("error", "Error publishing acknowledgment");
+        } else {
+          console.log("📤 Acknowledgment sent successfully");
+        }
+      },
+    );
+  } catch (e) {
+    console.error("❌ Acknowledgment failed:", e);
+  }
 }
 
 function deletePlaceHolderFile(fileBaseName) {
