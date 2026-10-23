@@ -320,30 +320,118 @@ async function deviceOriantationChange(orientationType, resolution) {
 
 
 
-async function deviceExitConfirm() {
-  if (!localStorage.getItem("device_id")) {
-    return;
+// ---------------------------------------------------------------------------
+// Device delete ("exit") handshake
+// Server publishes {action:"exit", commandId}; after tearing down, the player
+// calls POST device/confirm-delete/:device_id. The commandId (only delivered
+// over MQTT) and android_id are the proof; the server treats the call as
+// idempotent, so retrying is always safe.
+// ---------------------------------------------------------------------------
+var PENDING_EXIT_CONFIRM_KEY = "pending_exit_confirm";
+
+// Resolves "ok" (200 / device already unknown), "retry" (network / 5xx) or
+// "rejected" (4xx other than 404, retrying will not help).
+function postExitConfirm(payload) {
+  return new Promise(function (resolve) {
+    $.ajax({
+      url: API_BASE_URL + "device/confirm-delete/" + payload.device_id,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: JSON.stringify({
+        commandId: payload.commandId || null,
+        android_id: payload.android_id || null,
+      }),
+      timeout: 15000,
+      success: function () {
+        resolve("ok");
+      },
+      error: function (xhr) {
+        var status = (xhr && xhr.status) || 0;
+        logWarn("Exit confirm failed, HTTP " + status);
+        if (status === 404) resolve("ok");
+        else if (status === 0 || status >= 500) resolve("retry");
+        else resolve("rejected");
+      },
+    });
+  });
+}
+
+function delayMs(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+// Never rejects. Resolves { confirmed, payload } so the caller can persist
+// `payload` for a later retry when the server could not be reached.
+async function deviceExitConfirm(commandId) {
+  var payload = {
+    device_id: localStorage.getItem("device_id"),
+    android_id: localStorage.getItem("android_id"),
+    commandId: commandId || null,
+  };
+  if (!payload.device_id) {
+    return { confirmed: true, payload: payload }; // nothing to confirm
   }
 
-  let isConnected = await window.networkMonitor.checkConnectivity();
-  if (!isConnected) {
-    logWarn("Device is offline - Exit api not work....");
-    return;
+  var backoff = [0, 2000, 5000];
+  for (var i = 0; i < backoff.length; i++) {
+    try {
+      if (backoff[i]) await delayMs(backoff[i]);
+      var result = await postExitConfirm(payload);
+      if (result === "ok") return { confirmed: true, payload: payload };
+      if (result === "rejected") break;
+    } catch (e) {
+      logError("Exit confirm attempt crashed:", e);
+    }
   }
-  $.ajax({
-    url:
-      API_BASE_URL +
-      "device/confirm-delete" +
-      localStorage.getItem("device_id"),
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    success: function (response) {
-      console.log("Device Exit successfully:", response);
-    },
-    error: function (error) {
-      console.error("Error device Exit api:", error);
-    },
+  return { confirmed: false, payload: payload };
+}
+
+// Called at boot: if a previous exit could not be confirmed (offline), retry
+// now. The record survives localStorage.clear() because it is written after it.
+async function flushPendingExitConfirm() {
+  try {
+    var raw = localStorage.getItem(PENDING_EXIT_CONFIRM_KEY);
+    if (!raw) return;
+    var payload = JSON.parse(raw);
+    if (!payload || !payload.device_id) {
+      localStorage.removeItem(PENDING_EXIT_CONFIRM_KEY);
+      return;
+    }
+    var result = await postExitConfirm(payload);
+    if (result !== "retry") {
+      localStorage.removeItem(PENDING_EXIT_CONFIRM_KEY);
+    }
+  } catch (e) {
+    logError("Pending exit confirm flush failed:", e);
+  }
+}
+
+// Reconcile for a screen that missed the exit command (it was offline, or the
+// device was force-deleted from the CMS). Resolves true only when the server
+// explicitly says this device is deleted; any error resolves false so a network
+// problem can never wipe a working screen.
+function checkDeviceDeletedOnServer() {
+  return new Promise(function (resolve) {
+    var deviceId = localStorage.getItem("device_id");
+    var androidId = localStorage.getItem("android_id");
+    if (!deviceId || !androidId) return resolve(false);
+    $.ajax({
+      url:
+        API_BASE_URL +
+        "device/is-deleted/" +
+        encodeURIComponent(deviceId) +
+        "?android_id=" +
+        encodeURIComponent(androidId),
+      method: "GET",
+      timeout: 15000,
+      success: function (res) {
+        resolve(!!(res && res.deleted === true));
+      },
+      error: function () {
+        resolve(false);
+      },
+    });
   });
 }

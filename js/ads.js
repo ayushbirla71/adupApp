@@ -71,6 +71,9 @@ function connectMQTT(options) {
     },
   });
 
+  // `client` is local to connectMQTT; the exit teardown (top-level) needs to reach it.
+  window.mqttClient = client;
+
   publishAcknowledgment(client); // Send acknowledgment after connecting
 
   console.log("🚀 MQTT Client Created with LWT Offline Will");
@@ -128,6 +131,15 @@ function connectMQTT(options) {
         );
       } else {
         console.log("📡 Subscribed to device notification topic: " + deviceNotifTopic);
+      }
+    });
+
+    // The exit command may have been missed while offline (or the device was
+    // force-deleted from the CMS): ask the server on every (re)connect.
+    checkDeviceDeletedOnServer().then(function (deleted) {
+      if (deleted && !window.deviceExiting) {
+        console.warn("🗑️ Server reports this device was deleted - resetting");
+        performDeviceExitTeardown(null, "server_reconcile");
       }
     });
 
@@ -402,43 +414,7 @@ function connectMQTT(options) {
 
         if (data.action === "exit") {
           console.log("🔌 Exiting application...");
-
-          deviceExitConfirm()
-            .then(function () {
-              // ✅ Only proceed if confirmed
-              if (typeof window.triggerDeviceNotification === "function") {
-                window.triggerDeviceNotification(
-                  "DEVICE_OFFLINE",
-                  "Device Stopped",
-                  "Screen application terminated via remote exit command",
-                  { status: "offline", reason: "remote_exit_command" },
-                  "info",
-                );
-              }
-
-              localStorage.clear();
-
-              if (client && typeof client.end === "function") {
-                client.end(true, function () {
-                  console.log("MQTT client disconnected.");
-                });
-              }
-
-              try {
-                if (typeof tizen !== "undefined" && tizen.application) {
-                  tizen.application.getCurrentApplication().exit();
-                } else {
-                  console.warn("Tizen application API not available.");
-                  window.close();
-                }
-              } catch (e) {
-                console.warn("⚠️ Unable to close window:", e.message);
-              }
-            })
-            .catch(function (err) {
-              // ❌ User cancelled or error happened
-              console.warn("❌ Exit cancelled or failed:", err);
-            });
+          handleRemoteExit(data.commandId);
         } else if (data.action === "updateGroup") {
           console.log("🔄 Updating group subscription...");
           resubscribeGroupTopic(data.group_id);
@@ -816,8 +792,46 @@ function processAds(
   rememberPayload(payloadMeta);
   publishAcknowledgment(client, payloadMeta);
 
+  // Remember what was applied so the gap monitor can switch between the layout and the
+  // standalone ads as the clock moves (no new push needed).
+  try {
+    window.lastServerPayload = mockServerPayload;
+    window.currentContentMode = resolveContentMode(mockServerPayload);
+    startContentModeMonitor();
+  } catch (e) {
+    console.warn("⚠️ Could not start content mode monitor:", e && e.message);
+  }
+
   // 3. Send the clean, multi-zone payload directly to your Zone Controller architecture
   handleMQTTAds(cleanPayload);
+}
+
+// ---------------------------------------------------------------------------
+// Layout time gaps. Priority is live content > layout > standalone ads. A layout that is
+// outside its time slots (or has nothing scheduled in any zone right now) hands the screen to
+// the standalone ads, and takes it back when its next slot opens. The decision is re-made
+// every few seconds from the last manifest; applying it reuses the normal payload path
+// (serialised by mqttAdsQueue), without an ack or a re-download of unchanged files.
+// ---------------------------------------------------------------------------
+var CONTENT_MODE_CHECK_MS = 5000;
+var contentModeTimer = null;
+
+function startContentModeMonitor() {
+  if (contentModeTimer) return;
+  contentModeTimer = setInterval(function () {
+    try {
+      if (window.deviceExiting || !window.lastServerPayload) return;
+      var mode = resolveContentMode(window.lastServerPayload);
+      if (mode === window.currentContentMode) return;
+      console.log(
+        "🔀 Content mode changed: " + window.currentContentMode + " -> " + mode,
+      );
+      window.currentContentMode = mode;
+      handleMQTTAds(transformPayload(window.lastServerPayload));
+    } catch (e) {
+      console.error("❌ Content mode monitor failed:", e && e.message);
+    }
+  }, CONTENT_MODE_CHECK_MS);
 }
 
 // Extracts the server-assigned payload identity from an ads/ message.
@@ -895,6 +909,176 @@ function publishAcknowledgment(client, payloadMeta, status, reason) {
   } catch (e) {
     console.error("❌ Acknowledgment failed:", e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Remote exit (device deleted from the CMS)
+// ---------------------------------------------------------------------------
+window.deviceExiting = false;
+
+// Confirm to the server FIRST (retries, never throws), then tear down. If the
+// server cannot be reached the confirmation is parked in localStorage (written
+// after the wipe) and retried at next boot by flushPendingExitConfirm().
+function handleRemoteExit(commandId) {
+  if (window.deviceExiting) return; // QoS 2 redelivery / duplicate command
+  window.deviceExiting = true;
+
+  deviceExitConfirm(commandId)
+    .then(function (result) {
+      performDeviceExitTeardown(
+        result.confirmed ? null : result.payload,
+        "remote_exit_command",
+      );
+    })
+    .catch(function (err) {
+      console.error("❌ Exit confirm crashed, tearing down anyway:", err);
+      performDeviceExitTeardown(null, "remote_exit_command");
+    });
+}
+
+function wipeIndexedDatabases() {
+  return new Promise(function (resolve) {
+    try {
+      if (window.dataManager && window.dataManager.db) {
+        window.dataManager.db.close();
+      }
+      if (typeof indexedDB === "undefined") return resolve();
+
+      var done = false;
+      var finish = function () {
+        if (!done) {
+          done = true;
+          resolve();
+        }
+      };
+      setTimeout(finish, 2000); // never block the teardown
+
+      var names = ["AdupDataDB", "ProofOfPlayDB"];
+      var remaining = names.length;
+      var settle = function () {
+        remaining--;
+        if (remaining <= 0) finish();
+      };
+      names.forEach(function (name) {
+        try {
+          var req = indexedDB.deleteDatabase(name);
+          req.onsuccess = settle;
+          req.onerror = settle;
+          req.onblocked = settle;
+        } catch (e) {
+          settle();
+        }
+      });
+    } catch (e) {
+      console.warn("⚠️ IndexedDB wipe failed:", e.message);
+      resolve();
+    }
+  });
+}
+
+function wipeDownloadedMedia() {
+  return new Promise(function (resolve) {
+    try {
+      if (typeof tizen === "undefined" || !tizen.filesystem) return resolve();
+      setTimeout(resolve, 3000); // never block the teardown
+      tizen.filesystem.resolve(
+        "downloads/subDir",
+        function (dir) {
+          dir.listFiles(
+            function (entries) {
+              var pending = entries.length;
+              if (!pending) return resolve();
+              entries.forEach(function (entry) {
+                var onDone = function () {
+                  pending--;
+                  if (pending <= 0) resolve();
+                };
+                try {
+                  if (entry.isFile) dir.deleteFile(entry.fullPath, onDone, onDone);
+                  else onDone();
+                } catch (e) {
+                  onDone();
+                }
+              });
+            },
+            function () {
+              resolve();
+            },
+          );
+        },
+        function () {
+          resolve();
+        },
+        "rw",
+      );
+    } catch (e) {
+      console.warn("⚠️ Media wipe failed:", e.message);
+      resolve();
+    }
+  });
+}
+
+// pendingConfirm: payload to retry at next boot when the server was unreachable.
+function performDeviceExitTeardown(pendingConfirm, reason) {
+  window.deviceExiting = true;
+
+  // Give the TV its own mute state back (the zone mute option may have changed it)
+  try {
+    if (typeof ZoneAudio !== "undefined") ZoneAudio.restore();
+  } catch (e) {}
+
+  if (typeof window.triggerDeviceNotification === "function") {
+    try {
+      window.triggerDeviceNotification(
+        "DEVICE_OFFLINE",
+        "Device Stopped",
+        "Screen application terminated (" + reason + ")",
+        { status: "offline", reason: reason },
+        "info",
+      );
+    } catch (e) {
+      console.warn("⚠️ Exit notification failed:", e.message);
+    }
+  }
+
+  Promise.all([wipeIndexedDatabases(), wipeDownloadedMedia()]).then(
+    function () {
+      localStorage.clear();
+      if (pendingConfirm) {
+        try {
+          localStorage.setItem(
+            PENDING_EXIT_CONFIRM_KEY,
+            JSON.stringify(pendingConfirm),
+          );
+        } catch (e) {
+          console.warn("⚠️ Could not persist pending exit confirm:", e.message);
+        }
+      }
+
+      // Best effort: nothing here may stop the app from exiting below.
+      try {
+        var mqttRef = window.mqttClient;
+        if (mqttRef && typeof mqttRef.end === "function") {
+          mqttRef.end(true, function () {
+            console.log("MQTT client disconnected.");
+          });
+        }
+      } catch (e) {
+        console.warn("⚠️ MQTT disconnect failed:", e.message);
+      }
+
+      try {
+        if (typeof tizen !== "undefined" && tizen.application) {
+          tizen.application.getCurrentApplication().exit();
+        } else {
+          console.warn("Tizen application API not available.");
+          window.close();
+        }
+      } catch (e) {
+        console.warn("⚠️ Unable to close window:", e.message);
+      }
+    },
+  );
 }
 
 function deletePlaceHolderFile(fileBaseName) {

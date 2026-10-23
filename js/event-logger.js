@@ -195,6 +195,12 @@ class EventLogger {
       return;
     }
 
+    // The device is being removed from the CMS and its databases are being
+    // wiped: nothing logged now can be stored, and trying to would only fail.
+    if (window.deviceExiting) {
+      return;
+    }
+
     const event = {
       eventId: generateUUID(),
       timestamp: new Date().toISOString(),
@@ -257,6 +263,19 @@ class EventLogger {
       return;
     }
 
+    // A failed write is itself logged (console.error -> DIAGNOSTIC_ERROR event,
+    // which is "critical" and flushes immediately). Without these two guards one
+    // IndexedDB failure re-enters flushEvents from its own error handlers and
+    // grows into an endless error storm. Allow one flush at a time, and after a
+    // failure leave the queue alone until the retry time.
+    if (this._flushing) {
+      return;
+    }
+    if (this._flushBlockedUntil && Date.now() < this._flushBlockedUntil) {
+      return;
+    }
+    this._flushing = true;
+
     const eventsToFlush = [...this.eventQueue];
     this.eventQueue = [];
 
@@ -276,9 +295,13 @@ class EventLogger {
         logWarn("DataManager not available, events returned to queue");
       }
     } catch (error) {
+      // Block before logging: the log call below re-enters logEvent/flushEvents.
+      this._flushBlockedUntil = Date.now() + 30000;
       logError("Failed to flush events:", error);
-      // Put events back in queue for retry
+      // Put events back in queue for retry (the queue is size-capped in logEvent)
       this.eventQueue.unshift(...eventsToFlush);
+    } finally {
+      this._flushing = false;
     }
   }
 

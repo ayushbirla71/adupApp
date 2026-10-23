@@ -23,6 +23,18 @@ class ProofOfPlayTracker {
       return null;
     }
 
+    // The placeholder is filler shown when nothing is scheduled, not an
+    // advertiser play: never record or send proof of play for it. This is an
+    // explicit check on purpose (it used to be skipped only because it had no id).
+    if (
+      adData.is_placeholder === true ||
+      adData.type === "placeholder" ||
+      adData.ad_id === "placeholder" ||
+      adData.adId === "placeholder"
+    ) {
+      return null;
+    }
+
     if(!adData.ad_id && !adData.adId){
          return null
     }

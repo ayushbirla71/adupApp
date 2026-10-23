@@ -57,6 +57,107 @@ function getRotationValue() {
 
 
 // ==========================================
+// ZONE AUDIO (the CMS "mute" option of a zone)
+// ==========================================
+// AVPlay has no per-player mute and a TV has one volume, so the zone's mute option is applied
+// to the TV: it is muted only while everything that is currently making sound wants to be
+// muted. Needs the tv.audio privilege (config.xml); without it the option cannot be applied.
+// The TV's own mute state is restored when nothing plays sound and when the app exits.
+const ZoneAudio = {
+  requests: {}, // zoneId -> true when that zone's current source wants to be muted
+  initialMute: null, // the TV's mute state before this app first changed it
+  applied: null,
+  warned: false,
+
+  api() {
+    try {
+      return typeof tizen !== "undefined" && tizen.tvaudiocontrol ? tizen.tvaudiocontrol : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // A zone starts playing a source with sound (video / live stream).
+  set(zoneId, muted) {
+    this.requests[zoneId] = !!muted;
+    this.apply();
+  },
+
+  // That zone no longer plays sound (stopped, replaced by an image, destroyed).
+  clear(zoneId) {
+    if (Object.prototype.hasOwnProperty.call(this.requests, zoneId)) {
+      delete this.requests[zoneId];
+      this.apply();
+    }
+  },
+
+  apply() {
+    try {
+      const ids = Object.keys(this.requests);
+      const audio = this.api();
+      if (!audio || typeof audio.setMute !== "function") {
+        if (ids.length && !this.warned) {
+          this.warned = true;
+          console.warn("⚠️ tizen.tvaudiocontrol unavailable: the zone mute option cannot be applied");
+        }
+        return;
+      }
+      if (this.initialMute === null) {
+        try {
+          const read = audio.isMute || audio.getMute;
+          this.initialMute = !!(read ? read.call(audio) : false);
+        } catch (e) {
+          this.initialMute = false;
+        }
+        this.applied = this.initialMute; // the TV is in this state until we change it
+      }
+      const wantMute = ids.length > 0 ? ids.every((id) => this.requests[id]) : this.initialMute;
+      if (this.applied === wantMute) return;
+      audio.setMute(wantMute);
+      this.applied = wantMute;
+    } catch (e) {
+      console.warn("⚠️ ZoneAudio failed:", e && e.message);
+    }
+  },
+
+  // App exit: give the TV back its original mute state.
+  restore() {
+    this.requests = {};
+    this.apply();
+  },
+};
+
+// ==========================================
+// SHARED AVPLAY OBJECTS
+// ==========================================
+// The AVPlay <object>s of the video zone and their players live for the whole app run and are
+// handed from one video zone to the next. Creating them per zone does not work reliably:
+// webapis.avplaystore keys a player by its element id and never frees it, so a rebuilt zone
+// (same id) can get a player still bound to the element that was just removed, and every
+// rebuild leaks instances. Result: the first live stream plays, the one after the next payload
+// stays black. Only one zone ever owns video (transformPayload assigns a single decoder zone).
+const AvPool = {
+  owner: null, // the ZoneController currently using the shared objects
+  container: null,
+  p1Element: null,
+  p2Element: null,
+  stgElement: null,
+  p1: null,
+  p2: null,
+  stg: null,
+
+  claim(zone) {
+    if (this.owner && this.owner !== zone) return false;
+    this.owner = zone;
+    return true;
+  },
+
+  release(zone) {
+    if (this.owner === zone) this.owner = null;
+  },
+};
+
+// ==========================================
 // 2. ZONE CONTROLLER CLASS
 // ==========================================
 class ZoneController {
@@ -89,33 +190,64 @@ class ZoneController {
     this.stg = null;
     this.useP1Next = true;
 
+    // The video zone borrows the shared AVPlay objects (see AvPool); any further video zone
+    // falls back to its own.
+    const isVideoZone = this.type === "video_primary" || this.type === "video";
+    this.usesAvPool = isVideoZone && AvPool.claim(this);
+
     this.initZoneDOM();
-    if (this.type === "video_primary" || this.type === "video") {
+    if (isVideoZone) {
       this.initVideoPlayers();
     }
   }
 
   initZoneDOM() {
-    this.container = document.createElement("div");
-    this.container.id = `zone_${this.zoneId}`;
-    this.container.style.cssText = `position:absolute; left:${this.rect.x}px; transform: translateZ(0); border-radius:${this.border_radius}px; overflow:hidden; top:${this.rect.y}px; width:${this.rect.w}px; height:${this.rect.h}px; overflow:hidden; background-color:transparent; z-index:${this.zIndex};`;
-
+    const containerCss = `position:absolute; left:${this.rect.x}px; transform: translateZ(0); border-radius:${this.border_radius}px; overflow:hidden; top:${this.rect.y}px; width:${this.rect.w}px; height:${this.rect.h}px; overflow:hidden; background-color:transparent; z-index:${this.zIndex};`;
     const playerCss = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:15;`;
 
-    this.p1Element = document.createElement("object");
-    this.p1Element.type = "application/avplayer";
-    this.p1Element.id = `av-player-1-${this.zoneId}`;
-    this.p1Element.style.cssText = playerCss;
+    // Adopt the parked container of the previous video zone: its AVPlay objects stay attached
+    // to the page the whole time.
+    const adopt = !!(this.usesAvPool && AvPool.container && AvPool.container.parentNode);
 
-    this.p2Element = document.createElement("object");
-    this.p2Element.type = "application/avplayer";
-    this.p2Element.id = `av-player-2-${this.zoneId}`;
-    this.p2Element.style.cssText = playerCss;
+    if (adopt) {
+      this.container = AvPool.container;
+      this.container.id = `zone_${this.zoneId}`;
+      this.container.style.cssText = containerCss; // also clears the "parked" display:none
 
-    this.stgElement = document.createElement("object");
-    this.stgElement.type = "application/avplayer";
-    this.stgElement.id = `hls-player-${this.zoneId}`;
-    this.stgElement.style.cssText = playerCss;
+      this.p1Element = AvPool.p1Element;
+      this.p2Element = AvPool.p2Element;
+      this.stgElement = AvPool.stgElement;
+      [this.p1Element, this.p2Element, this.stgElement].forEach((el) => {
+        el.style.cssText = playerCss;
+        el.className = "";
+      });
+
+      // Drop the previous zone's images / iframes / widgets, keep the AVPlay objects.
+      Array.from(this.container.children).forEach((child) => {
+        if (child !== this.p1Element && child !== this.p2Element && child !== this.stgElement) {
+          this.container.removeChild(child);
+        }
+      });
+    } else {
+      this.container = document.createElement("div");
+      this.container.id = `zone_${this.zoneId}`;
+      this.container.style.cssText = containerCss;
+
+      this.p1Element = document.createElement("object");
+      this.p1Element.type = "application/avplayer";
+      this.p1Element.id = `av-player-1-${this.zoneId}`;
+      this.p1Element.style.cssText = playerCss;
+
+      this.p2Element = document.createElement("object");
+      this.p2Element.type = "application/avplayer";
+      this.p2Element.id = `av-player-2-${this.zoneId}`;
+      this.p2Element.style.cssText = playerCss;
+
+      this.stgElement = document.createElement("object");
+      this.stgElement.type = "application/avplayer";
+      this.stgElement.id = `hls-player-${this.zoneId}`;
+      this.stgElement.style.cssText = playerCss;
+    }
 
     this.img1 = document.createElement("img");
     this.img2 = document.createElement("img");
@@ -131,25 +263,49 @@ class ZoneController {
     this.widgetContainer = document.createElement("div");
     this.widgetContainer.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:none; z-index:25; background-color:transparent; overflow:hidden;`;
 
-    this.container.appendChild(this.p1Element);
-    this.container.appendChild(this.p2Element);
-    this.container.appendChild(this.stgElement);
+    // Adopted AVPlay objects are already in the page: moving a plugin <object> would detach it.
+    if (!adopt) {
+      this.container.appendChild(this.p1Element);
+      this.container.appendChild(this.p2Element);
+      this.container.appendChild(this.stgElement);
+    }
     this.container.appendChild(this.img1);
     this.container.appendChild(this.img2);
     this.container.appendChild(this.iframeContainer);
     this.container.appendChild(this.widgetContainer);
 
-    document.getElementById("ad_player")?.appendChild(this.container) ||
-      document.body.appendChild(this.container);
+    if (!adopt) {
+      document.getElementById("ad_player")?.appendChild(this.container) ||
+        document.body.appendChild(this.container);
+
+      if (this.usesAvPool) {
+        AvPool.container = this.container;
+        AvPool.p1Element = this.p1Element;
+        AvPool.p2Element = this.p2Element;
+        AvPool.stgElement = this.stgElement;
+      }
+    }
   }
 
   initVideoPlayers() {
+    // Reuse the shared players: same objects, same page elements, nothing re-created.
+    if (this.usesAvPool && AvPool.p1) {
+      this.p1 = AvPool.p1;
+      this.p2 = AvPool.p2;
+      this.stg = AvPool.stg;
+      return;
+    }
     try {
       this.p1 = webapis.avplaystore.getPlayer(this.p1Element.id);
       this.p2 = webapis.avplaystore.getPlayer(this.p2Element.id);
       this.stg = webapis.avplaystore.getPlayer(this.stgElement.id);
     } catch (e) {
       console.error(`❌ AVPlay error in zone ${this.zoneId}`, e);
+    }
+    if (this.usesAvPool && this.p1) {
+      AvPool.p1 = this.p1;
+      AvPool.p2 = this.p2;
+      AvPool.stg = this.stg;
     }
   }
 
@@ -263,10 +419,57 @@ async playLoop(queue) {
           }
         }
       } else {
+        // Nothing in this zone is scheduled right now: don't leave the last image / video
+        // frame frozen on screen during the gap.
+        if (!queue.some((q) => shouldPlayContent(q))) this.clearDisplay();
         await new Promise((r) => setTimeout(r, 1000));
       }
       this.iterator++;
     }
+  }
+
+  // Hides whatever this zone last showed (image, widget, video) without destroying the zone.
+  clearDisplay() {
+    ZoneAudio.clear(this.zoneId);
+    try {
+      if (this.widgetInterval) clearInterval(this.widgetInterval);
+      if (this.widgetContainer) {
+        this.widgetContainer.innerHTML = "";
+        this.widgetContainer.style.display = "none";
+      }
+      if (this.img1) this.img1.style.display = "none";
+      if (this.img2) this.img2.style.display = "none";
+      if (this.p1Element) this.p1Element.style.display = "none";
+      if (this.p2Element) this.p2Element.style.display = "none";
+      if (this.p1 && this.p1.getState() !== "IDLE" && this.p1.getState() !== "NONE") this.p1.stop();
+      if (this.p2 && this.p2.getState() !== "IDLE" && this.p2.getState() !== "NONE") this.p2.stop();
+    } catch (e) {
+      console.warn("clearDisplay failed:", e && e.message);
+    }
+  }
+
+  // A zone with a single scheduled item sets no end-of-play timer, so it would stay on screen
+  // after its slot closes. When the item has a schedule, re-check it once a second and end the
+  // play (via onSlotClosed) as soon as the slot is over. Items with no schedule keep running.
+  watchSlotEnd(item, signal, onSlotClosed) {
+    const scheduled =
+      item &&
+      ((item.time_slots && item.time_slots.length > 0) ||
+        (item.weekdays && item.weekdays.length > 0));
+    if (!scheduled) return;
+    const check = () => {
+      if (signal.aborted) return;
+      let stillPlayable = true;
+      try {
+        stillPlayable = shouldPlayContent(item);
+      } catch (e) {}
+      if (!stillPlayable) {
+        onSlotClosed();
+        return;
+      }
+      this.timeoutBox = setTimeout(check, 1000);
+    };
+    this.timeoutBox = setTimeout(check, 1000);
   }
 
   // ==========================================
@@ -281,9 +484,10 @@ async playLoop(queue) {
       }
 
       // Cleanup Environment
+      ZoneAudio.clear(this.zoneId); // the video players are stopped below
       if (this.timeoutBox) clearTimeout(this.timeoutBox);
       if (this.widgetInterval) clearInterval(this.widgetInterval);
-      
+
       if (this.p1Element) this.p1Element.style.display = "none";
       if (this.p2Element) this.p2Element.style.display = "none";
       try {
@@ -615,6 +819,13 @@ async playLoop(queue) {
               resolve();
             }
           }, item.duration * 1000 || 15000);
+      } else {
+        // Single item: ends only when its slot closes (if it has one)
+        this.watchSlotEnd(item, signal, () => {
+          finishWidget();
+          if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+          resolve();
+        });
       }
 
       signal.addEventListener("abort", () => {
@@ -707,6 +918,8 @@ async playLoop(queue) {
         if (this.p2 && this.p2.getState() !== "IDLE" && this.p2.getState() !== "NONE") this.p2.stop();
       } catch(e){}
 
+      ZoneAudio.clear(this.zoneId); // the video players were stopped above: no sound from this zone
+
       let currentImg = this.useImage1 ? this.img1 : this.img2;
       let prevImg = this.useImage1 ? this.img2 : this.img1;
 
@@ -738,6 +951,13 @@ async playLoop(queue) {
               resolve();
             }
           }, item.duration * 1000 || 10000);
+      } else {
+        // Single item: ends only when its slot closes (if it has one)
+        this.watchSlotEnd(item, signal, () => {
+          currentImg.style.display = "none";
+          if (trackingId) window.proofOfPlayTracker.endTracking(trackingId, "completed");
+          resolve();
+        });
       }
 
       signal.addEventListener("abort", () => {
@@ -757,6 +977,10 @@ async playLoop(queue) {
         window.proofOfPlayTracker.addPlaybackEvent(trackingId, "PLAYBACK_STARTED", { fileName: file, zone: this.zoneId });
       }
       if (this.widgetContainer) this.widgetContainer.style.display = "none";
+
+      // The zone's CMS mute option. Not released when the video ends (the next video sets it
+      // again), so back-to-back videos don't toggle the TV's mute between clips.
+      ZoneAudio.set(this.zoneId, item && item.is_muted);
 
       // 1. Assign Active & Background Players based on what's available
       let activePlayer = this.p1;
@@ -959,11 +1183,14 @@ async handleLiveContentMode(liveItem) {
       return;
     }
     if (!this.liveKeeper) this.liveKeeper = new LiveEdgeKeeper(this);
+    // The zone's CMS mute option (or the live source's own mute setting)
+    ZoneAudio.set(this.zoneId, liveItem.is_muted);
     this.liveKeeper.start(liveItem);
   }
 
   stopLiveKeeper() {
     if (this.liveKeeper) this.liveKeeper.stop();
+    ZoneAudio.clear(this.zoneId);
   }
 
   // True when a new payload can keep this zone (and its running live stream)
@@ -1148,25 +1375,22 @@ playWebsiteZone(liveItem) {
     
     this.m3u8RetryTimeouts.forEach(clearTimeout);
     this.stopLiveKeeper();
+    ZoneAudio.clear(this.zoneId);
 
-    if (this.p1) {
-      try {
-        this.p1.stop();
-        this.p1.close();
-      } catch (e) {}
+    // The shared AVPlay objects are handed to the next video zone, not closed and removed.
+    if (this.usesAvPool && AvPool.owner === this) {
+      this.releaseToPool();
+      return;
     }
-    if (this.p2) {
-      try {
-        this.p2.stop();
-        this.p2.close();
-      } catch (e) {}
-    }
-    if (this.stg) {
-      try {
-        this.stg.stop();
-        this.stg.close();
-      } catch (e) {}
-    }
+
+    // Own players: stop and close each one independently. (A stop() that throws on an idle
+    // player used to skip its close(), leaving the player allocated.)
+    [this.p1, this.p2, this.stg].forEach((player) => {
+      if (!player) return;
+      try { player.setListener({}); } catch (e) {}
+      try { player.stop(); } catch (e) {}
+      try { player.close(); } catch (e) {}
+    });
 
     if (this.p1Element) this.p1Element.style.display = "none";
     if (this.p2Element) this.p2Element.style.display = "none";
@@ -1175,6 +1399,34 @@ playWebsiteZone(liveItem) {
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
+  }
+
+  // Gives the shared AVPlay objects back: stops playback, detaches this zone's listeners and
+  // hides everything, but leaves the objects attached to the page for the next video zone.
+  releaseToPool() {
+    [this.p1, this.p2, this.stg].forEach((player) => {
+      if (!player) return;
+      try { player.setListener({}); } catch (e) {}
+      try { player.stop(); } catch (e) {}
+    });
+
+    [this.p1Element, this.p2Element, this.stgElement].forEach((el) => {
+      if (!el) return;
+      el.style.display = "none";
+      if (el.classList) el.classList.remove("vid");
+    });
+
+    // Remove this zone's own images / iframes / widgets; keep the AVPlay objects.
+    if (this.container) {
+      Array.from(this.container.children).forEach((child) => {
+        if (child !== this.p1Element && child !== this.p2Element && child !== this.stgElement) {
+          this.container.removeChild(child);
+        }
+      });
+      this.container.style.display = "none"; // parked until the next video zone adopts it
+    }
+
+    AvPool.release(this);
   }
 }
 
@@ -1834,6 +2086,23 @@ async function applyMQTTAdsPayload(payload) {
     });
   });
 
+  // Content that is in the manifest but not on screen right now (the layout while the ads are
+  // playing in a time gap, or the ads while the layout plays). It must not be deleted by the
+  // cleanup below, and is downloaded too so switching between them is instant, also offline.
+  // But it is downloaded AFTER the screen is up (see downloadOffScreenItems): it must never
+  // delay what has to be on screen now.
+  const offScreenItems = [];
+  (payload.extraItems || []).forEach((item) => {
+    try {
+      if (isDownloadableContent(item)) {
+        offScreenItems.push(item);
+        expectedFileNames.push(getFileName(item));
+      }
+    } catch (e) {
+      console.warn("⚠️ Skipping off-screen item:", e && e.message);
+    }
+  });
+
   // Remove duplicate filenames just in case multiple zones use the same file
   expectedFileNames = [...new Set(expectedFileNames)];
 
@@ -1879,6 +2148,11 @@ async function applyMQTTAdsPayload(payload) {
       keptZones[zoneId] = zone;
       console.log("♻️ Reusing live zone, stream untouched:", zoneId);
     } else {
+      console.log(
+        "🔁 Rebuilding zone " + zoneId + ": " +
+          (nextCfg ? "its live content / geometry changed" : "it is not in the new payload") +
+          " (shared AVPlay objects are reused, not recreated)",
+      );
       zone.destroy();
     }
   });
@@ -1901,6 +2175,30 @@ const bgColor = payload.background_color || "#000000";
     activeZones[zoneConfig.zone_id] = zone;
     zone.startPlayback();
   });
+
+  // The screen is up: now fetch the content that is not needed yet (not awaited).
+  downloadOffScreenItems(offScreenItems);
+}
+
+// Background download of manifest content that is not on screen (e.g. the layout's media while
+// the ads play). One run at a time: a newer payload supersedes the previous run.
+let offScreenDownloadRun = 0;
+async function downloadOffScreenItems(items) {
+  const run = ++offScreenDownloadRun;
+  for (const item of items) {
+    if (run !== offScreenDownloadRun || window.deviceExiting) return;
+    try {
+      const fileName = getFileName(item);
+      if (globalDownloads.has(fileName)) continue;
+      globalDownloads.add(fileName);
+      await checkAndDownloadContent(
+        item.url || (item.config && item.config.url),
+        fileName,
+      );
+    } catch (e) {
+      console.error("Off-screen download failed:", e && e.message);
+    }
+  }
 }
 
 function checkAndDownloadContent(url, fileName) {
@@ -2110,4 +2408,5 @@ function deleteFileFromDir(dir, name) {
 // Cleanup on exit
 window.addEventListener("unload", () => {
   Object.values(activeZones).forEach((zone) => zone.destroy());
+  ZoneAudio.restore(); // give the TV its own mute state back
 });

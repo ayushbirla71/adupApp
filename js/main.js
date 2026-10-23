@@ -143,6 +143,10 @@ window.onload = async function () {
   // localStorage.setItem("group_id", "c5507d36-a0cd-4087-9d32-f7c7c1f229dd");
   // localStorage.setItem("device_id", "caf0b3a1-8a11-42d0-8068-131d0f875b57");
 
+  // Retry an exit confirmation that could not reach the server last time.
+  // Awaited so it can't land after a re-pairing and delete the fresh record.
+  await flushPendingExitConfirm();
+
   if (localStorage.getItem("group_id")?.trim()) {
     setTimeout(function () {
       $(".login_loader").hide();

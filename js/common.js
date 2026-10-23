@@ -1254,7 +1254,126 @@ function updateLogoVisibility(rcs_enabled, logo_enabled) {
 // }
 
 
+// ============================================================================
+// CONTENT PRIORITY: live content  >  layout  >  standalone ads (placeholder rides with the ads)
+//
+// A layout only counts while it is "active now": its own time slots / weekdays are open AND at
+// least one zone item inside it is scheduled for this moment. Otherwise the layout is skipped
+// and the standalone ads play in the gap, until the layout's next slot opens. Slots are evaluated
+// on the TV's clock by the existing shouldPlayContent() helper (device-storage.js).
+// ============================================================================
+function getWidgetType(rawType) {
+    if (!rawType) return 'iframe';
+    const supported = ["clock_analog", "clock_digital", "calendar", "logo", "emoji", "sliding_text", "ticker", "countdown_timer", "heading_v1", "heading"];
+    return supported.includes(rawType) ? rawType : 'iframe';
+}
+
+function mapAdItem(itemData, scheduleInfo = null) {
+    let isWidget = itemData.type === "widget" || (scheduleInfo && scheduleInfo.content_type === "widget");
+
+    let mappedItem = {
+        ad_id: itemData.ad_id || itemData.widget_id || itemData.live_content_id || itemData.id,
+        name: itemData.name,
+        timestamp: itemData.timestamp || null,
+        website_type:itemData.website_type || null,
+        url: itemData.url || (scheduleInfo?.widget_config ? scheduleInfo.widget_config.url : null),
+        file_extension: itemData.file_extension || (isWidget ? 'widget' : 'mp4'),
+        duration: itemData.duration || 15,
+        time_slots: scheduleInfo ? scheduleInfo.time_slots : itemData.time_slots,
+        weekdays: scheduleInfo ? scheduleInfo.weekdays : itemData.weekdays,
+        // Filler shown when nothing is scheduled: played, but never proof-of-play
+        is_placeholder: itemData.type === "placeholder" || (scheduleInfo && scheduleInfo.content_type === "placeholder") || false,
+        // Zone "mute" option from the CMS (zone schedule is_muted), or a live source configured
+        // to be muted (content.config.mute). Applied through ZoneAudio (device-storage.js).
+        is_muted: !!((scheduleInfo && scheduleInfo.is_muted) || itemData.is_muted ||
+                     (itemData.config && itemData.config.mute === true))
+    };
+
+    if (isWidget) {
+        mappedItem.is_widget = true;
+        mappedItem.widget_type = getWidgetType(scheduleInfo?.content?.type || itemData.type);
+        mappedItem.aspect_ratio = scheduleInfo?.content?.aspect_ratio || itemData.aspect_ratio || null;
+        mappedItem.config = scheduleInfo?.widget_config || {};
+    }
+    return mappedItem;
+}
+
+// Is a schedule entry (a layout, or a zone schedule) inside its slots / weekdays right now?
+function scheduleIsActiveNow(entry) {
+    try {
+        if (typeof shouldPlayContent !== "function") return true;
+        return shouldPlayContent({
+            time_slots: entry ? entry.time_slots : null,
+            weekdays: entry ? entry.weekdays : null
+        });
+    } catch (e) {
+        return true; // never hide content because the check itself failed
+    }
+}
+
+function layoutHasActiveContent(layout) {
+    return (layout.zones || []).some(z =>
+        (z.zone_schedules || []).some(s => s && s.content && scheduleIsActiveNow(s)));
+}
+
+function layoutIsActiveNow(layout) {
+    return scheduleIsActiveNow(layout) && layoutHasActiveContent(layout);
+}
+
+// First layout (backend order = priority) that is active now, or null during a time gap.
+function pickActiveLayout(contentArray) {
+    return contentArray.filter(i => i && i.type === "layout").find(layoutIsActiveNow) || null;
+}
+
+// "live" | "layout:<id>" | "ads": what should be on screen right now. Cheap and silent, so the
+// gap monitor in ads.js can call it every few seconds.
+function resolveContentMode(serverPayload) {
+    const content = serverPayload && Array.isArray(serverPayload.content) ? serverPayload.content : [];
+    if (content.some(i => i && i.type === "live_content")) return "live";
+    const layout = pickActiveLayout(content);
+    return layout ? "layout:" + layout.id : "ads";
+}
+
+// Every item of the manifest that has to exist on disk, whether or not it is on screen now
+// (layout media while the ads play, ad media while the layout plays). Lets the player keep and
+// download all of it, so switching between them needs no download.
+function collectAllDownloadableItems(serverPayload) {
+    const out = [];
+    const content = serverPayload && Array.isArray(serverPayload.content) ? serverPayload.content : [];
+    const add = (data, schedule) => {
+        try { out.push(mapAdItem(data, schedule)); } catch (e) {}
+    };
+    content.forEach(item => {
+        if (!item) return;
+        if (item.type === "ad" || item.type === "placeholder" || item.type === "widget") {
+            add(item, null);
+        } else if (item.type === "carousel" && Array.isArray(item.items)) {
+            item.items.forEach(i => add(i, null));
+        } else if (item.type === "layout") {
+            (item.zones || []).forEach(z => (z.zone_schedules || []).forEach(s => {
+                if (!s || !s.content) return;
+                if (s.content_type === "carousel") {
+                    (s.content.items || []).forEach(i => add(i, s));
+                } else if (s.content_type === "ad" || s.content_type === "widget" || s.content_type === "placeholder") {
+                    add(s.content, s);
+                }
+            }));
+        }
+    });
+    return out;
+}
+
 function transformPayload(serverPayload) {
+    const result = transformPayloadCore(serverPayload);
+    try {
+        result.extraItems = collectAllDownloadableItems(serverPayload);
+    } catch (e) {
+        result.extraItems = [];
+    }
+    return result;
+}
+
+function transformPayloadCore(serverPayload) {
     if (!serverPayload || !serverPayload.content || !Array.isArray(serverPayload.content)) {
         console.warn("⚠️ Invalid payload structure. Showing empty layout.");
         return { rcs_enabled: false, zones: [] };
@@ -1271,35 +1390,8 @@ let screenH = isPortrait ? 1920 : 1080;
     // ⭐ SAFE RCS CHECK: Handles both booleans (true) and strings ("true")
     const isRcsEnabled = serverPayload.rcs_enabled === true || String(serverPayload.rcs_enabled).toLowerCase() === "true";
 
-    const getWidgetType = (rawType) => {
-        if (!rawType) return 'iframe';
-        const supported = ["clock_analog", "clock_digital", "calendar", "logo", "emoji", "sliding_text", "ticker", "countdown_timer", "heading_v1", "heading"];
-        return supported.includes(rawType) ? rawType : 'iframe';
-    };
-
-    const mapAdItem = (itemData, scheduleInfo = null) => {
-        let isWidget = itemData.type === "widget" || (scheduleInfo && scheduleInfo.content_type === "widget");
-        
-        let mappedItem = {
-            ad_id: itemData.ad_id || itemData.widget_id || itemData.live_content_id || itemData.id,
-            name: itemData.name,
-            timestamp: itemData.timestamp || null,
-            website_type:itemData.website_type || null,
-            url: itemData.url || (scheduleInfo?.widget_config ? scheduleInfo.widget_config.url : null),
-            file_extension: itemData.file_extension || (isWidget ? 'widget' : 'mp4'),
-            duration: itemData.duration || 15,
-            time_slots: scheduleInfo ? scheduleInfo.time_slots : itemData.time_slots,
-            weekdays: scheduleInfo ? scheduleInfo.weekdays : itemData.weekdays
-        };
-
-        if (isWidget) {
-            mappedItem.is_widget = true;
-            mappedItem.widget_type = getWidgetType(scheduleInfo?.content?.type || itemData.type);
-            mappedItem.aspect_ratio = scheduleInfo?.content?.aspect_ratio || itemData.aspect_ratio || null; 
-            mappedItem.config = scheduleInfo?.widget_config || {};
-        }
-        return mappedItem;
-    };
+    // getWidgetType() and mapAdItem() are top-level functions (see above) so the manifest's
+    // off-screen items can be mapped the same way.
 
     // ========================================================================
     // ⭐ NEW CONTENT-AWARE CHECK: Does this zone actually contain Video/Live?
@@ -1345,7 +1437,11 @@ let screenH = isPortrait ? 1920 : 1080;
     }
 
     // PRIORITY 2: Multi-Zone Layout
-    const layoutContent = contentArray.find(item => item.type === "layout");
+    // Only a layout that is active now (own slots open + something playable in a zone).
+    const layoutContent = pickActiveLayout(contentArray);
+    if (!layoutContent && contentArray.some(item => item && item.type === "layout")) {
+        console.log("⏳ PRIORITY 2 skipped: layout time gap, standalone ads take over.");
+    }
     if (layoutContent) {
         console.log("🪟 PRIORITY 2: Multi-Zone Layout Detected.");
         background_color = layoutContent.background_color || "transparent";
